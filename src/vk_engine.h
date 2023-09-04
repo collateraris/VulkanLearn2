@@ -44,6 +44,12 @@ public:
 	VkDevice _device; // Vulkan device for commands
 	VkSurfaceKHR _surface; // Vulkan window surface
 
+	VkImageView _depthImageView;
+	AllocatedImage _depthImage;
+
+	//the format for the depth image
+	VkFormat _depthFormat;
+
 	VkSwapchainKHR _swapchain; // from other articles
 
 	// image format expected by the windowing system
@@ -71,6 +77,7 @@ public:
 	VkPipelineLayout _meshPipelineLayout;
 	VkPipeline _meshPipeline;
 	Mesh _triangleMesh;
+	Mesh _monkeyMesh;
 
 	bool _isInitialized{ false };
 	int _frameNumber {0};
@@ -131,6 +138,7 @@ public:
 	VkPipelineColorBlendAttachmentState _colorBlendAttachment;
 	VkPipelineMultisampleStateCreateInfo _multisampling;
 	VkPipelineLayout _pipelineLayout;
+	VkPipelineDepthStencilStateCreateInfo _depthStencil;
 
 	VkPipeline build_pipeline(VkDevice device, VkRenderPass pass);
 };
