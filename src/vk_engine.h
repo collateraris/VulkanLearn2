@@ -86,14 +86,6 @@ public:
 	VkSemaphore _presentSemaphore, _renderSemaphore;
 	VkFence _renderFence;
 
-	VkPipelineLayout _trianglePipelineLayout;
-	VkPipeline _trianglePipeline;
-
-	VkPipelineLayout _meshPipelineLayout;
-	VkPipeline _meshPipeline;
-	Mesh _triangleMesh;
-	Mesh _monkeyMesh;
-
 	bool _isInitialized{ false };
 	int _frameNumber {0};
 
