@@ -138,7 +138,27 @@ void VulkanEngine::draw()
 	VkDeviceSize offset = 0;
 	vkCmdBindVertexBuffers(cmd, 0, 1, &_triangleMesh._vertexBuffer._buffer, &offset);
 
-	//we can now draw the mesh
+	//make a model view matrix for rendering the object
+	//camera position
+	glm::vec3 camPos = { 0.f,0.f,-2.f };
+
+	glm::mat4 view = glm::translate(glm::mat4(1.f), camPos);
+	//camera projection
+	glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
+	projection[1][1] *= -1;
+	//model rotation
+	glm::mat4 model = glm::rotate(glm::mat4{ 1.0f }, glm::radians(_frameNumber * 0.4f), glm::vec3(0, 1, 0));
+
+	//calculate final mesh matrix
+	glm::mat4 mesh_matrix = projection * view * model;
+
+	MeshPushConstants constants;
+	constants.render_matrix = mesh_matrix;
+
+	//upload the matrix to the GPU via push constants
+	vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
+
+	//we can now draw
 	vkCmdDraw(cmd, _triangleMesh._vertices.size(), 1, 0, 0);
 
 	//finalize the render pass
@@ -553,6 +573,35 @@ void VulkanEngine::init_pipelines() {
 
 	//finally build the pipeline
 	_trianglePipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
+
+	//we start from just the default empty pipeline layout info
+	VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
+
+	//setup push constants
+	VkPushConstantRange push_constant;
+	//this push constant range starts at the beginning
+	push_constant.offset = 0;
+	//this push constant range takes up the size of a MeshPushConstants struct
+	push_constant.size = sizeof(MeshPushConstants);
+	//this push constant range is accessible only in the vertex shader
+	push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+	mesh_pipeline_layout_info.pPushConstantRanges = &push_constant;
+	mesh_pipeline_layout_info.pushConstantRangeCount = 1;
+
+	VK_CHECK(vkCreatePipelineLayout(_device, &mesh_pipeline_layout_info, nullptr, &_meshPipelineLayout));
+
+	pipelineBuilder._pipelineLayout = _meshPipelineLayout;
+
+	_meshPipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
+
+	//later ....
+	//remember to destroy the pipeline layout
+	_mainDeletionQueue.push_function([=]() {
+		//other deletions
+
+		vkDestroyPipelineLayout(_device, _meshPipelineLayout, nullptr);
+		});
 
 	//destroy all shader modules, outside of the queue
 	vkDestroyShaderModule(_device, meshVertShader, nullptr);
