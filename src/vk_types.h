@@ -5,4 +5,11 @@
 
 #include <vulkan/vulkan.h>
 
+#include "vk_mem_alloc.h"
+
 //we will add our main reusable types here
+struct AllocatedBuffer {
+    VkBuffer _buffer;
+    VmaAllocation _allocation;
+};
+

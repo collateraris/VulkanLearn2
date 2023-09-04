@@ -4,6 +4,7 @@
 #pragma once
 
 #include <vk_types.h>
+#include <vk_mesh.h>
 #include <vector>
 #include <deque>
 #include <functional>
@@ -59,6 +60,9 @@ public:
 	VkPipelineLayout _trianglePipelineLayout;
 	VkPipeline _trianglePipeline;
 
+	VkPipeline _meshPipeline;
+	Mesh _triangleMesh;
+
 	bool _isInitialized{ false };
 	int _frameNumber {0};
 
@@ -67,6 +71,8 @@ public:
 	struct SDL_Window* _window{ nullptr };
 
 	DeletionQueue _mainDeletionQueue;
+
+	VmaAllocator _allocator; //vma lib allocator
 
 	//initializes everything in the engine
 	void init();
@@ -98,6 +104,10 @@ private:
 	void init_sync_structures();
 
 	void init_pipelines();
+
+	void load_meshes();
+
+	void upload_mesh(Mesh& mesh);
 };
 
 class PipelineBuilder {
