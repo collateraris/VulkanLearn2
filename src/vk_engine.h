@@ -38,6 +38,14 @@ struct GPUCameraData {
 	glm::mat4 viewproj;
 };
 
+struct GPUSceneData {
+	glm::vec4 fogColor; // w is for exponent
+	glm::vec4 fogDistances; //x for min, y for max, zw unused.
+	glm::vec4 ambientColor;
+	glm::vec4 sunlightDirection; //w for sun power
+	glm::vec4 sunlightColor;
+};
+
 struct DeletionQueue
 {
 	std::deque<std::function<void()>> deletors;
@@ -111,6 +119,13 @@ public:
 
 	VkDescriptorSetLayout _globalSetLayout;
 	VkDescriptorPool _descriptorPool;
+
+	VkPhysicalDeviceProperties _gpuProperties;
+
+	GPUSceneData _sceneParameters;
+	AllocatedBuffer _sceneParameterBuffer;
+
+	size_t pad_uniform_buffer_size(size_t originalSize);
 
 	bool _isInitialized{ false };
 	int _frameNumber {0};
