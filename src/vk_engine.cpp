@@ -1,5 +1,6 @@
 ﻿
 #include "vk_engine.h"
+#include "vk_textures.h"
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
@@ -62,6 +63,8 @@ void VulkanEngine::init()
 	init_descriptors();
 
 	init_pipelines();
+
+	load_images();
 
 	load_meshes();
 
@@ -600,10 +603,10 @@ void VulkanEngine::init_pipelines() {
 	mesh_pipeline_layout_info.pushConstantRangeCount = 1;
 
 	//hook the global set layout
-	VkDescriptorSetLayout setLayouts[] = { _globalSetLayout, _objectSetLayout };
+	std::vector<VkDescriptorSetLayout> setLayouts = { _globalSetLayout, _objectSetLayout,_singleTextureSetLayout };
 
-	mesh_pipeline_layout_info.setLayoutCount = 2;
-	mesh_pipeline_layout_info.pSetLayouts = setLayouts;
+	mesh_pipeline_layout_info.setLayoutCount = setLayouts.size();
+	mesh_pipeline_layout_info.pSetLayouts = setLayouts.data();
 
 	VkPipelineLayout meshPipLayout;
 
@@ -728,30 +731,12 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass) {
 
 void VulkanEngine::load_meshes()
 {
-	Mesh triMesh{};
-	//make the array 3 vertices long
-	triMesh._vertices.resize(3);
+	Mesh lostEmpire{};
+	lostEmpire.load_from_obj("../../assets/lost_empire.obj");
 
-	//vertex positions
-	triMesh._vertices[0].position = { 1.f,1.f, 0.0f };
-	triMesh._vertices[1].position = { -1.f,1.f, 0.0f };
-	triMesh._vertices[2].position = { 0.f,-1.f, 0.0f };
+	upload_mesh(lostEmpire);
 
-	//vertex colors, all green
-	triMesh._vertices[0].color = { 0.f,1.f, 0.0f }; //pure green
-	triMesh._vertices[1].color = { 0.f,1.f, 0.0f }; //pure green
-	triMesh._vertices[2].color = { 0.f,1.f, 0.0f }; //pure green
-	//we dont care about the vertex normals
-
-	//load the monkey
-	Mesh monkeyMesh{};
-	monkeyMesh.load_from_obj("../../assets/monkey_smooth.obj");
-
-	upload_mesh(triMesh);
-	upload_mesh(monkeyMesh);
-
-	_meshes["monkey"] = monkeyMesh;
-	_meshes["triangle"] = triMesh;
+	_meshes["empire"] = lostEmpire;
 }
 
 void VulkanEngine::upload_mesh(Mesh& mesh)
@@ -819,6 +804,18 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 	vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
 }
 
+void VulkanEngine::load_images()
+{
+	Texture lostEmpire;
+
+	vkutil::load_image_from_file(*this, "../../assets/lost_empire-RGBA.png", lostEmpire.image);
+
+	VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(VK_FORMAT_R8G8B8A8_SRGB, lostEmpire.image._image, VK_IMAGE_ASPECT_COLOR_BIT);
+	vkCreateImageView(_device, &imageinfo, nullptr, &lostEmpire.imageView);
+
+	_loadedTextures["empire_diffuse"] = lostEmpire;
+}
+
 FrameData& VulkanEngine::get_current_frame()
 {
 	return _frames[_frameNumber % FRAME_OVERLAP];
@@ -867,7 +864,9 @@ void VulkanEngine::init_descriptors()
 	{
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10 },
-		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 }
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 },
+		//add combined-image-sampler descriptor types to the pool
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10 },
 	};
 
 	VkDescriptorPoolCreateInfo pool_info = {};
@@ -905,6 +904,18 @@ void VulkanEngine::init_descriptors()
 	set2info.pBindings = &objectBind;
 
 	vkCreateDescriptorSetLayout(_device, &set2info, nullptr, &_objectSetLayout);
+
+	//another set, one that holds a single texture
+	VkDescriptorSetLayoutBinding textureBind = vkinit::descriptorset_layout_binding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+
+	VkDescriptorSetLayoutCreateInfo set3info = {};
+	set3info.bindingCount = 1;
+	set3info.flags = 0;
+	set3info.pNext = nullptr;
+	set3info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	set3info.pBindings = &textureBind;
+
+	vkCreateDescriptorSetLayout(_device, &set3info, nullptr, &_singleTextureSetLayout);
 
 	const size_t sceneParamBufferSize = FRAME_OVERLAP * pad_uniform_buffer_size(sizeof(GPUSceneData));
 
@@ -1114,6 +1125,11 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 
 			//object data descriptor
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &get_current_frame().objectDescriptor, 0, nullptr);
+
+			if (object.material->textureSet != VK_NULL_HANDLE) {
+				//texture descriptor
+				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet, 0, nullptr);
+			}
 		}
 
 		MeshPushConstants constants;
@@ -1137,25 +1153,38 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 
 void VulkanEngine::init_scene()
 {
-	RenderObject monkey;
-	monkey.mesh = get_mesh("monkey");
-	monkey.material = get_material("defaultmesh");
-	monkey.transformMatrix = glm::mat4{ 1.0f };
+	RenderObject map;
+	map.mesh = get_mesh("empire");
+	map.material = get_material("defaultmesh");
+	map.transformMatrix = glm::translate(glm::vec3{ 5, -10, 0 });
 
-	_renderables.push_back(monkey);
+	_renderables.push_back(map);
 
-	for (int x = -20; x <= 20; x++) {
-		for (int y = -20; y <= 20; y++) {
+	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
-			RenderObject tri;
-			tri.mesh = get_mesh("triangle");
-			tri.material = get_material("defaultmesh");
-			glm::mat4 translation = glm::translate(glm::mat4{ 1.0 }, glm::vec3(x, 0, y));
-			glm::mat4 scale = glm::scale(glm::mat4{ 1.0 }, glm::vec3(0.2, 0.2, 0.2));
-			tri.transformMatrix = translation * scale;
+	VkSampler blockySampler;
+	vkCreateSampler(_device, &samplerInfo, nullptr, &blockySampler);
 
-			_renderables.push_back(tri);
-		}
-	}
+	Material* texturedMat = get_material("defaultmesh");
+
+	//allocate the descriptor set for single-texture to use on the material
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.pNext = nullptr;
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = _descriptorPool;
+	allocInfo.descriptorSetCount = 1;
+	allocInfo.pSetLayouts = &_singleTextureSetLayout;
+
+	vkAllocateDescriptorSets(_device, &allocInfo, &texturedMat->textureSet);
+
+	//write to the descriptor set so that it points to our empire_diffuse texture
+	VkDescriptorImageInfo imageBufferInfo;
+	imageBufferInfo.sampler = blockySampler;
+	imageBufferInfo.imageView = _loadedTextures["empire_diffuse"].imageView;
+	imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	VkWriteDescriptorSet texture1 = vkinit::write_descriptor_image(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, texturedMat->textureSet, &imageBufferInfo, 0);
+
+	vkUpdateDescriptorSets(_device, 1, &texture1, 0, nullptr);
 }
 

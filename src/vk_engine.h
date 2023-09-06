@@ -14,7 +14,13 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/transform.hpp>
 
+struct Texture {
+	AllocatedImage image;
+	VkImageView imageView;
+};
+
 struct Material {
+	VkDescriptorSet textureSet{ VK_NULL_HANDLE }; //texture defaulted to null
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 };
@@ -132,6 +138,7 @@ public:
 
 	VkDescriptorSetLayout _globalSetLayout;
 	VkDescriptorSetLayout _objectSetLayout;
+	VkDescriptorSetLayout _singleTextureSetLayout;
 	VkDescriptorPool _descriptorPool;
 
 	VkPhysicalDeviceProperties _gpuProperties;
@@ -161,6 +168,8 @@ public:
 
 	std::unordered_map<std::string, Material> _materials;
 	std::unordered_map<std::string, Mesh> _meshes;
+	//texture hashmap
+	std::unordered_map<std::string, Texture> _loadedTextures;
 
 	//create material and add it to the map
 	Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
@@ -189,6 +198,12 @@ public:
 	//loads a shader module from a spir-v file. Returns false if it errors
 	bool load_shader_module(const char* filePath, VkShaderModule* outShaderModule);
 
+	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
+
+	void upload_mesh(Mesh& mesh);
+
+	void load_images();
+
 private:
 
 	void init_vulkan();
@@ -209,10 +224,7 @@ private:
 
 	void load_meshes();
 
-	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 	void init_descriptors();
-
-	void upload_mesh(Mesh& mesh);
 };
 
 class PipelineBuilder {
