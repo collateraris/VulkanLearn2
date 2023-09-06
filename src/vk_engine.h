@@ -50,6 +50,12 @@ struct GPUObjectData {
 	glm::mat4 modelMatrix;
 };
 
+struct UploadContext {
+	VkFence _uploadFence;
+	VkCommandPool _commandPool;
+	VkCommandBuffer _commandBuffer;
+};
+
 struct DeletionQueue
 {
 	std::deque<std::function<void()>> deletors;
@@ -143,6 +149,10 @@ public:
 	struct SDL_Window* _window{ nullptr };
 
 	DeletionQueue _mainDeletionQueue;
+
+	UploadContext _uploadContext;
+
+	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
 
 	VmaAllocator _allocator; //vma lib allocator
 
