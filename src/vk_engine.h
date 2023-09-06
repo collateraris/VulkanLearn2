@@ -46,6 +46,10 @@ struct GPUSceneData {
 	glm::vec4 sunlightColor;
 };
 
+struct GPUObjectData {
+	glm::mat4 modelMatrix;
+};
+
 struct DeletionQueue
 {
 	std::deque<std::function<void()>> deletors;
@@ -73,6 +77,9 @@ struct FrameData {
 
 	//buffer that holds a single GPUCameraData to use when rendering
 	AllocatedBuffer cameraBuffer;
+
+	AllocatedBuffer objectBuffer;
+	VkDescriptorSet objectDescriptor;
 
 	VkDescriptorSet globalDescriptor;
 };
@@ -118,6 +125,7 @@ public:
 	FrameData& get_current_frame();
 
 	VkDescriptorSetLayout _globalSetLayout;
+	VkDescriptorSetLayout _objectSetLayout;
 	VkDescriptorPool _descriptorPool;
 
 	VkPhysicalDeviceProperties _gpuProperties;
