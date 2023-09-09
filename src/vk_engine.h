@@ -225,6 +225,8 @@ private:
 	void load_meshes();
 
 	void init_descriptors();
+
+	void init_imgui();
 };
 
 class PipelineBuilder {

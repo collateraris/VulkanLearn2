@@ -45,7 +45,8 @@ add_library(imgui STATIC)
 
 target_include_directories(imgui PUBLIC imgui)
 
-target_sources(imgui PRIVATE 
+target_sources(imgui PRIVATE
+    imgui/imconfig.h	 
     imgui/imgui.h
     imgui/imgui.cpp
 
@@ -53,6 +54,13 @@ target_sources(imgui PRIVATE
     imgui/imgui_draw.cpp
     imgui/imgui_widgets.cpp
 
+    imgui/imgui_internal.h
+imgui/imgui_tables.cpp
+imgui/imstb_rectpack.h
+imgui/imstb_textedit.h
+imgui/imstb_truetype.h
+    imgui/imgui_impl_vulkan.h
+    imgui/imgui_impl_sdl.h
     imgui/imgui_impl_vulkan.cpp
     imgui/imgui_impl_sdl.cpp
     )
