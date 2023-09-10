@@ -253,9 +253,12 @@ void VulkanEngine::init_vulkan()
 	//use vkbootstrap to select a GPU.
 	//We want a GPU that can write to the SDL surface and supports Vulkan 1.1
 	vkb::PhysicalDeviceSelector selector{ vkb_inst };
+	VkPhysicalDeviceFeatures required_features = {};
+	required_features.multiDrawIndirect = 1;
 	vkb::PhysicalDevice physicalDevice = selector
 		.set_minimum_version(1, 1)
 		.set_surface(_surface)
+		.set_required_features(required_features)
 		.select()
 		.value();
 
@@ -609,18 +612,6 @@ void VulkanEngine::init_pipelines() {
 	//we start from just the default empty pipeline layout info
 	VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
 
-	//setup push constants
-	VkPushConstantRange push_constant;
-	//offset 0
-	push_constant.offset = 0;
-	//size of a MeshPushConstant struct
-	push_constant.size = sizeof(MeshPushConstants);
-	//for the vertex shader
-	push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-	mesh_pipeline_layout_info.pPushConstantRanges = &push_constant;
-	mesh_pipeline_layout_info.pushConstantRangeCount = 1;
-
 	//hook the global set layout
 	std::vector<VkDescriptorSetLayout> setLayouts = { _globalSetLayout, _objectSetLayout,_singleTextureSetLayout };
 
@@ -876,6 +867,16 @@ AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags
 	return newBuffer;
 }
 
+void VulkanEngine::map_buffer(VmaAllocator& allocator, VmaAllocation& allocation, std::function<void(void*& data)> func)
+{
+	void* data;
+	vmaMapMemory(allocator, allocation, &data);
+
+	func(data);
+
+	vmaUnmapMemory(allocator, allocation);
+}
+
 void VulkanEngine::init_descriptors()
 {
 	//create a descriptor pool that will hold 10 uniform buffers and 10 dynamic uniform buffers
@@ -961,6 +962,8 @@ void VulkanEngine::init_descriptors()
 
 		const int MAX_OBJECTS = 10000;
 		_frames[i].objectBuffer = create_buffer(sizeof(GPUObjectData) * MAX_OBJECTS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+
+		_frames[i].indirectBuffer = create_buffer(MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
 		//allocate one descriptor set for each frame
 		VkDescriptorSetAllocateInfo allocInfo = {};
@@ -1074,6 +1077,44 @@ Mesh* VulkanEngine::get_mesh(const std::string& name)
 	}
 }
 
+std::vector<IndirectBatch> VulkanEngine::compact_draws(RenderObject* objects, int count)
+{
+	std::vector<IndirectBatch> draws;
+
+	IndirectBatch firstDraw;
+	firstDraw.mesh = objects[0].mesh;
+	firstDraw.material = objects[0].material;
+	firstDraw.first = 0;
+	firstDraw.count = 1;
+
+	draws.push_back(firstDraw);
+
+	for (int i = 0; i < count; i++)
+	{
+		//compare the mesh and material with the end of the vector of draws
+		bool sameMesh = objects[i].mesh == draws.back().mesh;
+		bool sameMaterial = objects[i].material == draws.back().material;
+
+		if (sameMesh && sameMaterial)
+		{
+			//all matches, add count
+			draws.back().count++;
+		}
+		else
+		{
+			//add new draw
+			IndirectBatch newDraw;
+			newDraw.mesh = objects[i].mesh;
+			newDraw.material = objects[i].material;
+			newDraw.transformMatrix = objects[i].transformMatrix;
+			newDraw.first = i;
+			newDraw.count = 1;
+
+			draws.push_back(newDraw);
+		}
+	}
+	return draws;
+}
 
 void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int count)
 {
@@ -1091,48 +1132,54 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 	camData.view = view;
 	camData.viewproj = projection * view;
 
-	//and copy it to the buffer
-	void* data;
-	vmaMapMemory(_allocator, get_current_frame().cameraBuffer._allocation, &data);
-
-	memcpy(data, &camData, sizeof(GPUCameraData));
-
-	vmaUnmapMemory(_allocator, get_current_frame().cameraBuffer._allocation);
-
-	float framed = (_frameNumber / 120.f);
-
-	_sceneParameters.ambientColor = { sin(framed),0,cos(framed),1 };
-
-	char* sceneData;
-	vmaMapMemory(_allocator, _sceneParameterBuffer._allocation, (void**)&sceneData);
+	map_buffer(_allocator, get_current_frame().cameraBuffer._allocation, [&](void*& data) {
+		memcpy(data, &camData, sizeof(GPUCameraData));
+	});
 
 	int frameIndex = _frameNumber % FRAME_OVERLAP;
 
-	sceneData += pad_uniform_buffer_size(sizeof(GPUSceneData)) * frameIndex;
+	map_buffer(_allocator, _sceneParameterBuffer._allocation, [&](void*& data) {
+		float framed = (_frameNumber / 120.f);
 
-	memcpy(sceneData, &_sceneParameters, sizeof(GPUSceneData));
+		_sceneParameters.ambientColor = { sin(framed),0,cos(framed),1 };
+		
+		char* sceneData = (char*)data;
 
-	vmaUnmapMemory(_allocator, _sceneParameterBuffer._allocation);
 
-	void* objectData;
-	vmaMapMemory(_allocator, get_current_frame().objectBuffer._allocation, &objectData);
+		sceneData += pad_uniform_buffer_size(sizeof(GPUSceneData)) * frameIndex;
 
-	GPUObjectData* objectSSBO = (GPUObjectData*)objectData;
+		memcpy(sceneData, &_sceneParameters, sizeof(GPUSceneData));
+	});
 
-	for (int i = 0; i < count; i++)
-	{
-		RenderObject& object = first[i];
-		objectSSBO[i].modelMatrix = object.transformMatrix;
-	}
+	map_buffer(_allocator, get_current_frame().objectBuffer._allocation, [&](void*& data) {
+		GPUObjectData* objectSSBO = (GPUObjectData*)data;
 
-	vmaUnmapMemory(_allocator, get_current_frame().objectBuffer._allocation);
+		for (int i = 0; i < count; i++)
+		{
+			RenderObject& object = first[i];
+			objectSSBO[i].modelMatrix = object.transformMatrix;
+		}
+	});
+
+	map_buffer(_allocator, get_current_frame().indirectBuffer._allocation, [&](void*& data) {
+		VkDrawIndirectCommand* drawCommands = (VkDrawIndirectCommand*)data;
+		//encode the draw data of each object into the indirect draw buffer
+		for (int i = 0; i < count; i++)
+		{
+			RenderObject& object = first[i];
+			drawCommands[i].vertexCount = object.mesh->_vertices.size();
+			drawCommands[i].instanceCount = 1;
+			drawCommands[i].firstVertex = 0;
+			drawCommands[i].firstInstance = i; //used to access object matrix in the shader
+		}
+	});
 
 	Mesh* lastMesh = nullptr;
 	Material* lastMaterial = nullptr;
-	for (int i = 0; i < count; i++)
-	{
-		RenderObject& object = first[i];
 
+	std::vector<IndirectBatch> draws = compact_draws(first, count);
+	for (IndirectBatch& object : draws)
+	{
 		//only bind the pipeline if it doesn't match with the already bound one
 		if (object.material != lastMaterial) {
 
@@ -1151,12 +1198,6 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 			}
 		}
 
-		MeshPushConstants constants;
-		constants.render_matrix = object.transformMatrix;
-
-		//upload the mesh to the GPU via push constants
-		vkCmdPushConstants(cmd, object.material->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
-
 		//only bind the mesh if its a different one from last bind
 		if (object.mesh != lastMesh) {
 			//bind the mesh vertex buffer with offset 0
@@ -1164,8 +1205,12 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 			vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
 			lastMesh = object.mesh;
 		}
-		//we can now draw
-		vkCmdDraw(cmd, object.mesh->_vertices.size(), 1, 0, i);
+		
+		VkDeviceSize indirect_offset = object.first * sizeof(VkDrawIndirectCommand);
+		uint32_t draw_stride = sizeof(VkDrawIndirectCommand);
+
+		//execute the draw command buffer on each section as defined by the array of draws
+		vkCmdDrawIndirect(cmd, get_current_frame().indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
 	}
 }
 
@@ -1273,4 +1318,6 @@ void VulkanEngine::init_imgui()
 		ImGui_ImplVulkan_Shutdown();
 		});
 }
+
+
 

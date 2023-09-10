@@ -33,9 +33,12 @@ struct RenderObject {
 	glm::mat4 transformMatrix;
 };
 
-struct MeshPushConstants {
-	glm::vec4 data;
-	glm::mat4 render_matrix;
+struct IndirectBatch {
+	Mesh* mesh;
+	Material* material;
+	glm::mat4 transformMatrix;
+	uint32_t first;
+	uint32_t count;
 };
 
 struct GPUCameraData {
@@ -89,6 +92,7 @@ struct FrameData {
 
 	//buffer that holds a single GPUCameraData to use when rendering
 	AllocatedBuffer cameraBuffer;
+	AllocatedBuffer indirectBuffer;
 
 	AllocatedBuffer objectBuffer;
 	VkDescriptorSet objectDescriptor;
@@ -98,6 +102,7 @@ struct FrameData {
 
 //number of frames to overlap when rendering
 constexpr unsigned int FRAME_OVERLAP = 2;
+constexpr unsigned int MAX_COMMANDS = 1e4;
 
 class VulkanEngine {
 public:
@@ -200,6 +205,8 @@ public:
 
 	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 
+	void map_buffer(VmaAllocator& allocator, VmaAllocation& allocation, std::function<void(void*& data)> func);
+
 	void upload_mesh(Mesh& mesh);
 
 	void load_images();
@@ -227,6 +234,8 @@ private:
 	void init_descriptors();
 
 	void init_imgui();
+
+	std::vector<IndirectBatch> compact_draws(RenderObject* first, int count);
 };
 
 class PipelineBuilder {
