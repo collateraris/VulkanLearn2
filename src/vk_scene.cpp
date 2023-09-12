@@ -37,6 +37,36 @@ int SceneManager::addNode(Scene& scene, int parent, int level)
 	return node;
 }
 
+void SceneManager::markAsChanged(Scene& scene, int node)
+{
+	int level = scene._hierarchy[node]._level;
+	scene._changedAtThisFrame[level].push_back(node);
+
+	// TODO: use non-recursive iteration with aux stack
+	for (int s = scene._hierarchy[node]._firstChild; s != -1; s = scene._hierarchy[s]._nextSibling)
+		markAsChanged(scene, s);
+}
+
+void SceneManager::recalculateGlobalTransforms(Scene& scene)
+{
+	if (scene._changedAtThisFrame[0].size() > 0)
+	{
+		int c = scene._changedAtThisFrame[0][0];
+		scene._globalTransforms[c] = scene._localTransforms[c];
+		scene._changedAtThisFrame[0].clear();
+	}
+
+	for (int i = 1; i < SceneDef::SCENE_MAX_NODE_LEVEL && (scene._changedAtThisFrame[i].size() > 0); i++)
+	{
+		for (const int& c : scene._changedAtThisFrame[i])
+		{
+			int p = scene._hierarchy[c]._parent;
+			scene._globalTransforms[c] = scene._globalTransforms[p] * scene._localTransforms[c];
+		}
+		scene._changedAtThisFrame[i].clear();
+	}
+}
+
 void SceneManager::loadScene(const char* fileName, Scene& scene)
 {
 	FILE* f = fopen(fileName, "rb");
