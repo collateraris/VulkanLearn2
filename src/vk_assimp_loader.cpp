@@ -1,0 +1,1 @@
+#include <vk_assimp_loader.h>
