@@ -51,3 +51,11 @@ struct PACKED_STRUCT gpumat4
 	gpumat4() = default;
 	explicit gpumat4(const glm::mat4& m) { memcpy(data_, glm::value_ptr(m), 16 * sizeof(float)); }
 };
+
+struct SceneConfig
+{
+	std::string fileName;
+	std::string outputMesh;
+	std::string outputScene;
+	std::string outputMaterials;
+};

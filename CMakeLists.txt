@@ -11,6 +11,17 @@ find_package(Vulkan REQUIRED)
 
 add_subdirectory(third_party)
 
+set( ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "Build Assimp Tools" FORCE )
+set( ASSIMP_BUILD_SAMPLES OFF CACHE BOOL "Build Assimp Samples" FORCE )
+set( ASSIMP_BUILD_TESTS OFF CACHE BOOL "Build Assimp Tests" FORCE )
+
+add_subdirectory( third_party/assimp )
+
+set_target_properties( assimp
+    PROPERTIES
+        FOLDER third_party/assimp
+)
+
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 
 add_subdirectory(src)
