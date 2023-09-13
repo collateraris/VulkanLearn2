@@ -137,7 +137,9 @@ public:
 	VkDescriptorSetLayout _globalSetLayout;
 	VkDescriptorSetLayout _objectSetLayout;
 	VkDescriptorSetLayout _singleTextureSetLayout;
-	VkDescriptorPool _descriptorPool;
+
+	std::unique_ptr<vkutil::DescriptorAllocator> _descriptorAllocator;
+	std::unique_ptr <vkutil::DescriptorLayoutCache> _descriptorLayoutCache;
 
 	VkPhysicalDeviceProperties _gpuProperties;
 
