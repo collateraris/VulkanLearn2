@@ -20,10 +20,16 @@ struct AllocatedImage {
 
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
+#include <glm/gtx/transform.hpp>
 
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <array>
+#include <algorithm>
+#include <deque>
+#include <functional>
+#include <memory>
 
 #ifdef __GNUC__
 #define PACKED_STRUCT __attribute__((packed,aligned(1)))

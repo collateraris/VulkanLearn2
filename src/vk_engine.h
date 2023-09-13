@@ -5,14 +5,7 @@
 
 #include <vk_types.h>
 #include <vk_mesh.h>
-#include <vector>
-#include <unordered_map>
-#include <deque>
-#include <functional>
-#include <string>
-
-#include <glm/glm.hpp>
-#include <glm/gtx/transform.hpp>
+#include <vk_descriptors.h>
 
 struct Texture {
 	AllocatedImage image;

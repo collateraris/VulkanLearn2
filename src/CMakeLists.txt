@@ -18,7 +18,9 @@ add_executable(vulkan_guide
     vk_assimp_loader.h
     vk_assimp_loader.cpp
     vk_material_system.h
-    vk_material_system.cpp)
+    vk_material_system.cpp
+    vk_descriptors.h
+    vk_descriptors.cpp)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
