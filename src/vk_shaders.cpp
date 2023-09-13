@@ -8,7 +8,7 @@ bool ShaderLoader::load_shader_module(VkDevice device, const char* filePath, Sha
 	//open the file. With cursor at the end
 	std::ifstream file(filePath, std::ios::ate | std::ios::binary);
 
-	if (!file.is_open()) {
+	if (!file.is_open() || !file.good()) {
 		return false;
 	}
 

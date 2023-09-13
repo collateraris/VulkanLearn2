@@ -6,6 +6,7 @@
 #include <vk_types.h>
 #include <vk_mesh.h>
 #include <vk_descriptors.h>
+#include <vk_shaders.h>
 
 struct Texture {
 	AllocatedImage image;
@@ -166,6 +167,8 @@ public:
 	//default array of renderable objects
 	std::vector<RenderObject> _renderables;
 
+	ShaderCache _shaderCache;
+
 	std::unordered_map<std::string, Material> _materials;
 	std::unordered_map<std::string, Mesh> _meshes;
 	//texture hashmap
@@ -195,9 +198,6 @@ public:
 	//run main loop
 	void run();
 
-	//loads a shader module from a spir-v file. Returns false if it errors
-	bool load_shader_module(const char* filePath, VkShaderModule* outShaderModule);
-
 	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 
 	void map_buffer(VmaAllocator& allocator, VmaAllocation& allocation, std::function<void(void*& data)> func);
@@ -205,6 +205,10 @@ public:
 	void upload_mesh(Mesh& mesh);
 
 	void load_images();
+
+	static std::string asset_path(std::string_view path);
+
+	static std::string shader_path(std::string_view path);
 
 private:
 
@@ -248,4 +252,5 @@ public:
 	VkPipelineDepthStencilStateCreateInfo _depthStencil;
 
 	VkPipeline build_pipeline(VkDevice device, VkRenderPass pass);
+	void setShaders(ShaderEffect* effect);
 };

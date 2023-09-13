@@ -52,6 +52,8 @@ void VulkanEngine::init()
 	//load the core Vulkan structures
 	init_vulkan();
 
+	_shaderCache.init(_device);
+
 	//create the swapchain
 	init_swapchain();
 
@@ -547,73 +549,16 @@ void VulkanEngine::init_sync_structures()
 		});
 }
 
-bool VulkanEngine::load_shader_module(const char* filePath, VkShaderModule* outShaderModule)
-{
-	//open the file. With cursor at the end
-	std::ifstream file(filePath, std::ios::ate | std::ios::binary);
-
-	if (!file.is_open()) {
-		return false;
-	}
-
-	//find what the size of the file is by looking up the location of the cursor
-	//because the cursor is at the end, it gives the size directly in bytes
-	size_t fileSize = (size_t)file.tellg();
-
-	//spirv expects the buffer to be on uint32, so make sure to reserve a int vector big enough for the entire file
-	std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
-
-	//put file cursor at beggining
-	file.seekg(0);
-
-	//load the entire file into the buffer
-	file.read((char*)buffer.data(), fileSize);
-
-	//now that the file is loaded into the buffer, we can close it
-	file.close();
-
-	//create a new shader module, using the buffer we loaded
-	VkShaderModuleCreateInfo createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	createInfo.pNext = nullptr;
-
-	//codeSize has to be in bytes, so multply the ints in the buffer by size of int to know the real size of the buffer
-	createInfo.codeSize = buffer.size() * sizeof(uint32_t);
-	createInfo.pCode = buffer.data();
-
-	//check that the creation goes well.
-	VkShaderModule shaderModule;
-	if (vkCreateShaderModule(_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-		return false;
-	}
-	*outShaderModule = shaderModule;
-	return true;
-}
-
 void VulkanEngine::init_pipelines() {
 
-	VkShaderModule colorMeshShader;
-	if (!load_shader_module("../../shaders/triangle.frag.spv", &colorMeshShader))
-	{
-		std::cout << "Error when building the colored mesh shader" << std::endl;
-	}
-
-	VkShaderModule meshVertShader;
-	if (!load_shader_module("../../shaders/tri_mesh.vert.spv", &meshVertShader))
-	{
-		std::cout << "Error when building the mesh vertex shader module" << std::endl;
-	}
-
-
+	ShaderEffect defaultEffect;
+	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
+	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("triangle.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
+	defaultEffect.reflect_layout(_device, nullptr, 0);
 	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
 	PipelineBuilder pipelineBuilder;
 
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, meshVertShader));
-
-	pipelineBuilder._shaderStages.push_back(
-		vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, colorMeshShader));
-
+	pipelineBuilder.setShaders(&defaultEffect);
 
 	//we start from just the default empty pipeline layout info
 	VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
@@ -679,9 +624,6 @@ void VulkanEngine::init_pipelines() {
 
 	create_material(meshPipeline, meshPipLayout, "defaultmesh");
 
-	vkDestroyShaderModule(_device, meshVertShader, nullptr);
-	vkDestroyShaderModule(_device, colorMeshShader, nullptr);
-
 	_mainDeletionQueue.push_function([=]() {
 		vkDestroyPipeline(_device, meshPipeline, nullptr);
 
@@ -743,6 +685,14 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass) {
 	{
 		return newPipeline;
 	}
+}
+
+void PipelineBuilder::setShaders(ShaderEffect* effect)
+{
+	_shaderStages.clear();
+	effect->fill_stages(_shaderStages);
+
+	_pipelineLayout = effect->builtLayout;
 }
 
 void VulkanEngine::load_meshes()
@@ -830,6 +780,16 @@ void VulkanEngine::load_images()
 	vkCreateImageView(_device, &imageinfo, nullptr, &lostEmpire.imageView);
 
 	_loadedTextures["empire_diffuse"] = lostEmpire;
+}
+
+std::string VulkanEngine::asset_path(std::string_view path)
+{
+	return "../../assets_export/" + std::string(path);
+}
+
+std::string VulkanEngine::shader_path(std::string_view path)
+{
+	return "../../shaders/" + std::string(path);
 }
 
 FrameData& VulkanEngine::get_current_frame()
