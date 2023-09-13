@@ -5,6 +5,7 @@ add_library(glm INTERFACE)
 add_library(vma INTERFACE)
 
 add_library(stb_image INTERFACE)
+add_library(spirv_reflect STATIC)
 
 add_library(tinyobjloader STATIC)
 
@@ -44,6 +45,16 @@ target_link_libraries(sdl2 INTERFACE SDL2 SDL2main)
 add_library(imgui STATIC)
 
 target_include_directories(imgui PUBLIC imgui)
+
+target_sources(spirv_reflect PRIVATE 
+    "${CMAKE_CURRENT_SOURCE_DIR}/spv_reflect/spirv_reflect.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/spv_reflect/spirv_reflect.c"
+)
+
+target_include_directories(spirv_reflect PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/spv_reflect" )
+target_include_directories(spirv_reflect PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/spv_reflect/include" )
+
+
 
 target_sources(imgui PRIVATE
     imgui/imconfig.h	 

@@ -25,11 +25,15 @@ struct AllocatedImage {
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <assert.h>
 #include <array>
 #include <algorithm>
 #include <deque>
 #include <functional>
 #include <memory>
+#include <sstream>
+#include <iostream>
+#include <fstream>
 
 #ifdef __GNUC__
 #define PACKED_STRUCT __attribute__((packed,aligned(1)))
