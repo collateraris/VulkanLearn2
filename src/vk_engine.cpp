@@ -243,7 +243,6 @@ void VulkanEngine::run()
 
 		ImGui::NewFrame();
 
-
 		//imgui commands
 		ImGui::ShowDemoWindow();
 
@@ -567,6 +566,9 @@ void VulkanEngine::init_sync_structures()
 
 void VulkanEngine::init_pipelines() {
 
+	_materialSystem = std::make_unique<vkutil::MaterialSystem>();
+	_materialSystem->init(this);
+	_materialSystem->build_default_templates();
 	ShaderEffect defaultEffect;
 	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
 	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("triangle.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);

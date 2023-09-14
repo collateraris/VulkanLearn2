@@ -18,6 +18,14 @@ struct AllocatedImage {
     VmaAllocation _allocation;
 };
 
+enum class MeshpassType : uint8_t {
+	None = 0,
+	Forward = 1,
+	Transparency = 2,
+	DirectionalShadow = 3,
+	MAX
+};
+
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 #include <glm/gtx/transform.hpp>
