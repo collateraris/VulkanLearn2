@@ -76,6 +76,9 @@ void VulkanEngine::init()
 	load_meshes();
 
 	init_scene();
+
+	_camera = {};
+	_camera.position = { 0.f,-6.f,-10.f };
 	
 	//everything went fine
 	_isInitialized = true;
@@ -227,6 +230,11 @@ void VulkanEngine::run()
 	SDL_Event e;
 	bool bQuit = false;
 
+	std::chrono::time_point<std::chrono::system_clock> start, end;
+
+	start = std::chrono::system_clock::now();
+	end = std::chrono::system_clock::now();
+
 	//main loop
 	while (!bQuit)
 	{
@@ -235,7 +243,15 @@ void VulkanEngine::run()
 		{
 			//close the window when user alt-f4s or clicks the X button			
 			if (e.type == SDL_QUIT) bQuit = true;
+			_camera.process_input_event(&e);
 		}
+
+		end = std::chrono::system_clock::now();
+		std::chrono::duration<float> elapsed_seconds = end - start;
+		float frametime = elapsed_seconds.count() * 1000.f;
+		_camera.update_camera(frametime);
+
+		start = std::chrono::system_clock::now();
 
 		//imgui new frame
 		ImGui_ImplVulkan_NewFrame();
@@ -968,12 +984,9 @@ std::vector<IndirectBatch> VulkanEngine::compact_draws(RenderObject* objects, in
 void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int count)
 {
 	//camera view
-	glm::vec3 camPos = { 0.f,-6.f,-10.f };
-
-	glm::mat4 view = glm::translate(glm::mat4(1.f), camPos);
+	glm::mat4 view = _camera.get_view_matrix();
 	//camera projection
-	glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
-	projection[1][1] *= -1;
+	glm::mat4 projection = _camera.get_projection_matrix();
 
 	//fill a GPU camera data struct
 	GPUCameraData camData;

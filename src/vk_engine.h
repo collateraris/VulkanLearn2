@@ -8,6 +8,7 @@
 #include <vk_descriptors.h>
 #include <vk_shaders.h>
 #include <vk_material_system.h>
+#include <vk_camera.h>
 
 struct Texture {
 	AllocatedImage image;
@@ -168,6 +169,8 @@ public:
 
 	//default array of renderable objects
 	std::vector<RenderObject> _renderables;
+
+	PlayerCamera _camera;
 
 	ShaderCache _shaderCache;
 
