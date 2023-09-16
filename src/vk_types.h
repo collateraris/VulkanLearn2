@@ -73,7 +73,4 @@ struct PACKED_STRUCT gpumat4
 struct SceneConfig
 {
 	std::string fileName;
-	std::string outputMesh;
-	std::string outputScene;
-	std::string outputMaterials;
 };
