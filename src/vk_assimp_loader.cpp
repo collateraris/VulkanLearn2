@@ -11,10 +11,20 @@ glm::mat4 toMat4(const aiMatrix4x4& from);
 
 void traverse(const aiScene* sourceScene, Scene& scene, aiNode* anode, int parent, int level);
 
-void AsimpLoader::processScene(const SceneConfig& config, Scene& newScene) 
+void collectAIMesh(const aiMesh* amesh, const SceneConfig& config, ResourceManager& resManager);
+
+void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& resManager, std::string lastDirectory);
+
+void AsimpLoader::processScene(const SceneConfig& config, Scene& newScene, ResourceManager& resManager)
 {
-	const std::size_t pathSeparator = config.fileName.find_last_of("/\\");
-	const std::string basePath = (pathSeparator != std::string::npos) ? config.fileName.substr(0, pathSeparator + 1) : std::string();
+	std::filesystem::path filePath(config.fileName);
+	if (!std::filesystem::exists(filePath))
+	{
+		printf("file path does not exist '%s'\n", config.fileName.c_str());
+		exit(EXIT_FAILURE);
+	}
+
+	std::string path(config.fileName.cbegin(), config.fileName.cend());
 
 	const unsigned int flags = 0 |
 		aiProcess_JoinIdenticalVertices |
@@ -31,12 +41,24 @@ void AsimpLoader::processScene(const SceneConfig& config, Scene& newScene)
 	printf("Loading scene from '%s'...\n", config.fileName.c_str());
 
 	Assimp::Importer import;
-	const aiScene* scene = import.ReadFile(basePath, flags);
+	const aiScene* scene = import.ReadFile(path, flags);
 
 	if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode || !scene->HasMeshes())
 	{
 		printf("Unable to load '%s'\n", config.fileName.c_str());
 		exit(EXIT_FAILURE);
+	}
+
+	for (unsigned int i = 0; i != scene->mNumMeshes; i++)
+	{
+		collectAIMesh(scene->mMeshes[i], config, resManager);
+	}
+
+	std::string lastDirectory = path.substr(0, path.find_last_of('/'));
+
+	for (unsigned int m = 0; m < scene->mNumMaterials; m++)
+	{
+		collectAIMaterialDescAndTexture(scene->mMaterials[m], resManager, lastDirectory);
 	}
 
 	traverse(scene, newScene, scene->mRootNode, -1, 0);
@@ -84,4 +106,51 @@ void traverse(const aiScene* sourceScene, Scene& scene, aiNode* anode, int paren
 
 	for (unsigned int n = 0; n < anode->mNumChildren; n++)
 		traverse(sourceScene, scene, anode->mChildren[n], newNode, level + 1);
+}
+
+void collectAIMesh(const aiMesh* amesh, const SceneConfig& config, ResourceManager& resManager)
+{
+	resManager.meshList.push_back(std::make_unique<Mesh>());
+	Mesh* newMesh = resManager.meshList.back().get();
+
+	const bool hasTexCoords = amesh->HasTextureCoords(0);
+
+	for (size_t i = 0; i != amesh->mNumVertices; i++)
+	{
+		const aiVector3D v = amesh->mVertices[i];
+		const aiVector3D n = amesh->mNormals[i];
+		const aiVector3D t = hasTexCoords ? amesh->mTextureCoords[0][i] : aiVector3D();
+
+		Vertex meshData;
+		meshData.position = glm::vec3(v.x * config.scaleFactor, v.y * config.scaleFactor, v.z * config.scaleFactor);
+		meshData.normal = glm::vec3(n.x, n.y, n.z);
+		meshData.uv = glm::vec2(t.x, 1. - t.y);
+
+		newMesh->_vertices.push_back(meshData);
+	}
+}
+
+void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& resManager, std::string lastDirectory)
+{
+	resManager.matDescList.push_back(std::make_unique<MaterialDesc>());
+	MaterialDesc* newMatDesc = resManager.matDescList.back().get();
+
+	aiString Path;
+	aiTextureMapping Mapping;
+	unsigned int UVIndex = 0;
+	float Blend = 1.0f;
+	aiTextureOp TextureOp = aiTextureOp_Add;
+	aiTextureMapMode TextureMapMode[2] = { aiTextureMapMode_Wrap, aiTextureMapMode_Wrap };
+	unsigned int TextureFlags = 0;
+
+
+	if (aiGetMaterialTexture(amat, aiTextureType_DIFFUSE, 0, &Path, &Mapping, &UVIndex, &Blend, &TextureOp, TextureMapMode, &TextureFlags) == AI_SUCCESS)
+	{
+		newMatDesc->diffuseTexture = lastDirectory + "/" + std::string(Path.C_Str());
+		auto texFound = resManager.textureCache.find(newMatDesc->diffuseTexture);
+		if (texFound == resManager.textureCache.end())
+		{
+			resManager.textureCache[newMatDesc->diffuseTexture] = std::make_unique<Texture>();
+		}
+	}
 }

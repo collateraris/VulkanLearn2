@@ -42,6 +42,7 @@ enum class MeshpassType : uint8_t {
 #include <sstream>
 #include <iostream>
 #include <fstream>
+#include <filesystem>
 
 #ifdef __GNUC__
 #define PACKED_STRUCT __attribute__((packed,aligned(1)))
@@ -73,4 +74,5 @@ struct PACKED_STRUCT gpumat4
 struct SceneConfig
 {
 	std::string fileName;
+	float scaleFactor = 1.;
 };

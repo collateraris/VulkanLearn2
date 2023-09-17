@@ -4,16 +4,12 @@
 #pragma once
 
 #include <vk_types.h>
+#include <vk_resource_manager.h>
 #include <vk_mesh.h>
 #include <vk_descriptors.h>
 #include <vk_shaders.h>
 #include <vk_material_system.h>
 #include <vk_camera.h>
-
-struct Texture {
-	AllocatedImage image;
-	VkImageView imageView;
-};
 
 struct Material {
 	VkDescriptorSet textureSet{ VK_NULL_HANDLE }; //texture defaulted to null

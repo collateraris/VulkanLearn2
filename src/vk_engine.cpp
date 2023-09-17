@@ -20,6 +20,8 @@
 #include <imgui_impl_sdl.h>
 #include <imgui_impl_vulkan.h>
 
+#include <vk_assimp_loader.h>
+
 //we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
 using namespace std;
 #define VK_CHECK(x)                                                 \
@@ -48,6 +50,12 @@ void VulkanEngine::init()
 		_windowExtent.height,
 		window_flags
 	);
+
+	Scene scene;
+	ResourceManager resManager;
+	SceneConfig config;
+	config.fileName = "../../assets/lost_empire.obj";
+	AsimpLoader::processScene(config, scene, resManager);
 
 	//load the core Vulkan structures
 	init_vulkan();
