@@ -6,22 +6,16 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-bool vkutil::load_image_from_file(VulkanEngine& engine, const char* file, AllocatedImage& outImage)
+void load_image_with_stbi(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight);
+
+bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file, AllocatedImage& outImage)
 {
-	int texWidth, texHeight, texChannels;
+	void* pixel_ptr;
+	VkDeviceSize imageSize;
+	int texWidth, texHeight;
+	VkFormat image_format;
 
-	stbi_uc* pixels = stbi_load(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-
-	if (!pixels) {
-		std::cout << "Failed to load texture file " << file << std::endl;
-		return false;
-	}
-
-	void* pixel_ptr = pixels;
-	VkDeviceSize imageSize = texWidth * texHeight * 4;
-
-	//the format R8G8B8A8 matches exactly with the pixels loaded from stb_image lib
-	VkFormat image_format = VK_FORMAT_R8G8B8A8_SRGB;
+	load_image_with_stbi(file.c_str(), pixel_ptr, image_format, imageSize, texWidth, texHeight);
 
 	//allocate temporary buffer for holding texture data to upload
 	AllocatedBuffer stagingBuffer = engine.create_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
@@ -34,7 +28,7 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const char* file, Alloca
 
 	vmaUnmapMemory(engine._allocator, stagingBuffer._allocation);
 	//we no longer need the loaded data, so we can free the pixels as they are now in the staging buffer
-	stbi_image_free(pixels);
+	stbi_image_free(pixel_ptr);
 
 	VkExtent3D imageExtent;
 	imageExtent.width = static_cast<uint32_t>(texWidth);
@@ -112,4 +106,22 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const char* file, Alloca
 	outImage = newImage;
 
 	return true;
+}
+
+void load_image_with_stbi(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight)
+{
+	int texChannels;
+
+	stbi_uc* pixels = stbi_load(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+
+	if (!pixels) {
+		std::cout << "Failed to load texture file " << file << std::endl;
+		return;
+	}
+
+	pixel_ptr = pixels;
+	imageSize = texWidth * texHeight * 4;
+
+	//the format R8G8B8A8 matches exactly with the pixels loaded from stb_image lib
+	image_format = VK_FORMAT_R8G8B8A8_SRGB;
 }
