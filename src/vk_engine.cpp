@@ -673,67 +673,133 @@ void VulkanEngine::load_meshes()
 
 void VulkanEngine::upload_mesh(Mesh& mesh)
 {
-	const size_t bufferSize = mesh._vertices.size() * sizeof(Vertex);
-	//allocate staging buffer
-	VkBufferCreateInfo stagingBufferInfo = {};
-	stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	stagingBufferInfo.pNext = nullptr;
+	{
+		const size_t bufferSize = mesh._vertices.size() * sizeof(Vertex);
+		//allocate staging buffer
+		VkBufferCreateInfo stagingBufferInfo = {};
+		stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		stagingBufferInfo.pNext = nullptr;
 
-	stagingBufferInfo.size = bufferSize;
-	stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		stagingBufferInfo.size = bufferSize;
+		stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
-	//let the VMA library know that this data should be on CPU RAM
-	VmaAllocationCreateInfo vmaallocInfo = {};
-	vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+		//let the VMA library know that this data should be on CPU RAM
+		VmaAllocationCreateInfo vmaallocInfo = {};
+		vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
 
-	AllocatedBuffer stagingBuffer;
+		AllocatedBuffer stagingBuffer;
 
-	//allocate the buffer
-	VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &vmaallocInfo,
-		&stagingBuffer._buffer,
-		&stagingBuffer._allocation,
-		nullptr));
+		//allocate the buffer
+		VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &vmaallocInfo,
+			&stagingBuffer._buffer,
+			&stagingBuffer._allocation,
+			nullptr));
 
-	//copy vertex data
-	void* data;
-	vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
+		//copy vertex data
+		void* data;
+		vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
 
-	memcpy(data, mesh._vertices.data(), mesh._vertices.size() * sizeof(Vertex));
+		memcpy(data, mesh._vertices.data(), mesh._vertices.size() * sizeof(Vertex));
 
-	vmaUnmapMemory(_allocator, stagingBuffer._allocation);
+		vmaUnmapMemory(_allocator, stagingBuffer._allocation);
 
-	//allocate vertex buffer
-	VkBufferCreateInfo vertexBufferInfo = {};
-	vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	vertexBufferInfo.pNext = nullptr;
-	//this is the total size, in bytes, of the buffer we are allocating
-	vertexBufferInfo.size = bufferSize;
-	//this buffer is going to be used as a Vertex Buffer
-	vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		//allocate vertex buffer
+		VkBufferCreateInfo vertexBufferInfo = {};
+		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		vertexBufferInfo.pNext = nullptr;
+		//this is the total size, in bytes, of the buffer we are allocating
+		vertexBufferInfo.size = bufferSize;
+		//this buffer is going to be used as a Vertex Buffer
+		vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
-	//let the VMA library know that this data should be GPU native
-	vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+		//let the VMA library know that this data should be GPU native
+		vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-	//allocate the buffer
-	VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo,
-		&mesh._vertexBuffer._buffer,
-		&mesh._vertexBuffer._allocation,
-		nullptr));
+		//allocate the buffer
+		VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo,
+			&mesh._vertexBuffer._buffer,
+			&mesh._vertexBuffer._allocation,
+			nullptr));
 
-	immediate_submit([=](VkCommandBuffer cmd) {
-		VkBufferCopy copy;
-		copy.dstOffset = 0;
-		copy.srcOffset = 0;
-		copy.size = bufferSize;
-		vkCmdCopyBuffer(cmd, stagingBuffer._buffer, mesh._vertexBuffer._buffer, 1, &copy);
-		});
+		immediate_submit([=](VkCommandBuffer cmd) {
+			VkBufferCopy copy;
+			copy.dstOffset = 0;
+			copy.srcOffset = 0;
+			copy.size = bufferSize;
+			vkCmdCopyBuffer(cmd, stagingBuffer._buffer, mesh._vertexBuffer._buffer, 1, &copy);
+			});
 
-	//add the destruction of mesh buffer to the deletion queue
-	_mainDeletionQueue.push_function([=]() {
-		vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
-		});
+		//add the destruction of mesh buffer to the deletion queue
+		_mainDeletionQueue.push_function([=]() {
+			vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
+			});
 
-	vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+		vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+	}
+
+	{
+		const size_t bufferSize = mesh._indices.size() * sizeof(uint16_t);
+		//allocate staging buffer
+		VkBufferCreateInfo stagingBufferInfo = {};
+		stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		stagingBufferInfo.pNext = nullptr;
+
+		stagingBufferInfo.size = bufferSize;
+		stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+		//let the VMA library know that this data should be on CPU RAM
+		VmaAllocationCreateInfo vmaallocInfo = {};
+		vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+		AllocatedBuffer stagingBuffer;
+
+		//allocate the buffer
+		VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &vmaallocInfo,
+			&stagingBuffer._buffer,
+			&stagingBuffer._allocation,
+			nullptr));
+
+		//copy index data
+		void* data;
+		vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
+
+		memcpy(data, mesh._indices.data(), mesh._indices.size() * sizeof(uint16_t));
+
+		vmaUnmapMemory(_allocator, stagingBuffer._allocation);
+
+		//allocate vertex buffer
+		VkBufferCreateInfo indexBufferInfo = {};
+		indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		indexBufferInfo.pNext = nullptr;
+		//this is the total size, in bytes, of the buffer we are allocating
+		indexBufferInfo.size = bufferSize;
+		//this buffer is going to be used as a Vertex Buffer
+		indexBufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+		//let the VMA library know that this data should be GPU native
+		vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+		//allocate the buffer
+		VK_CHECK(vmaCreateBuffer(_allocator, &indexBufferInfo, &vmaallocInfo,
+			&mesh._indexBuffer._buffer,
+			&mesh._indexBuffer._allocation,
+			nullptr));
+
+		immediate_submit([=](VkCommandBuffer cmd) {
+			VkBufferCopy copy;
+			copy.dstOffset = 0;
+			copy.srcOffset = 0;
+			copy.size = bufferSize;
+			vkCmdCopyBuffer(cmd, stagingBuffer._buffer, mesh._indexBuffer._buffer, 1, &copy);
+			});
+
+		//add the destruction of mesh buffer to the deletion queue
+		_mainDeletionQueue.push_function([=]() {
+			vmaDestroyBuffer(_allocator, mesh._indexBuffer._buffer, mesh._indexBuffer._allocation);
+			});
+
+		vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+	}
 }
 
 void VulkanEngine::load_images()
@@ -1024,14 +1090,15 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 	});
 
 	map_buffer(_allocator, get_current_frame().indirectBuffer._allocation, [&](void*& data) {
-		VkDrawIndirectCommand* drawCommands = (VkDrawIndirectCommand*)data;
+		VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)data;
 		//encode the draw data of each object into the indirect draw buffer
 		for (int i = 0; i < count; i++)
 		{
 			RenderObject& object = first[i];
-			drawCommands[i].vertexCount = object.mesh->_vertices.size();
+			drawCommands[i].indexCount = object.mesh->_indices.size();
 			drawCommands[i].instanceCount = 1;
-			drawCommands[i].firstVertex = 0;
+			drawCommands[i].vertexOffset = 0;
+			drawCommands[i].firstIndex = 0;
 			drawCommands[i].firstInstance = i; //used to access object matrix in the shader
 		}
 	});
@@ -1065,14 +1132,15 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 			//bind the mesh vertex buffer with offset 0
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
+			vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, offset, VK_INDEX_TYPE_UINT16);
 			lastMesh = object.mesh;
 		}
 		
-		VkDeviceSize indirect_offset = object.first * sizeof(VkDrawIndirectCommand);
-		uint32_t draw_stride = sizeof(VkDrawIndirectCommand);
+		VkDeviceSize indirect_offset = object.first * sizeof(VkDrawIndexedIndirectCommand);
+		uint32_t draw_stride = sizeof(VkDrawIndexedIndirectCommand);
 
 		//execute the draw command buffer on each section as defined by the array of draws
-		vkCmdDrawIndirect(cmd, get_current_frame().indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
+		vkCmdDrawIndexedIndirect(cmd, get_current_frame().indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
 	}
 }
 

@@ -27,7 +27,6 @@ void AsimpLoader::processScene(const SceneConfig& config, Scene& newScene, Resou
 	std::string path(config.fileName.cbegin(), config.fileName.cend());
 
 	const unsigned int flags = 0 |
-		aiProcess_JoinIdenticalVertices |
 		aiProcess_Triangulate |
 		aiProcess_GenSmoothNormals |
 		aiProcess_LimitBoneWeights |
@@ -127,6 +126,16 @@ void collectAIMesh(const aiMesh* amesh, const SceneConfig& config, ResourceManag
 		meshData.uv = glm::vec2(t.x, 1. - t.y);
 
 		newMesh->_vertices.push_back(meshData);
+	}
+
+	for (unsigned int i = 0; i < amesh->mNumFaces; i++)
+	{
+		if (amesh->mFaces[i].mNumIndices != 3)
+			continue;
+		for (unsigned j = 0; j != amesh->mFaces[i].mNumIndices; j++)
+		{
+			newMesh->_indices.push_back(amesh->mFaces[i].mIndices[j]);
+		}
 	}
 }
 
