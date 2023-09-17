@@ -8,14 +8,26 @@
 
 void load_image_with_stbi(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight);
 
-bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file, AllocatedImage& outImage)
-{
-	void* pixel_ptr;
-	VkDeviceSize imageSize;
-	int texWidth, texHeight;
-	VkFormat image_format;
+void load_image_for_dds(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight);
 
+bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file, AllocatedImage& outImage, VkFormat& image_format)
+{
+	void* pixel_ptr = nullptr;
+	VkDeviceSize imageSize = 0;
+	int texWidth = -1, texHeight = -1;
+
+	bool isDDS = file.substr(file.find_last_of(".") + 1).compare("dds") == 0;
+
+	if (isDDS)
+	load_image_for_dds(file.c_str(), pixel_ptr, image_format, imageSize, texWidth, texHeight);
+		else
 	load_image_with_stbi(file.c_str(), pixel_ptr, image_format, imageSize, texWidth, texHeight);
+
+	if (pixel_ptr == nullptr || imageSize <= 0 || texWidth <= 0 || texHeight <= 0)
+	{
+		std::cout << "Failed to load texture file " << file << std::endl;
+		return false;
+	}
 
 	//allocate temporary buffer for holding texture data to upload
 	AllocatedBuffer stagingBuffer = engine.create_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
@@ -124,4 +136,94 @@ void load_image_with_stbi(const char* file, void*& pixel_ptr, VkFormat& image_fo
 
 	//the format R8G8B8A8 matches exactly with the pixels loaded from stb_image lib
 	image_format = VK_FORMAT_R8G8B8A8_SRGB;
+}
+
+#define FOURCC_DXT1 0x31545844 // Equivalent to "DXT1" in ASCII
+#define FOURCC_DXT3 0x33545844 // Equivalent to "DXT3" in ASCII
+#define FOURCC_DXT5 0x35545844 // Equivalent to "DXT5" in ASCII
+#define FOURCC_BPTC 0x30315844
+#define FOURCC_BC5  0x32495441
+
+void load_image_for_dds(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight)
+{
+	unsigned char header[124];
+
+	FILE* fp;
+
+	/* try to open the file */
+	fp = fopen(file, "rb");
+	if (fp == NULL)
+	{
+		std::cout << "Failed to load Image: could not open the file" << std::endl;
+		return;
+	}
+
+	/* verify the type of file */
+	char filecode[4];
+	fread(filecode, 1, 4, fp);
+	if (strncmp(filecode, "DDS ", 4) != 0)
+	{
+		fclose(fp);
+		std::cout << "Failed to load Image: not a direct draw surface file" << std::endl;
+		return;
+	}
+
+	/* get the surface desc */
+	fread(&header, 124, 1, fp);
+
+	unsigned int height = *(unsigned int*)&(header[8]);
+	unsigned int width = *(unsigned int*)&(header[12]);
+	unsigned int linearSize = *(unsigned int*)&(header[16]);
+	unsigned int mipMapCount = *(unsigned int*)&(header[24]);
+	unsigned int fourCC = *(unsigned int*)&(header[80]);
+
+	unsigned char* buffer;
+	unsigned int bufsize;
+
+	/* how big is it going to be including all mipmaps? */
+	if (fourCC == FOURCC_BPTC) {//in BC7 header, linearSize is small(8192), width/height is 2048.
+		linearSize = height * width;
+		bufsize = mipMapCount > 1 ? linearSize * 2 : linearSize;
+		buffer = (unsigned char*)malloc(bufsize * sizeof(unsigned char));
+		fread(buffer, 1, bufsize, fp);
+	}
+	else {
+		/* how big is it going to be including all mipmaps? */
+		bufsize = mipMapCount > 1 ? linearSize * 2 : linearSize;
+		buffer = (unsigned char*)malloc(bufsize * sizeof(unsigned char));
+		fread(buffer, 1, bufsize, fp);
+	}
+
+	pixel_ptr = (void*)buffer;
+	imageSize = bufsize;
+	texWidth = width;
+	texHeight = height;
+
+	/* close the file pointer */
+	fclose(fp);
+
+	unsigned int components = (fourCC == FOURCC_DXT1) ? 3 : 4;
+	switch (fourCC)
+	{
+	case FOURCC_DXT1:
+		image_format = VK_FORMAT_BC1_RGBA_SRGB_BLOCK;
+		break;
+	case FOURCC_DXT3:
+		image_format = VK_FORMAT_BC2_SRGB_BLOCK;
+		break;
+	case FOURCC_DXT5:
+		image_format = VK_FORMAT_BC3_SRGB_BLOCK;
+		break;
+	case FOURCC_BPTC:
+		image_format = VK_FORMAT_BC7_SRGB_BLOCK;
+		break;
+	case FOURCC_BC5:
+		image_format = VK_FORMAT_BC5_SNORM_BLOCK;
+		break;
+	default:
+		free(buffer);
+		std::cout << "Failed to load Image: dds file format not supported (supported formats: DXT1, DXT3, DXT5)" << std::endl;
+		std::cout << "Texture failed to load at path: " << file << std::endl;
+		return;
+	}
 }

@@ -807,10 +807,12 @@ void VulkanEngine::load_images()
 	for (auto& [path, texPtr]: _resManager.textureCache)
 	{
 		Texture* tex = texPtr.get();
-		vkutil::load_image_from_file(*this, path, tex->image);
-
-		VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(VK_FORMAT_R8G8B8A8_SRGB, tex->image._image, VK_IMAGE_ASPECT_COLOR_BIT);
-		vkCreateImageView(_device, &imageinfo, nullptr, &tex->imageView);
+		VkFormat image_format;
+		if (vkutil::load_image_from_file(*this, path, tex->image, image_format))
+		{
+			VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(image_format, tex->image._image, VK_IMAGE_ASPECT_COLOR_BIT);
+			vkCreateImageView(_device, &imageinfo, nullptr, &tex->imageView);
+		}	
 	}
 }
 
