@@ -654,7 +654,7 @@ void VulkanEngine::init_pipelines() {
 	//build the mesh triangle pipeline
 	VkPipeline meshPipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
 
-	create_material(meshPipeline, meshPipLayout, "defaultmesh");
+	load_materials(meshPipeline, meshPipLayout);
 
 	_mainDeletionQueue.push_function([=]() {
 		vkDestroyPipeline(_device, meshPipeline, nullptr);
@@ -669,13 +669,6 @@ void VulkanEngine::load_meshes()
 	{
 		upload_mesh(*mesh);
 	}
-
-	Mesh lostEmpire{};
-	lostEmpire.load_from_obj("../../assets/lost_empire.obj");
-
-	upload_mesh(lostEmpire);
-
-	_meshes["empire"] = lostEmpire;
 }
 
 void VulkanEngine::upload_mesh(Mesh& mesh)
@@ -753,16 +746,6 @@ void VulkanEngine::load_images()
 		VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(VK_FORMAT_R8G8B8A8_SRGB, tex->image._image, VK_IMAGE_ASPECT_COLOR_BIT);
 		vkCreateImageView(_device, &imageinfo, nullptr, &tex->imageView);
 	}
-
-
-	Texture lostEmpire;
-
-	vkutil::load_image_from_file(*this, "../../assets/lost_empire-RGBA.png", lostEmpire.image);
-
-	VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(VK_FORMAT_R8G8B8A8_SRGB, lostEmpire.image._image, VK_IMAGE_ASPECT_COLOR_BIT);
-	vkCreateImageView(_device, &imageinfo, nullptr, &lostEmpire.imageView);
-
-	_loadedTextures["empire_diffuse"] = lostEmpire;
 }
 
 std::string VulkanEngine::asset_path(std::string_view path)
@@ -902,6 +885,14 @@ void VulkanEngine::init_descriptors()
 
 }
 
+void VulkanEngine::load_materials(VkPipeline pipeline, VkPipelineLayout layout)
+{
+	for (const auto& matDesc : _resManager.matDescList)
+	{
+		create_material(pipeline, layout, matDesc->matName);
+	}
+}
+
 void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
 {
 	VkCommandBuffer cmd = _uploadContext._commandBuffer;
@@ -944,18 +935,6 @@ Material* VulkanEngine::get_material(const std::string& name)
 	//search for the object, and return nullpointer if not found
 	auto it = _materials.find(name);
 	if (it == _materials.end()) {
-		return nullptr;
-	}
-	else {
-		return &(*it).second;
-	}
-}
-
-
-Mesh* VulkanEngine::get_mesh(const std::string& name)
-{
-	auto it = _meshes.find(name);
-	if (it == _meshes.end()) {
 		return nullptr;
 	}
 	else {
@@ -1100,30 +1079,38 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 
 void VulkanEngine::init_scene()
 {
-	RenderObject map;
-	map.mesh = get_mesh("empire");
-	map.material = get_material("defaultmesh");
-	map.transformMatrix = glm::translate(glm::vec3{ 5, -10, 0 });
+	for (int nodeIndex = 1; nodeIndex < _scene._hierarchy.size(); nodeIndex++)
+	{
+		RenderObject map;
+		int meshIndex = _scene._meshes[nodeIndex];
+		map.mesh = _resManager.meshList[meshIndex].get();
+		int matDescIndex = _scene._matForNode[nodeIndex];
+		const std::string& matName = _resManager.matDescList[matDescIndex].get()->matName;
+		map.material = get_material(matName);
+		map.transformMatrix = glm::translate(glm::vec3{ 5, -10, 0 });
 
-	_renderables.push_back(map);
+		_renderables.push_back(map);
+	}
 
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
 	VkSampler blockySampler;
 	vkCreateSampler(_device, &samplerInfo, nullptr, &blockySampler);
 
-	Material* texturedMat = get_material("defaultmesh");
+	for (const auto& matDesc : _resManager.matDescList)
+	{
+		const std::string& matName = matDesc->matName;
+		Material* texturedMat = get_material(matName);
 
-	//write to the descriptor set so that it points to our empire_diffuse texture
-	VkDescriptorImageInfo imageBufferInfo;
-	imageBufferInfo.sampler = blockySampler;
-	imageBufferInfo.imageView = _loadedTextures["empire_diffuse"].imageView;
-	imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		VkDescriptorImageInfo imageBufferInfo;
+		imageBufferInfo.sampler = blockySampler;
+		imageBufferInfo.imageView = _resManager.textureCache[matDesc->diffuseTexture]->imageView;
+		imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-
-	vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
-		.bind_image(0, &imageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-		.build(texturedMat->textureSet, _singleTextureSetLayout);
+		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
+			.bind_image(0, &imageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+			.build(texturedMat->textureSet, _singleTextureSetLayout);
+	}
 }
 
 void VulkanEngine::init_imgui()

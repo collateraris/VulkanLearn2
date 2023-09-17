@@ -135,6 +135,8 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 	resManager.matDescList.push_back(std::make_unique<MaterialDesc>());
 	MaterialDesc* newMatDesc = resManager.matDescList.back().get();
 
+	newMatDesc->matName = amat->GetName().C_Str();
+
 	aiString Path;
 	aiTextureMapping Mapping;
 	unsigned int UVIndex = 0;

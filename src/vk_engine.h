@@ -123,7 +123,6 @@ public:
 	VkQueue _graphicsQueue; //queue we will submit to
 	uint32_t _graphicsQueueFamily; //family of that queue
 
-
 	VkRenderPass _renderPass;
 
 	std::vector<VkFramebuffer> _framebuffers;
@@ -172,9 +171,6 @@ public:
 	ShaderCache _shaderCache;
 
 	std::unordered_map<std::string, Material> _materials;
-	std::unordered_map<std::string, Mesh> _meshes;
-	//texture hashmap
-	std::unordered_map<std::string, Texture> _loadedTextures;
 
 	ResourceManager _resManager;
 	Scene _scene;
@@ -184,9 +180,6 @@ public:
 
 	//returns nullptr if it can't be found
 	Material* get_material(const std::string& name);
-
-	//returns nullptr if it can't be found
-	Mesh* get_mesh(const std::string& name);
 
 	//our draw function
 	void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
@@ -234,6 +227,8 @@ private:
 	void init_scene();
 
 	void load_meshes();
+
+	void load_materials(VkPipeline pipeline, VkPipelineLayout layout);
 
 	void init_descriptors();
 

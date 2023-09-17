@@ -10,6 +10,7 @@ struct Texture {
 
 struct MaterialDesc
 {
+	std::string matName = {};
 	std::string diffuseTexture = {};
 };
 
