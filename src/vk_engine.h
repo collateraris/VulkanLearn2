@@ -4,6 +4,7 @@
 #pragma once
 
 #include <vk_types.h>
+#include <vk_scene.h>
 #include <vk_resource_manager.h>
 #include <vk_mesh.h>
 #include <vk_descriptors.h>
@@ -174,6 +175,9 @@ public:
 	std::unordered_map<std::string, Mesh> _meshes;
 	//texture hashmap
 	std::unordered_map<std::string, Texture> _loadedTextures;
+
+	ResourceManager _resManager;
+	Scene _scene;
 
 	//create material and add it to the map
 	Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);

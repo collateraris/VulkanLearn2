@@ -51,11 +51,9 @@ void VulkanEngine::init()
 		window_flags
 	);
 
-	Scene scene;
-	ResourceManager resManager;
 	SceneConfig config;
 	config.fileName = "../../assets/lost_empire.obj";
-	AsimpLoader::processScene(config, scene, resManager);
+	AsimpLoader::processScene(config, _scene, _resManager);
 
 	//load the core Vulkan structures
 	init_vulkan();
@@ -667,6 +665,11 @@ void VulkanEngine::init_pipelines() {
 
 void VulkanEngine::load_meshes()
 {
+	for (auto& mesh: _resManager.meshList)
+	{
+		upload_mesh(*mesh);
+	}
+
 	Mesh lostEmpire{};
 	lostEmpire.load_from_obj("../../assets/lost_empire.obj");
 
@@ -742,6 +745,16 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 
 void VulkanEngine::load_images()
 {
+	for (auto& [path, texPtr]: _resManager.textureCache)
+	{
+		Texture* tex = texPtr.get();
+		vkutil::load_image_from_file(*this, path.c_str(), tex->image);
+
+		VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(VK_FORMAT_R8G8B8A8_SRGB, tex->image._image, VK_IMAGE_ASPECT_COLOR_BIT);
+		vkCreateImageView(_device, &imageinfo, nullptr, &tex->imageView);
+	}
+
+
 	Texture lostEmpire;
 
 	vkutil::load_image_from_file(*this, "../../assets/lost_empire-RGBA.png", lostEmpire.image);
