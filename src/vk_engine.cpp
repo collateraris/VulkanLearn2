@@ -299,9 +299,17 @@ void VulkanEngine::init_vulkan()
 	vkb::PhysicalDeviceSelector selector{ vkb_inst };
 	VkPhysicalDeviceFeatures required_features = {};
 	required_features.multiDrawIndirect = 1;
+
+	std::vector<const char*> extensions = {
+		VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
+		VK_KHR_8BIT_STORAGE_EXTENSION_NAME,
+		VK_NV_MESH_SHADER_EXTENSION_NAME,
+	};
+
 	vkb::PhysicalDevice physicalDevice = selector
 		.set_minimum_version(1, 1)
 		.set_surface(_surface)
+		.add_required_extensions(extensions)
 		.set_required_features(required_features)
 		.select()
 		.value();
