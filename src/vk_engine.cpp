@@ -277,7 +277,6 @@ void VulkanEngine::run()
 void VulkanEngine::init_vulkan()
 {
 	vkb::InstanceBuilder builder;
-
 	//make the Vulkan instance, with basic debug features
 	auto inst_ret = builder.set_app_name("My Vulkan pet project")
 		.request_validation_layers(true)
@@ -314,7 +313,15 @@ void VulkanEngine::init_vulkan()
 	shader_draw_parameters_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
 	shader_draw_parameters_features.pNext = nullptr;
 	shader_draw_parameters_features.shaderDrawParameters = VK_TRUE;
-	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features).build().value();
+
+	VkPhysicalDeviceMeshShaderFeaturesNV featuresMesh = { };
+	featuresMesh.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV;
+	featuresMesh.pNext = nullptr;
+	featuresMesh.meshShader = true;
+
+	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features)
+		.add_pNext(&featuresMesh)
+		.build().value();
 
 	// Get the VkDevice handle used in the rest of a Vulkan application
 	_device = vkbDevice.device;
@@ -676,50 +683,14 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 	{
 		const size_t bufferSize = mesh._vertices.size() * sizeof(Vertex);
 		//allocate staging buffer
-		VkBufferCreateInfo stagingBufferInfo = {};
-		stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		stagingBufferInfo.pNext = nullptr;
-
-		stagingBufferInfo.size = bufferSize;
-		stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-		//let the VMA library know that this data should be on CPU RAM
-		VmaAllocationCreateInfo vmaallocInfo = {};
-		vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-		AllocatedBuffer stagingBuffer;
-
-		//allocate the buffer
-		VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &vmaallocInfo,
-			&stagingBuffer._buffer,
-			&stagingBuffer._allocation,
-			nullptr));
+		AllocatedBuffer stagingBuffer = create_buffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
 
 		//copy vertex data
-		void* data;
-		vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
+		map_buffer(_allocator, stagingBuffer._allocation, [&](void*& data) {
+				memcpy(data, mesh._vertices.data(), mesh._vertices.size() * sizeof(Vertex));
+			});
 
-		memcpy(data, mesh._vertices.data(), mesh._vertices.size() * sizeof(Vertex));
-
-		vmaUnmapMemory(_allocator, stagingBuffer._allocation);
-
-		//allocate vertex buffer
-		VkBufferCreateInfo vertexBufferInfo = {};
-		vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		vertexBufferInfo.pNext = nullptr;
-		//this is the total size, in bytes, of the buffer we are allocating
-		vertexBufferInfo.size = bufferSize;
-		//this buffer is going to be used as a Vertex Buffer
-		vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
-		//let the VMA library know that this data should be GPU native
-		vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-		//allocate the buffer
-		VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo,
-			&mesh._vertexBuffer._buffer,
-			&mesh._vertexBuffer._allocation,
-			nullptr));
+		mesh._vertexBuffer = create_buffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
 		immediate_submit([=](VkCommandBuffer cmd) {
 			VkBufferCopy copy;
@@ -740,50 +711,14 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 	{
 		const size_t bufferSize = mesh._indices.size() * sizeof(uint16_t);
 		//allocate staging buffer
-		VkBufferCreateInfo stagingBufferInfo = {};
-		stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		stagingBufferInfo.pNext = nullptr;
-
-		stagingBufferInfo.size = bufferSize;
-		stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-		//let the VMA library know that this data should be on CPU RAM
-		VmaAllocationCreateInfo vmaallocInfo = {};
-		vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-		AllocatedBuffer stagingBuffer;
-
-		//allocate the buffer
-		VK_CHECK(vmaCreateBuffer(_allocator, &stagingBufferInfo, &vmaallocInfo,
-			&stagingBuffer._buffer,
-			&stagingBuffer._allocation,
-			nullptr));
+		AllocatedBuffer stagingBuffer = create_buffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
 
 		//copy index data
-		void* data;
-		vmaMapMemory(_allocator, stagingBuffer._allocation, &data);
+		map_buffer(_allocator, stagingBuffer._allocation, [&](void*& data) {
+			memcpy(data, mesh._indices.data(), mesh._indices.size() * sizeof(uint16_t));
+			});
 
-		memcpy(data, mesh._indices.data(), mesh._indices.size() * sizeof(uint16_t));
-
-		vmaUnmapMemory(_allocator, stagingBuffer._allocation);
-
-		//allocate vertex buffer
-		VkBufferCreateInfo indexBufferInfo = {};
-		indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		indexBufferInfo.pNext = nullptr;
-		//this is the total size, in bytes, of the buffer we are allocating
-		indexBufferInfo.size = bufferSize;
-		//this buffer is going to be used as a Vertex Buffer
-		indexBufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
-		//let the VMA library know that this data should be GPU native
-		vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-		//allocate the buffer
-		VK_CHECK(vmaCreateBuffer(_allocator, &indexBufferInfo, &vmaallocInfo,
-			&mesh._indexBuffer._buffer,
-			&mesh._indexBuffer._allocation,
-			nullptr));
+		mesh._indexBuffer = create_buffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
 		immediate_submit([=](VkCommandBuffer cmd) {
 			VkBufferCopy copy;
