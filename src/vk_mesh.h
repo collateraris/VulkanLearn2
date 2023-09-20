@@ -24,12 +24,24 @@ struct Vertex {
 	static VertexInputDescription get_vertex_description();
 };
 
+struct Meshlet
+{
+	uint32_t vertices[64];
+	uint8_t indices[126];
+	uint8_t indexCount;
+	uint8_t vertexCount;
+};
+
 struct Mesh {
     std::vector<Vertex> _vertices;
 	std::vector<uint16_t> _indices;
+	std::vector<Meshlet> _meshlets;
 
     AllocatedBuffer _vertexBuffer;
 	AllocatedBuffer _indexBuffer;
+	AllocatedBuffer _meshletsBuffer;
+
+	void build_meshlets();
 
 	bool load_from_obj(const char* filename);
 };

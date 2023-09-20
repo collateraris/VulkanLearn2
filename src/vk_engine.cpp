@@ -598,8 +598,9 @@ void VulkanEngine::init_pipelines() {
 	_materialSystem = std::make_unique<vkutil::MaterialSystem>();
 	_materialSystem->init(this);
 	_materialSystem->build_default_templates();
+
 	ShaderEffect defaultEffect;
-	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
+	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.mesh.spv")), VK_SHADER_STAGE_MESH_BIT_NV);
 	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("triangle.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
 	defaultEffect.reflect_layout(_device, nullptr, 0);
 	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
@@ -674,6 +675,7 @@ void VulkanEngine::load_meshes()
 {
 	for (auto& mesh: _resManager.meshList)
 	{
+		mesh->build_meshlets();
 		upload_mesh(*mesh);
 	}
 }
@@ -703,6 +705,34 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 		//add the destruction of mesh buffer to the deletion queue
 		_mainDeletionQueue.push_function([=]() {
 			vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
+			});
+
+		vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+	}
+
+	{
+		const size_t bufferSize = mesh._meshlets.size() * sizeof(Meshlet);
+		//allocate staging buffer
+		AllocatedBuffer stagingBuffer = create_buffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+
+		//copy vertex data
+		map_buffer(_allocator, stagingBuffer._allocation, [&](void*& data) {
+			memcpy(data, mesh._meshlets.data(), mesh._meshlets.size() * sizeof(Meshlet));
+			});
+
+		mesh._meshletsBuffer = create_buffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+
+		immediate_submit([=](VkCommandBuffer cmd) {
+			VkBufferCopy copy;
+			copy.dstOffset = 0;
+			copy.srcOffset = 0;
+			copy.size = bufferSize;
+			vkCmdCopyBuffer(cmd, stagingBuffer._buffer, mesh._meshletsBuffer._buffer, 1, &copy);
+			});
+
+		//add the destruction of mesh buffer to the deletion queue
+		_mainDeletionQueue.push_function([=]() {
+			vmaDestroyBuffer(_allocator, mesh._meshletsBuffer._buffer, mesh._meshletsBuffer._allocation);
 			});
 
 		vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
