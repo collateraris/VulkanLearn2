@@ -896,7 +896,7 @@ void VulkanEngine::init_descriptors()
 		const int MAX_OBJECTS = 10000;
 		_frames[i].objectBuffer = create_buffer(sizeof(GPUObjectData) * MAX_OBJECTS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
-		_frames[i].indirectBuffer = create_buffer(MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+		_frames[i].indirectBuffer = create_buffer(MAX_COMMANDS * sizeof(VkDrawMeshTasksIndirectCommandNV), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
 		VkDescriptorBufferInfo cameraInfo;
 		cameraInfo.buffer = _frames[i].cameraBuffer._buffer;
@@ -1065,16 +1065,13 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 	});
 
 	map_buffer(_allocator, get_current_frame().indirectBuffer._allocation, [&](void*& data) {
-		VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)data;
+		VkDrawMeshTasksIndirectCommandNV* drawCommands = (VkDrawMeshTasksIndirectCommandNV*)data;
 		//encode the draw data of each object into the indirect draw buffer
 		for (int i = 0; i < count; i++)
 		{
 			RenderObject& object = first[i];
-			drawCommands[i].indexCount = object.mesh->_indices.size();
-			drawCommands[i].instanceCount = 1;
-			drawCommands[i].vertexOffset = 0;
-			drawCommands[i].firstIndex = 0;
-			drawCommands[i].firstInstance = i; //used to access object matrix in the shader
+			drawCommands[i].firstTask = 0;
+			drawCommands[i].taskCount = uint32_t(object.mesh->_meshlets.size() / 32);
 		}
 	});
 
@@ -1111,11 +1108,11 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 			lastMesh = object.mesh;
 		}
 		
-		VkDeviceSize indirect_offset = object.first * sizeof(VkDrawIndexedIndirectCommand);
-		uint32_t draw_stride = sizeof(VkDrawIndexedIndirectCommand);
+		VkDeviceSize indirect_offset = object.first * sizeof(VkDrawMeshTasksIndirectCommandNV);
+		uint32_t draw_stride = sizeof(VkDrawMeshTasksIndirectCommandNV);
 
 		//execute the draw command buffer on each section as defined by the array of draws
-		vkCmdDrawIndexedIndirect(cmd, get_current_frame().indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
+		vkCmdDrawMeshTasksIndirectNV(cmd, get_current_frame().indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
 	}
 }
 

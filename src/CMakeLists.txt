@@ -31,9 +31,11 @@ add_executable(vulkan_guide
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
 
+target_compile_definitions(vulkan_guide PRIVATE VK_USE_PLATFORM_WIN32_KHR)
+
 target_include_directories(vulkan_guide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(vulkan_guide vkbootstrap vma glm tinyobjloader imgui stb_image assimp spirv_reflect)
 
-target_link_libraries(vulkan_guide Vulkan::Vulkan sdl2)
+target_link_libraries(vulkan_guide Vulkan::Vulkan sdl2 volk)
 
 add_dependencies(vulkan_guide Shaders)
