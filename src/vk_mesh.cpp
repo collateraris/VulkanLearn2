@@ -2,59 +2,6 @@
 
 #include <tiny_obj_loader.h>
 #include <iostream>
-
-void Mesh::build_meshlets()
-{
-	Meshlet meshlet = {};
-
-	std::vector<uint8_t> meshletVertices(_vertices.size(), 0xff);
-
-	for (size_t i = 0; i < _indices.size(); i += 3)
-	{
-		unsigned int a = _indices[i + 0];
-		unsigned int b = _indices[i + 1];
-		unsigned int c = _indices[i + 2];
-
-		uint8_t& av = meshletVertices[a];
-		uint8_t& bv = meshletVertices[b];
-		uint8_t& cv = meshletVertices[c];
-
-		if (meshlet.vertexCount + (av == 0xff) + (bv == 0xff) + (cv == 0xff) > 64 || meshlet.indexCount + 3 > 126)
-		{
-			_meshlets.push_back(meshlet);
-
-			for (size_t j = 0; j < meshlet.vertexCount; ++j)
-				meshletVertices[meshlet.vertices[j]] = 0xff;
-
-			meshlet = {};
-		}
-
-		if (av == 0xff)
-		{
-			av = meshlet.vertexCount;
-			meshlet.vertices[meshlet.vertexCount++] = a;
-		}
-
-		if (bv == 0xff)
-		{
-			bv = meshlet.vertexCount;
-			meshlet.vertices[meshlet.vertexCount++] = b;
-		}
-
-		if (cv == 0xff)
-		{
-			cv = meshlet.vertexCount;
-			meshlet.vertices[meshlet.vertexCount++] = c;
-		}
-
-		meshlet.indices[meshlet.indexCount++] = av;
-		meshlet.indices[meshlet.indexCount++] = bv;
-		meshlet.indices[meshlet.indexCount++] = cv;
-	}
-
-	if (meshlet.indexCount)
-		_meshlets.push_back(meshlet);
-}
 bool Mesh::load_from_obj(const char* filename)
 {
 	//attrib will contain the vertex arrays of the file
