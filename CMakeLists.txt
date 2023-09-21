@@ -22,12 +22,6 @@ set_target_properties( assimp
         FOLDER third_party/assimp
 )
 
-add_subdirectory( third_party/volk )
-set_target_properties( volk
-    PROPERTIES
-        FOLDER third_party/volk
-)
-
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 
 add_subdirectory(src)
