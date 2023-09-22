@@ -5,13 +5,6 @@
 
 VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass) 
 {
-	_vertexInputInfo = vkinit::vertex_input_state_create_info();
-	//connect the pipeline builder vertex input info to the one we get from Vertex
-	_vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
-	_vertexInputInfo.vertexAttributeDescriptionCount = (uint32_t)vertexDescription.attributes.size();
-
-	_vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
-	_vertexInputInfo.vertexBindingDescriptionCount = (uint32_t)vertexDescription.bindings.size();
 	//make viewport state from our stored viewport and scissor.
 	//at the moment we won't support multiple viewports or scissors
 	VkPipelineViewportStateCreateInfo viewportState = {};

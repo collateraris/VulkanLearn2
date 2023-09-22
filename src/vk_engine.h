@@ -136,6 +136,7 @@ public:
 	VkDescriptorSetLayout _globalSetLayout;
 	VkDescriptorSetLayout _objectSetLayout;
 	VkDescriptorSetLayout _singleTextureSetLayout;
+	VkDescriptorSetLayout _meshletsSetLayout;
 
 	std::unique_ptr<vkutil::DescriptorAllocator> _descriptorAllocator;
 	std::unique_ptr<vkutil::DescriptorLayoutCache> _descriptorLayoutCache;

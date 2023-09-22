@@ -64,9 +64,6 @@ bool Mesh::load_from_obj(const char* filename)
 				new_vert.normal.y = ny;
 				new_vert.normal.z = nz;
 
-				//we are setting the vertex color as the vertex normal. This is just for display purposes
-				new_vert.color = new_vert.normal;
-
 				new_vert.uv.x = ux;
 				new_vert.uv.y = 1 - uy;
 
@@ -77,6 +74,70 @@ bool Mesh::load_from_obj(const char* filename)
 	}
 
 	return true;
+}
+
+void Mesh::buildMeshlets()
+{
+	Meshlet meshlet = {};
+	_meshlets.push_back(meshlet);
+
+
+	const glm::vec3 vertices[3] = { glm::vec3(-1,-1,0), glm::vec3(0,1,0), glm::vec3(1,-1,0) };
+	const glm::vec3 colors[3] = { glm::vec3(1.0,0.0,0.0), glm::vec3(0.0,1.0,0.0), glm::vec3(0.0,0.0,1.0) };
+
+	_vertices.resize(3);
+
+	_vertices[0].position = vertices[0];
+	_vertices[1].position = vertices[1];
+	_vertices[1].position = vertices[2];
+
+	//std::vector<uint32_t> meshletVertices(_vertices.size(), 0xff);
+
+	//for (size_t i = 0; i < _indices.size(); i += 3)
+	//{
+	//	uint32_t a = _indices[i + 0];
+	//	uint32_t b = _indices[i + 1];
+	//	uint32_t c = _indices[i + 2];
+
+	//	uint32_t& av = meshletVertices[a];
+	//	uint32_t& bv = meshletVertices[b];
+	//	uint32_t& cv = meshletVertices[c];
+
+	//	if (meshlet.vertexCount + (av == 0xff) + (bv == 0xff) + (cv == 0xff) > 64 || meshlet.indexCount + 3 > 126)
+	//	{
+	//		_meshlets.push_back(meshlet);
+
+	//		for (size_t j = 0; j < meshlet.vertexCount; ++j)
+	//			meshletVertices[meshlet.vertices[j]] = 0xff;
+
+	//		meshlet = {};
+	//	}
+
+	//	if (av == 0xff)
+	//	{
+	//		av = meshlet.vertexCount;
+	//		meshlet.vertices[meshlet.vertexCount++] = a;
+	//	}
+
+	//	if (bv == 0xff)
+	//	{
+	//		bv = meshlet.vertexCount;
+	//		meshlet.vertices[meshlet.vertexCount++] = b;
+	//	}
+
+	//	if (cv == 0xff)
+	//	{
+	//		cv = meshlet.vertexCount;
+	//		meshlet.vertices[meshlet.vertexCount++] = c;
+	//	}
+
+	//	meshlet.indices[meshlet.indexCount++] = av;
+	//	meshlet.indices[meshlet.indexCount++] = bv;
+	//	meshlet.indices[meshlet.indexCount++] = cv;
+	//}
+
+	//if (meshlet.indexCount)
+	//	_meshlets.push_back(meshlet);
 }
 
 VertexInputDescription Vertex::get_vertex_description()
@@ -105,23 +166,15 @@ VertexInputDescription Vertex::get_vertex_description()
 	normalAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
 	normalAttribute.offset = offsetof(Vertex, normal);
 
-	//Color will be stored at Location 2
-	VkVertexInputAttributeDescription colorAttribute = {};
-	colorAttribute.binding = 0;
-	colorAttribute.location = 2;
-	colorAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
-	colorAttribute.offset = offsetof(Vertex, color);
-
-	//UV will be stored at Location 3
+	//UV will be stored at Location 2
 	VkVertexInputAttributeDescription uvAttribute = {};
 	uvAttribute.binding = 0;
-	uvAttribute.location = 3;
+	uvAttribute.location = 2;
 	uvAttribute.format = VK_FORMAT_R32G32_SFLOAT;
 	uvAttribute.offset = offsetof(Vertex, uv);
 
 	description.attributes.push_back(positionAttribute);
 	description.attributes.push_back(normalAttribute);
-	description.attributes.push_back(colorAttribute);
 	description.attributes.push_back(uvAttribute);
 
 	return description;
