@@ -126,7 +126,7 @@ See documentation chapter: \ref statistics.
 extern "C" {
 #endif
 
-#include <vulkan/vulkan.h>
+#include "../volk/volk.h"
 
 #if !defined(VMA_VULKAN_VERSION)
     #if defined(VK_VERSION_1_3)

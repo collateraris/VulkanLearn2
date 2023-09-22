@@ -7,8 +7,6 @@ project ("vulkan_guide")
 
 set(CMAKE_CXX_STANDARD 20)
 
-find_package(Vulkan REQUIRED)
-
 add_subdirectory(third_party)
 
 set( ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "Build Assimp Tools" FORCE )

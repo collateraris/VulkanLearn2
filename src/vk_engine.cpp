@@ -276,6 +276,8 @@ void VulkanEngine::run()
 
 void VulkanEngine::init_vulkan()
 {
+	VK_CHECK(volkInitialize());
+
 	vkb::InstanceBuilder builder;
 	//make the Vulkan instance, with basic debug features
 	auto inst_ret = builder.set_app_name("My Vulkan pet project")
@@ -288,6 +290,7 @@ void VulkanEngine::init_vulkan()
 
 	//store the instance
 	_instance = vkb_inst.instance;
+	volkLoadInstance(_instance);
 	//store the debug messenger
 	_debug_messenger = vkb_inst.debug_messenger;
 
@@ -340,10 +343,32 @@ void VulkanEngine::init_vulkan()
 	_graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
 	
 	//initialize the memory allocator
+
+	VmaVulkanFunctions vulkanFunctions;
+	vulkanFunctions.vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties;
+	vulkanFunctions.vkGetPhysicalDeviceMemoryProperties = vkGetPhysicalDeviceMemoryProperties;
+	vulkanFunctions.vkAllocateMemory = vkAllocateMemory;
+	vulkanFunctions.vkFreeMemory = vkFreeMemory;
+	vulkanFunctions.vkMapMemory = vkMapMemory;
+	vulkanFunctions.vkUnmapMemory = vkUnmapMemory;
+	vulkanFunctions.vkFlushMappedMemoryRanges = vkFlushMappedMemoryRanges;
+	vulkanFunctions.vkInvalidateMappedMemoryRanges = vkInvalidateMappedMemoryRanges;
+	vulkanFunctions.vkBindBufferMemory = vkBindBufferMemory;
+	vulkanFunctions.vkBindImageMemory = vkBindImageMemory;
+	vulkanFunctions.vkGetBufferMemoryRequirements = vkGetBufferMemoryRequirements;
+	vulkanFunctions.vkGetImageMemoryRequirements = vkGetImageMemoryRequirements;
+	vulkanFunctions.vkCreateBuffer = vkCreateBuffer;
+	vulkanFunctions.vkDestroyBuffer = vkDestroyBuffer;
+	vulkanFunctions.vkCreateImage = vkCreateImage;
+	vulkanFunctions.vkDestroyImage = vkDestroyImage;
+	vulkanFunctions.vkCmdCopyBuffer = vkCmdCopyBuffer;
+
+
 	VmaAllocatorCreateInfo allocatorInfo = {};
 	allocatorInfo.physicalDevice = _chosenGPU;
 	allocatorInfo.device = _device;
 	allocatorInfo.instance = _instance;
+	allocatorInfo.pVulkanFunctions = &vulkanFunctions;
 	vmaCreateAllocator(&allocatorInfo, &_allocator);
 
 	_gpuProperties = vkbDevice.physical_device.properties;
@@ -1174,6 +1199,10 @@ void VulkanEngine::init_imgui()
 	init_info.MinImageCount = 3;
 	init_info.ImageCount = 3;
 	init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+	ImGui_ImplVulkan_LoadFunctions([](const char* function_name, void* vulkan_instance) {
+		return vkGetInstanceProcAddr(*(reinterpret_cast<VkInstance*>(vulkan_instance)), function_name);
+		}, &_instance);
 
 	ImGui_ImplVulkan_Init(&init_info, _renderPass);
 

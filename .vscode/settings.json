@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "fstream": "cpp",
+        "system_error": "cpp",
+        "cassert": "cpp"
+    }
+}

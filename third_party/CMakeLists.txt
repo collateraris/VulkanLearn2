@@ -79,3 +79,7 @@ imgui/imstb_truetype.h
 target_link_libraries(imgui PUBLIC Vulkan::Vulkan sdl2)
 
 target_include_directories(stb_image INTERFACE stb_image)
+
+set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)
+
+add_subdirectory(volk)
