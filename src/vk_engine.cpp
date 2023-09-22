@@ -53,6 +53,7 @@ void VulkanEngine::init()
 
 	SceneConfig config;
 	config.fileName = "../../assets/cube.obj";
+	config.scaleFactor = 0.9;
 	AsimpLoader::processScene(config, _scene, _resManager);
 
 	//load the core Vulkan structures
@@ -684,7 +685,7 @@ void VulkanEngine::init_pipelines() {
 
 	//configure the rasterizer to draw filled triangles
 	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
-	//pipelineBuilder._rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	pipelineBuilder._rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
 	pipelineBuilder._rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
 
 	//we dont use multisampling, so just run the default one
@@ -729,7 +730,7 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 				memcpy(data, mesh._vertices.data(), bufferSize);
 			});
 
-		mesh._vertexBuffer = create_buffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+		mesh._vertexBuffer = create_buffer(128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
 		immediate_submit([=](VkCommandBuffer cmd) {
 			VkBufferCopy copy;
@@ -757,7 +758,7 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 			memcpy(data, mesh._meshlets.data(), bufferSize);
 			});
 
-		mesh._meshletsBuffer = create_buffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+		mesh._meshletsBuffer = create_buffer(128 * 1024 * 1024, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 
 		immediate_submit([=](VkCommandBuffer cmd) {
 			VkBufferCopy copy;
@@ -1072,12 +1073,12 @@ void VulkanEngine::init_scene()
 		VkDescriptorBufferInfo vertexBufferInfo;
 		vertexBufferInfo.buffer = mesh->_vertexBuffer._buffer;
 		vertexBufferInfo.offset = 0;
-		vertexBufferInfo.range = sizeof(mesh->_vertices[0]) * mesh->_vertices.size();
+		vertexBufferInfo.range = mesh->_vertexBuffer._allocation->GetSize();
 
 		VkDescriptorBufferInfo meshletBufferInfo;
 		meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;
 		meshletBufferInfo.offset = 0;
-		meshletBufferInfo.range = sizeof(Meshlet) * mesh->_meshlets.size();
+		meshletBufferInfo.range = mesh->_meshletsBuffer._allocation->GetSize();
 
 		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
 			.bind_buffer(0, &vertexBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV)
