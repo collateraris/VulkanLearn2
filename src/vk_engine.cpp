@@ -632,8 +632,8 @@ void VulkanEngine::init_pipelines() {
 	_materialSystem->init(this);
 	_materialSystem->build_default_templates();
 	ShaderEffect defaultEffect;
-	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
-	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("triangle.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
+	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.mesh.spv")), VK_SHADER_STAGE_MESH_BIT_NV);
+	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
 	defaultEffect.reflect_layout(_device, nullptr, 0);
 	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
 	PipelineBuilder pipelineBuilder;
@@ -1076,42 +1076,46 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 	Mesh* lastMesh = nullptr;
 	Material* lastMaterial = nullptr;
 
-	std::vector<IndirectBatch> draws = compact_draws(first, count);
-	for (IndirectBatch& object : draws)
-	{
-		//only bind the pipeline if it doesn't match with the already bound one
-		if (object.material != lastMaterial) {
+	RenderObject& object = first[0];
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
+	vkCmdDrawMeshTasksNV(cmd, 1, 0);
 
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
-			lastMaterial = object.material;
+	//std::vector<IndirectBatch> draws = compact_draws(first, count);
+	//for (IndirectBatch& object : draws)
+	//{
+	//	//only bind the pipeline if it doesn't match with the already bound one
+	//	if (object.material != lastMaterial) {
 
-			uint32_t uniform_offset = pad_uniform_buffer_size(sizeof(GPUSceneData)) * frameIndex;
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 1, &uniform_offset);
+	//		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
+	//		lastMaterial = object.material;
 
-			//object data descriptor
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &get_current_frame().objectDescriptor, 0, nullptr);
+	//		uint32_t uniform_offset = pad_uniform_buffer_size(sizeof(GPUSceneData)) * frameIndex;
+	//		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 1, &uniform_offset);
 
-			if (object.material->textureSet != VK_NULL_HANDLE) {
-				//texture descriptor
-				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet, 0, nullptr);
-			}
-		}
+	//		//object data descriptor
+	//		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &get_current_frame().objectDescriptor, 0, nullptr);
 
-		//only bind the mesh if its a different one from last bind
-		if (object.mesh != lastMesh) {
-			//bind the mesh vertex buffer with offset 0
-			VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
-			vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, offset, VK_INDEX_TYPE_UINT16);
-			lastMesh = object.mesh;
-		}
-		
-		VkDeviceSize indirect_offset = object.first * sizeof(VkDrawIndexedIndirectCommand);
-		uint32_t draw_stride = sizeof(VkDrawIndexedIndirectCommand);
+	//		if (object.material->textureSet != VK_NULL_HANDLE) {
+	//			//texture descriptor
+	//			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet, 0, nullptr);
+	//		}
+	//	}
 
-		//execute the draw command buffer on each section as defined by the array of draws
-		vkCmdDrawIndexedIndirect(cmd, get_current_frame().indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
-	}
+	//	//only bind the mesh if its a different one from last bind
+	//	if (object.mesh != lastMesh) {
+	//		//bind the mesh vertex buffer with offset 0
+	//		VkDeviceSize offset = 0;
+	//		vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
+	//		vkCmdBindIndexBuffer(cmd, object.mesh->_indexBuffer._buffer, offset, VK_INDEX_TYPE_UINT16);
+	//		lastMesh = object.mesh;
+	//	}
+	//	
+	//	VkDeviceSize indirect_offset = object.first * sizeof(VkDrawIndexedIndirectCommand);
+	//	uint32_t draw_stride = sizeof(VkDrawIndexedIndirectCommand);
+
+	//	//execute the draw command buffer on each section as defined by the array of draws
+	//	vkCmdDrawIndexedIndirect(cmd, get_current_frame().indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
+	//}
 }
 
 
