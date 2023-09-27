@@ -79,65 +79,65 @@ bool Mesh::load_from_obj(const char* filename)
 void Mesh::buildMeshlets()
 {
 	Meshlet meshlet = {};
-	_meshlets.push_back(meshlet);
+	//_meshlets.push_back(meshlet);
 
 
-	const glm::vec3 vertices[3] = { glm::vec3(-1,-1,0), glm::vec3(0,1,0), glm::vec3(1,-1,0) };
-	const glm::vec3 colors[3] = { glm::vec3(1.0,0.0,0.0), glm::vec3(0.0,1.0,0.0), glm::vec3(0.0,0.0,1.0) };
+	//const glm::vec3 vertices[3] = { glm::vec3(-1,-1,0), glm::vec3(0,1,0), glm::vec3(1,-1,0) };
+	//const glm::vec3 colors[3] = { glm::vec3(1.0,0.0,0.0), glm::vec3(0.0,1.0,0.0), glm::vec3(0.0,0.0,1.0) };
 
-	_vertices.resize(3);
+	//_vertices.resize(3);
 
-	_vertices[0].position = vertices[0];
-	_vertices[1].position = vertices[1];
-	_vertices[1].position = vertices[2];
+	//_vertices[0].position = vertices[0];
+	//_vertices[1].position = vertices[1];
+	//_vertices[1].position = vertices[2];
 
-	//std::vector<uint32_t> meshletVertices(_vertices.size(), 0xff);
+	std::vector<uint32_t> meshletVertices(_vertices.size(), 0xff);
 
-	//for (size_t i = 0; i < _indices.size(); i += 3)
-	//{
-	//	uint32_t a = _indices[i + 0];
-	//	uint32_t b = _indices[i + 1];
-	//	uint32_t c = _indices[i + 2];
+	for (size_t i = 0; i < _indices.size(); i += 3)
+	{
+		uint32_t a = _indices[i + 0];
+		uint32_t b = _indices[i + 1];
+		uint32_t c = _indices[i + 2];
 
-	//	uint32_t& av = meshletVertices[a];
-	//	uint32_t& bv = meshletVertices[b];
-	//	uint32_t& cv = meshletVertices[c];
+		uint32_t& av = meshletVertices[a];
+		uint32_t& bv = meshletVertices[b];
+		uint32_t& cv = meshletVertices[c];
 
-	//	if (meshlet.vertexCount + (av == 0xff) + (bv == 0xff) + (cv == 0xff) > 64 || meshlet.indexCount + 3 > 126)
-	//	{
-	//		_meshlets.push_back(meshlet);
+		if (meshlet.vertexCount + (av == 0xff) + (bv == 0xff) + (cv == 0xff) > 64 || meshlet.indexCount + 3 > 126)
+		{
+			_meshlets.push_back(meshlet);
 
-	//		for (size_t j = 0; j < meshlet.vertexCount; ++j)
-	//			meshletVertices[meshlet.vertices[j]] = 0xff;
+			for (size_t j = 0; j < meshlet.vertexCount; ++j)
+				meshletVertices[meshlet.vertices[j]] = 0xff;
 
-	//		meshlet = {};
-	//	}
+			meshlet = {};
+		}
 
-	//	if (av == 0xff)
-	//	{
-	//		av = meshlet.vertexCount;
-	//		meshlet.vertices[meshlet.vertexCount++] = a;
-	//	}
+		if (av == 0xff)
+		{
+			av = meshlet.vertexCount;
+			meshlet.vertices[meshlet.vertexCount++] = a;
+		}
 
-	//	if (bv == 0xff)
-	//	{
-	//		bv = meshlet.vertexCount;
-	//		meshlet.vertices[meshlet.vertexCount++] = b;
-	//	}
+		if (bv == 0xff)
+		{
+			bv = meshlet.vertexCount;
+			meshlet.vertices[meshlet.vertexCount++] = b;
+		}
 
-	//	if (cv == 0xff)
-	//	{
-	//		cv = meshlet.vertexCount;
-	//		meshlet.vertices[meshlet.vertexCount++] = c;
-	//	}
+		if (cv == 0xff)
+		{
+			cv = meshlet.vertexCount;
+			meshlet.vertices[meshlet.vertexCount++] = c;
+		}
 
-	//	meshlet.indices[meshlet.indexCount++] = av;
-	//	meshlet.indices[meshlet.indexCount++] = bv;
-	//	meshlet.indices[meshlet.indexCount++] = cv;
-	//}
+		meshlet.indices[meshlet.indexCount++] = av;
+		meshlet.indices[meshlet.indexCount++] = bv;
+		meshlet.indices[meshlet.indexCount++] = cv;
+	}
 
-	//if (meshlet.indexCount)
-	//	_meshlets.push_back(meshlet);
+	if (meshlet.indexCount)
+		_meshlets.push_back(meshlet);
 }
 
 VertexInputDescription Vertex::get_vertex_description()

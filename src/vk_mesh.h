@@ -36,10 +36,10 @@ struct Mesh {
 	std::vector<uint32_t> _indices;
 	std::vector<Meshlet> _meshlets;
 
-    AllocatedBuffer _vertexBuffer;
-	AllocatedBuffer _meshletsBuffer;
+	std::array<AllocatedBuffer, 2> _vertexBuffer;
+	std::array<AllocatedBuffer, 2> _meshletsBuffer;
 
-	VkDescriptorSet meshletsSet{ VK_NULL_HANDLE };
+	std::array<VkDescriptorSet, 2> meshletsSet{VK_NULL_HANDLE };
 
 	bool load_from_obj(const char* filename);
 	void buildMeshlets();
