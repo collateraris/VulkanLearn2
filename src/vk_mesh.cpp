@@ -75,21 +75,10 @@ bool Mesh::load_from_obj(const char* filename)
 
 	return true;
 }
-
+#if MESHSHADER_ON
 void Mesh::buildMeshlets()
 {
 	Meshlet meshlet = {};
-	//_meshlets.push_back(meshlet);
-
-
-	//const glm::vec3 vertices[3] = { glm::vec3(-1,-1,0), glm::vec3(0,1,0), glm::vec3(1,-1,0) };
-	//const glm::vec3 colors[3] = { glm::vec3(1.0,0.0,0.0), glm::vec3(0.0,1.0,0.0), glm::vec3(0.0,0.0,1.0) };
-
-	//_vertices.resize(3);
-
-	//_vertices[0].position = vertices[0];
-	//_vertices[1].position = vertices[1];
-	//_vertices[1].position = vertices[2];
 
 	std::vector<uint32_t> meshletVertices(_vertices.size(), 0xff);
 
@@ -139,7 +128,7 @@ void Mesh::buildMeshlets()
 	if (meshlet.indexCount)
 		_meshlets.push_back(meshlet);
 }
-
+#endif
 VertexInputDescription Vertex::get_vertex_description()
 {
 	VertexInputDescription description;

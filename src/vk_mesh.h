@@ -33,14 +33,20 @@ struct Meshlet
 
 struct Mesh {
     std::vector<Vertex> _vertices;
-	std::vector<uint32_t> _indices;
+	std::vector<uint16_t> _indices;
+#if MESHSHADER_ON
 	std::vector<Meshlet> _meshlets;
-
-	std::array<AllocatedBuffer, 2> _vertexBuffer;
-	std::array<AllocatedBuffer, 2> _meshletsBuffer;
-
 	std::array<VkDescriptorSet, 2> meshletsSet{VK_NULL_HANDLE };
+#endif
+	std::array<AllocatedBuffer, 2> _vertexBuffer;
+#if MESHSHADER_ON
+	std::array<AllocatedBuffer, 2> _meshletsBuffer;
+#else
+	std::array<AllocatedBuffer, 2> _indicesBuffer;
+#endif
 
 	bool load_from_obj(const char* filename);
+#if MESHSHADER_ON
 	void buildMeshlets();
+#endif
 };

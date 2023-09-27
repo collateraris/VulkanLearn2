@@ -30,7 +30,7 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file,
 	}
 
 	//allocate temporary buffer for holding texture data to upload
-	AllocatedBuffer stagingBuffer = engine.create_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+	AllocatedBuffer stagingBuffer = engine.create_staging_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
 	//copy data to buffer
 	void* data;

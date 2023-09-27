@@ -26,7 +26,7 @@ void AsimpLoader::processScene(const SceneConfig& config, Scene& newScene, Resou
 
 	std::string path(config.fileName.cbegin(), config.fileName.cend());
 
-	const unsigned int flags = 
+	const unsigned int flags = 0 |
 		aiProcess_Triangulate |
 		aiProcess_GenSmoothNormals |
 		aiProcess_LimitBoneWeights |

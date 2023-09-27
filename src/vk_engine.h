@@ -12,6 +12,8 @@
 #include <vk_material_system.h>
 #include <vk_camera.h>
 
+constexpr size_t MAX_OBJECTS = 100000;
+
 struct Material {
 	VkDescriptorSet textureSet{ VK_NULL_HANDLE }; //texture defaulted to null
 	VkPipeline pipeline;
