@@ -654,7 +654,7 @@ void VulkanEngine::init_pipelines() {
 
 	//hook the global set layout
 #if MESHSHADER_ON
-	std::vector<VkDescriptorSetLayout> setLayouts = { _globalSetLayout, /*_objectSetLayout,_singleTextureSetLayout,*/ _meshletsSetLayout};
+	std::vector<VkDescriptorSetLayout> setLayouts = { _meshletsSetLayout};
 #else
 	std::vector<VkDescriptorSetLayout> setLayouts = { _globalSetLayout, _objectSetLayout,_singleTextureSetLayout };
 #endif
@@ -736,8 +736,9 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 {
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
+#if MESHSHADER_ON
 		{
-			size_t bufferSize = mesh._vertices.size() * sizeof(Vertex);
+			size_t bufferSize = mesh._verticesMS.size() * sizeof(Vertex_MS);
 
 			if (bufferSize)
 			{
@@ -747,10 +748,10 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 				//copy vertex data
 
 				map_buffer(_allocator, stagingBuffer._allocation, [&](void*& data) {
-					memcpy(data, mesh._vertices.data(), bufferSize);
+					memcpy(data, mesh._verticesMS.data(), bufferSize);
 					});
 
-				mesh._vertexBuffer[i] = create_gpuonly_buffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+				mesh._vertexBuffer[i] = create_gpuonly_buffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 				immediate_submit([=](VkCommandBuffer cmd) {
 					VkBufferCopy copy;
@@ -768,7 +769,6 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 				vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
 			}
 		}
-#if MESHSHADER_ON
 		{
 			size_t bufferSize = mesh._meshlets.size() * sizeof(Meshlet);
 
@@ -801,6 +801,38 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 			}
 		}
 #else
+		{
+			size_t bufferSize = mesh._vertices.size() * sizeof(Vertex);
+
+			if (bufferSize)
+			{
+				//allocate staging buffer
+				AllocatedBuffer stagingBuffer = create_staging_buffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
+				//copy vertex data
+
+				map_buffer(_allocator, stagingBuffer._allocation, [&](void*& data) {
+					memcpy(data, mesh._vertices.data(), bufferSize);
+					});
+
+				mesh._vertexBuffer[i] = create_gpuonly_buffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+
+				immediate_submit([=](VkCommandBuffer cmd) {
+					VkBufferCopy copy;
+					copy.dstOffset = 0;
+					copy.srcOffset = 0;
+					copy.size = VkDeviceSize(bufferSize);
+					vkCmdCopyBuffer(cmd, stagingBuffer._buffer, mesh._vertexBuffer[i]._buffer, 1, &copy);
+					});
+
+				//add the destruction of mesh buffer to the deletion queue
+				_mainDeletionQueue.push_function([=]() {
+					vmaDestroyBuffer(_allocator, mesh._vertexBuffer[i]._buffer, mesh._vertexBuffer[i]._allocation);
+					});
+
+				vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+			}
+		}
 		{
 			size_t bufferSize = mesh._indices.size() * sizeof(mesh._indices[0]);
 
@@ -1138,9 +1170,8 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
 
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 0, nullptr);
 
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &object.mesh->meshletsSet[frameIndex], 0, nullptr);
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &object.mesh->meshletsSet[frameIndex], 0, nullptr);
 
 		vkCmdDrawMeshTasksNV(cmd, object.mesh->_meshlets.size(), 0);
 	}

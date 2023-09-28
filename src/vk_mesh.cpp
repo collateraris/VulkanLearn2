@@ -78,21 +78,41 @@ bool Mesh::load_from_obj(const char* filename)
 #if MESHSHADER_ON
 void Mesh::buildMeshlets()
 {
+	_verticesMS.clear();
+	for (const auto& vert: _vertices)
+	{
+		Vertex_MS vertMS;
+		vertMS.vx = vert.position.x;
+		vertMS.vy = vert.position.y;
+		vertMS.vz = vert.position.z;
+		vertMS.vw = 0;
+
+		vertMS.nx = uint8_t(vert.normal.x * 127.f + 127.f);
+		vertMS.ny = uint8_t(vert.normal.y * 127.f + 127.f);
+		vertMS.nz = uint8_t(vert.normal.z * 127.f + 127.f);
+		vertMS.nw = 0;
+
+		vertMS.tu = vert.uv.x;
+		vertMS.tv = vert.uv.y;
+
+		_verticesMS.push_back(vertMS);
+	}
+
 	Meshlet meshlet = {};
 
-	std::vector<uint32_t> meshletVertices(_vertices.size(), 0xff);
+	std::vector<uint8_t> meshletVertices(_verticesMS.size(), 0xff);
 
 	for (size_t i = 0; i < _indices.size(); i += 3)
 	{
-		uint32_t a = _indices[i + 0];
-		uint32_t b = _indices[i + 1];
-		uint32_t c = _indices[i + 2];
+		auto a = _indices[i + 0];
+		auto b = _indices[i + 1];
+		auto c = _indices[i + 2];
 
-		uint32_t& av = meshletVertices[a];
-		uint32_t& bv = meshletVertices[b];
-		uint32_t& cv = meshletVertices[c];
+		auto& av = meshletVertices[a];
+		auto& bv = meshletVertices[b];
+		auto& cv = meshletVertices[c];
 
-		if (meshlet.vertexCount + (av == 0xff) + (bv == 0xff) + (cv == 0xff) > 64 || meshlet.indexCount + 3 > 126)
+		if (meshlet.vertexCount + (av == 0xff) + (bv == 0xff) + (cv == 0xff) > 64 || meshlet.triangleCount >= 126)
 		{
 			_meshlets.push_back(meshlet);
 
@@ -120,12 +140,13 @@ void Mesh::buildMeshlets()
 			meshlet.vertices[meshlet.vertexCount++] = c;
 		}
 
-		meshlet.indices[meshlet.indexCount++] = av;
-		meshlet.indices[meshlet.indexCount++] = bv;
-		meshlet.indices[meshlet.indexCount++] = cv;
+		meshlet.indices[meshlet.triangleCount * 3 + 0] = av;
+		meshlet.indices[meshlet.triangleCount * 3 + 1] = bv;
+		meshlet.indices[meshlet.triangleCount * 3 + 2] = cv;
+		meshlet.triangleCount++;
 	}
 
-	if (meshlet.indexCount)
+	if (meshlet.triangleCount)
 		_meshlets.push_back(meshlet);
 }
 #endif
