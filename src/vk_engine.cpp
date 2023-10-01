@@ -653,7 +653,7 @@ void VulkanEngine::init_pipelines() {
 
 	//hook the global set layout
 #if MESHSHADER_ON
-	std::vector<VkDescriptorSetLayout> setLayouts = { _meshletsSetLayout};
+	std::vector<VkDescriptorSetLayout> setLayouts = { _globalSetLayout, _meshletsSetLayout};
 #else
 	std::vector<VkDescriptorSetLayout> setLayouts = { _globalSetLayout, _objectSetLayout,_singleTextureSetLayout };
 #endif
@@ -1171,8 +1171,8 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
 
-
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &object.mesh->meshletsSet[frameIndex], 0, nullptr);
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 0, nullptr);
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &object.mesh->meshletsSet[frameIndex], 0, nullptr);
 
 		vkCmdDrawMeshTasksNV(cmd, object.mesh->_meshlets.size(), 0);
 	}
