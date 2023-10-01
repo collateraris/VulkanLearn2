@@ -4,6 +4,7 @@
 #include <iostream>
 bool Mesh::load_from_obj(const char* filename)
 {
+#if MESHSHADER_ON
 	ObjFile file;
 	if (!objParseFile(file, filename))
 		return false;
@@ -46,6 +47,7 @@ bool Mesh::load_from_obj(const char* filename)
 
 	meshopt_optimizeVertexCache(_indices.data(), _indices.data(), index_count, vertex_count);
 	meshopt_optimizeVertexFetch(_verticesMS.data(), _indices.data(), index_count, _verticesMS.data(), vertex_count, sizeof(Vertex_MS));
+#endif
 	// TODO: optimize the mesh for more efficient GPU rendering
 	return true;
 }

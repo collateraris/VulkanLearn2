@@ -3,7 +3,7 @@
 
 #pragma once
 
-#define MESHSHADER_ON 1
+#define MESHSHADER_ON 0
 
 #include <volk.h>
 #include "vk_mem_alloc.h"

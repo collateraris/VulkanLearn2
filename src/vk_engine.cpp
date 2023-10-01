@@ -1240,7 +1240,7 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 			//bind the mesh vertex buffer with offset 0
 			VkDeviceSize offset = 0;
 			vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer[frameIndex]._buffer, &offset);
-			vkCmdBindIndexBuffer(cmd, object.mesh->_indicesBuffer[frameIndex]._buffer, offset, VK_INDEX_TYPE_UINT16);
+			vkCmdBindIndexBuffer(cmd, object.mesh->_indicesBuffer[frameIndex]._buffer, offset, VK_INDEX_TYPE_UINT32);
 			lastMesh = object.mesh;
 		}
 

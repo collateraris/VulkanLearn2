@@ -130,8 +130,6 @@ void collectAIMesh(const aiMesh* amesh, const SceneConfig& config, ResourceManag
 
 	for (unsigned int i = 0; i < amesh->mNumFaces; i++)
 	{
-		if (amesh->mFaces[i].mNumIndices != 3)
-			continue;
 		for (unsigned j = 0; j != amesh->mFaces[i].mNumIndices; j++)
 		{
 			newMesh->_indices.push_back(amesh->mFaces[i].mIndices[j]);
