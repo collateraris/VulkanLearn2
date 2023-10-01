@@ -55,7 +55,6 @@ target_include_directories(spirv_reflect PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/spv
 target_include_directories(spirv_reflect PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/spv_reflect/include" )
 
 
-
 target_sources(imgui PRIVATE
     imgui/imconfig.h	 
     imgui/imgui.h
@@ -82,4 +81,33 @@ target_include_directories(stb_image INTERFACE stb_image)
 
 set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)
 
+add_library(meshoptimizer STATIC)
+target_include_directories(imgui PUBLIC meshoptimizer/src)
+target_include_directories(imgui PUBLIC meshoptimizer/demo)
+target_sources(meshoptimizer PUBLIC
+    meshoptimizer/src/meshoptimizer.h
+    meshoptimizer/src/allocator.cpp
+    meshoptimizer/src/clusterizer.cpp
+    meshoptimizer/src/indexcodec.cpp
+    meshoptimizer/src/indexgenerator.cpp
+    meshoptimizer/src/overdrawanalyzer.cpp
+    meshoptimizer/src/overdrawoptimizer.cpp
+    meshoptimizer/src/quantization.cpp
+    meshoptimizer/src/simplifier.cpp
+    meshoptimizer/src/spatialorder.cpp
+    meshoptimizer/src/stripifier.cpp
+    meshoptimizer/src/vcacheanalyzer.cpp
+    meshoptimizer/src/vcacheoptimizer.cpp
+    meshoptimizer/src/vertexcodec.cpp
+    meshoptimizer/src/vertexfilter.cpp
+    meshoptimizer/src/vfetchanalyzer.cpp
+    meshoptimizer/src/vfetchoptimizer.cpp
+    meshoptimizer/demo/objparser.h
+    meshoptimizer/demo/objparser.cpp
+    )
+
+target_link_libraries(meshoptimizer PUBLIC Vulkan::Vulkan)
+
 add_subdirectory(volk)
+
+
