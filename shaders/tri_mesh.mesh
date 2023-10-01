@@ -9,9 +9,9 @@ layout(triangles, max_vertices = 64, max_primitives = 126) out;
 
 struct s_vertex
 {
-	vec3 position;
-	vec3 normal;
-	vec2 uv;
+	float16_t vx, vy, vz, vw;
+	uint8_t nx, ny, nz, nw;
+	float16_t tu, tv;
 };
 
 layout (binding = 0) readonly buffer _vertices
@@ -52,9 +52,9 @@ void main()
 	{
 		uint vi = meshlets[mi].vertices[i];
 
-		vec3 position = vertices[vi].position;
-		vec3 normal = vertices[vi].normal;
-		vec2 texcoord = vertices[vi].uv;
+		vec3 position = vec3(vertices[vi].vx, vertices[vi].vy, vertices[vi].vz);
+		vec3 normal = vec3(int(vertices[vi].nx), int(vertices[vi].ny), int(vertices[vi].nz)) / 127.0 - 1.0;
+		vec2 texcoord = vec2(vertices[vi].tu, vertices[vi].tv);
 
 		gl_MeshVerticesNV[i].gl_Position = vec4(position * vec3(1, 1, 0.5) + vec3(0, 0, 0.5), 1.0);
 		v_out[i].color = vec4(normal * 0.5 + vec3(0.5), 1.0);

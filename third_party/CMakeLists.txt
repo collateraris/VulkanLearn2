@@ -6,6 +6,7 @@ add_library(vma INTERFACE)
 
 add_library(stb_image INTERFACE)
 add_library(spirv_reflect STATIC)
+add_library(meshoptimizer STATIC)
 
 add_library(tinyobjloader STATIC)
 
@@ -79,35 +80,31 @@ target_link_libraries(imgui PUBLIC Vulkan::Vulkan sdl2)
 
 target_include_directories(stb_image INTERFACE stb_image)
 
-set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)
-
-add_library(meshoptimizer STATIC)
-target_include_directories(imgui PUBLIC meshoptimizer/src)
-target_include_directories(imgui PUBLIC meshoptimizer/demo)
 target_sources(meshoptimizer PUBLIC
-    meshoptimizer/src/meshoptimizer.h
-    meshoptimizer/src/allocator.cpp
-    meshoptimizer/src/clusterizer.cpp
-    meshoptimizer/src/indexcodec.cpp
-    meshoptimizer/src/indexgenerator.cpp
-    meshoptimizer/src/overdrawanalyzer.cpp
-    meshoptimizer/src/overdrawoptimizer.cpp
-    meshoptimizer/src/quantization.cpp
-    meshoptimizer/src/simplifier.cpp
-    meshoptimizer/src/spatialorder.cpp
-    meshoptimizer/src/stripifier.cpp
-    meshoptimizer/src/vcacheanalyzer.cpp
-    meshoptimizer/src/vcacheoptimizer.cpp
-    meshoptimizer/src/vertexcodec.cpp
-    meshoptimizer/src/vertexfilter.cpp
-    meshoptimizer/src/vfetchanalyzer.cpp
-    meshoptimizer/src/vfetchoptimizer.cpp
-    meshoptimizer/demo/objparser.h
-    meshoptimizer/demo/objparser.cpp
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/meshoptimizer.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/allocator.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/clusterizer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/indexcodec.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/indexgenerator.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/overdrawanalyzer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/overdrawoptimizer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/quantization.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/simplifier.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/spatialorder.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/stripifier.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/vcacheanalyzer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/vcacheoptimizer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/vertexcodec.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/vertexfilter.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/vfetchanalyzer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/vfetchoptimizer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/objparser.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/objparser.cpp"
     )
 
-target_link_libraries(meshoptimizer PUBLIC Vulkan::Vulkan)
+target_include_directories(meshoptimizer PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src")
 
+set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WIN32_KHR)
 add_subdirectory(volk)
 
 

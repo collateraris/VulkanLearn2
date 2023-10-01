@@ -25,9 +25,9 @@ struct Vertex {
 
 struct Vertex_MS
 {
-	float vx, vy, vz, vw;
+	uint16_t vx, vy, vz, vw;
 	uint8_t nx, ny, nz, nw;
-	float tu, tv;
+	uint16_t tu, tv;
 };
 
 struct Meshlet
@@ -40,9 +40,9 @@ struct Meshlet
 
 struct Mesh {
 	std::vector<Vertex> _vertices;
-	std::vector<uint16_t> _indices;
-#if MESHSHADER_ON
+	std::vector<uint32_t> _indices;
 	std::vector<Vertex_MS> _verticesMS;
+#if MESHSHADER_ON
 	std::vector<Meshlet> _meshlets;
 	std::array<VkDescriptorSet, 2> meshletsSet{VK_NULL_HANDLE };
 #endif

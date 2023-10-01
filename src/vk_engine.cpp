@@ -22,6 +22,10 @@
 
 #include <vk_assimp_loader.h>
 
+#if MESHSHADER_ON
+Mesh meshshaderTest;
+#endif
+
 //we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
 using namespace std;
 void VK_CHECK(VkResult result_) {
@@ -44,12 +48,14 @@ void VulkanEngine::init()
 		_windowExtent.height,
 		window_flags
 	);
-
+#if !MESHSHADER_ON
 	SceneConfig config;
 	config.fileName = "../../assets/lost_empire.obj";
 	config.scaleFactor = 0.9;
 	AsimpLoader::processScene(config, _scene, _resManager);
-
+#else
+	meshshaderTest.load_from_obj("../../assets/monkey_smooth.obj");
+#endif
 	//load the core Vulkan structures
 	init_vulkan();
 
@@ -713,6 +719,9 @@ void VulkanEngine::init_pipelines() {
 	VkPipeline meshPipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
 
 	load_materials(meshPipeline, meshPipLayout);
+#if MESHSHADER_ON
+	create_material(meshPipeline, meshPipLayout, "meshshaderTest");
+#endif
 
 	_mainDeletionQueue.push_function([=]() {
 		vkDestroyPipeline(_device, meshPipeline, nullptr);
@@ -730,6 +739,11 @@ void VulkanEngine::load_meshes()
 #endif // MESHSHADER_ON
 		upload_mesh(*mesh);
 	}
+#if MESHSHADER_ON
+	meshshaderTest.buildMeshlets();
+	upload_mesh(meshshaderTest);
+#endif
+
 }
 
 void VulkanEngine::upload_mesh(Mesh& mesh)
@@ -1242,6 +1256,32 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 
 void VulkanEngine::init_scene()
 {
+#if MESHSHADER_ON
+	RenderObject map;
+	map.mesh = &meshshaderTest;
+	map.material = get_material("meshshaderTest");
+
+	_renderables.push_back(map);
+
+	for (int i = 0; i < FRAME_OVERLAP; i++)
+	{
+		VkDescriptorBufferInfo vertexBufferInfo;
+		vertexBufferInfo.buffer = map.mesh->_vertexBuffer[i]._buffer;
+		vertexBufferInfo.offset = 0;
+		vertexBufferInfo.range = map.mesh->_vertexBuffer[i]._allocation->GetSize();
+
+		VkDescriptorBufferInfo meshletBufferInfo;
+		meshletBufferInfo.buffer = map.mesh->_meshletsBuffer[i]._buffer;
+		meshletBufferInfo.offset = 0;
+		meshletBufferInfo.range = map.mesh->_meshletsBuffer[i]._allocation->GetSize();
+
+		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
+			.bind_buffer(0, &vertexBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV)
+			.bind_buffer(1, &meshletBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV)
+			.build(map.mesh->meshletsSet[i], _meshletsSetLayout);
+	}
+#endif
+
 	for (int nodeIndex = 1; nodeIndex < _scene._hierarchy.size(); nodeIndex++)
 	{
 		RenderObject map;

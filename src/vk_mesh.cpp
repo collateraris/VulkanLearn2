@@ -1,103 +1,57 @@
 #include <vk_mesh.h>
-
-#include <tiny_obj_loader.h>
+#include <meshoptimizer.h>
+#include <objparser.h>
 #include <iostream>
 bool Mesh::load_from_obj(const char* filename)
 {
-	//attrib will contain the vertex arrays of the file
-	tinyobj::attrib_t attrib;
-	//shapes contains the info for each separate object in the file
-	std::vector<tinyobj::shape_t> shapes;
-	//materials contains the information about the material of each shape, but we won't use it.
-	std::vector<tinyobj::material_t> materials;
-
-	//error and warning output from the load function
-	std::string warn;
-	std::string err;
-
-	//load the OBJ file
-	tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename, nullptr);
-	//make sure to output the warnings to the console, in case there are issues with the file
-	if (!warn.empty()) {
-		std::cout << "WARN: " << warn << std::endl;
-	}
-	//if we have any error, print it to the console, and break the mesh loading.
-	//This happens if the file can't be found or is malformed
-	if (!err.empty()) {
-		std::cerr << err << std::endl;
+	ObjFile file;
+	if (!objParseFile(file, filename))
 		return false;
+
+	size_t index_count = file.f_size / 3;
+
+	std::vector<Vertex_MS> vertices(index_count);
+
+	for (size_t i = 0; i < index_count; ++i)
+	{
+		Vertex_MS& v = vertices[i];
+
+		int vi = file.f[i * 3 + 0];
+		int vti = file.f[i * 3 + 1];
+		int vni = file.f[i * 3 + 2];
+
+		float nx = vni < 0 ? 0.f : file.vn[vni * 3 + 0];
+		float ny = vni < 0 ? 0.f : file.vn[vni * 3 + 1];
+		float nz = vni < 0 ? 1.f : file.vn[vni * 3 + 2];
+
+		v.vx = meshopt_quantizeHalf(file.v[vi * 3 + 0]);
+		v.vy = meshopt_quantizeHalf(file.v[vi * 3 + 1]);
+		v.vz = meshopt_quantizeHalf(file.v[vi * 3 + 2]);
+		v.vw = 0;
+		v.nx = uint8_t(nx * 127.f + 127.f); // TODO: fix rounding
+		v.ny = uint8_t(ny * 127.f + 127.f); // TODO: fix rounding
+		v.nz = uint8_t(nz * 127.f + 127.f); // TODO: fix rounding
+		v.tu = meshopt_quantizeHalf(vti < 0 ? 0.f : file.vt[vti * 3 + 0]);
+		v.tv = meshopt_quantizeHalf(vti < 0 ? 0.f : file.vt[vti * 3 + 1]);
 	}
 
-	// Loop over shapes
-	for (size_t s = 0; s < shapes.size(); s++) {
-		// Loop over faces(polygon)
-		size_t index_offset = 0;
-		for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+	std::vector<uint32_t> remap(index_count);
+	size_t vertex_count = meshopt_generateVertexRemap(remap.data(), 0, index_count, vertices.data(), index_count, sizeof(Vertex_MS));
 
-			//hardcode loading to triangles
-			int fv = 3;
+	_verticesMS.resize(vertex_count);
+	_indices.resize(index_count);
 
-			// Loop over vertices in the face.
-			for (size_t v = 0; v < fv; v++) {
-				// access to vertex
-				tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+	meshopt_remapVertexBuffer(_verticesMS.data(), vertices.data(), index_count, sizeof(Vertex_MS), remap.data());
+	meshopt_remapIndexBuffer(_indices.data(), 0, index_count, remap.data());
 
-				//vertex position
-				tinyobj::real_t vx = attrib.vertices[3 * idx.vertex_index + 0];
-				tinyobj::real_t vy = attrib.vertices[3 * idx.vertex_index + 1];
-				tinyobj::real_t vz = attrib.vertices[3 * idx.vertex_index + 2];
-				//vertex normal
-				tinyobj::real_t nx = attrib.normals[3 * idx.normal_index + 0];
-				tinyobj::real_t ny = attrib.normals[3 * idx.normal_index + 1];
-				tinyobj::real_t nz = attrib.normals[3 * idx.normal_index + 2];
-				//vertex uv
-				tinyobj::real_t ux = attrib.texcoords[2 * idx.texcoord_index + 0];
-				tinyobj::real_t uy = attrib.texcoords[2 * idx.texcoord_index + 1];
-
-				//copy it into our vertex
-				Vertex new_vert;
-				new_vert.position.x = vx;
-				new_vert.position.y = vy;
-				new_vert.position.z = vz;
-
-				new_vert.normal.x = nx;
-				new_vert.normal.y = ny;
-				new_vert.normal.z = nz;
-
-				new_vert.uv.x = ux;
-				new_vert.uv.y = 1 - uy;
-
-				_vertices.push_back(new_vert);
-			}
-			index_offset += fv;
-		}
-	}
-
+	meshopt_optimizeVertexCache(_indices.data(), _indices.data(), index_count, vertex_count);
+	meshopt_optimizeVertexFetch(_verticesMS.data(), _indices.data(), index_count, _verticesMS.data(), vertex_count, sizeof(Vertex_MS));
+	// TODO: optimize the mesh for more efficient GPU rendering
 	return true;
 }
 #if MESHSHADER_ON
 void Mesh::buildMeshlets()
 {
-	_verticesMS.clear();
-	for (const auto& vert: _vertices)
-	{
-		Vertex_MS vertMS;
-		vertMS.vx = vert.position.x;
-		vertMS.vy = vert.position.y;
-		vertMS.vz = vert.position.z;
-		vertMS.vw = 0;
-
-		vertMS.nx = uint8_t(vert.normal.x * 127.f + 127.f);
-		vertMS.ny = uint8_t(vert.normal.y * 127.f + 127.f);
-		vertMS.nz = uint8_t(vert.normal.z * 127.f + 127.f);
-		vertMS.nw = 0;
-
-		vertMS.tu = vert.uv.x;
-		vertMS.tv = vert.uv.y;
-
-		_verticesMS.push_back(vertMS);
-	}
-
 	Meshlet meshlet = {};
 
 	std::vector<uint8_t> meshletVertices(_verticesMS.size(), 0xff);
