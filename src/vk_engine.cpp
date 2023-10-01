@@ -43,7 +43,7 @@ void VulkanEngine::init()
 		window_flags
 	);
 	SceneConfig config;
-	config.fileName = "../../assets/monkey_smooth.obj";
+	config.fileName = "../../assets/lost_empire.obj";
 	config.scaleFactor = 0.9;
 	AsimpLoader::processScene(config, _scene, _resManager);
 

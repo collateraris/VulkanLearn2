@@ -56,13 +56,8 @@ bool Mesh::load_from_obj(const char* filename)
 void Mesh::remapVertexToVertexMS()
 {
 	_verticesMS.clear();
-	_indices.clear();
-	size_t index_count = _vertices.size();
-	index_count -= index_count % 3;
-	std::vector<Vertex_MS> vertices{};
-	for (int i = 0; i < index_count; i++)
+	for (const Vertex& vert: _vertices)
 	{
-		Vertex& vert = _vertices[i];
 		Vertex_MS vertMS;
 		vertMS.vx = meshopt_quantizeHalf(vert.position.x);
 		vertMS.vy = meshopt_quantizeHalf(vert.position.y);
@@ -77,21 +72,8 @@ void Mesh::remapVertexToVertexMS()
 		vertMS.tu = meshopt_quantizeHalf(vert.uv.x);
 		vertMS.tv = meshopt_quantizeHalf(vert.uv.y);
 
-		vertices.emplace_back(vertMS);
+		_verticesMS.emplace_back(vertMS);
 	}
-
-
-	std::vector<uint32_t> remap(index_count);
-	size_t vertex_count = meshopt_generateVertexRemap(remap.data(), 0, index_count, vertices.data(), index_count, sizeof(Vertex_MS));
-
-	_verticesMS.resize(vertex_count);
-	_indices.resize(index_count);
-
-	meshopt_remapVertexBuffer(_verticesMS.data(), vertices.data(), index_count, sizeof(Vertex_MS), remap.data());
-	meshopt_remapIndexBuffer(_indices.data(), 0, index_count, remap.data());
-
-	meshopt_optimizeVertexCache(_indices.data(), _indices.data(), index_count, vertex_count);
-	meshopt_optimizeVertexFetch(_verticesMS.data(), _indices.data(), index_count, _verticesMS.data(), vertex_count, sizeof(Vertex_MS));
 }
 
 void Mesh::buildMeshlets()
