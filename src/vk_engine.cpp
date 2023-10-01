@@ -231,7 +231,7 @@ void VulkanEngine::draw()
 	double frameGpuBegin = double(queryResults[0]) * physDevProp.limits.timestampPeriod * 1e-6;
 	double frameGpuEnd = double(queryResults[1]) * physDevProp.limits.timestampPeriod * 1e-6;
 
-	frameGpuAvg = frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
+	_frameGpuAvg = _frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
 	//increase the number of frames drawn
 	_frameNumber++;
 }
@@ -275,7 +275,7 @@ void VulkanEngine::run()
 		ImGui::NewFrame();
 
 		//imgui commands
-		ImguiAppLog::ShowFPSLog(frameCpuAvg, frameGpuAvg);
+		ImguiAppLog::ShowFPSLog(_frameCpuAvg, _frameGpuAvg);
 
 		ImGui::Render();
 
@@ -285,7 +285,7 @@ void VulkanEngine::run()
 
 		{
 			std::chrono::duration<double> elapsed_seconds = frameCpuEnd - frameCpuStart;
-			frameCpuAvg = frameCpuAvg * 0.95 + elapsed_seconds / std::chrono::milliseconds(1) * 0.05;
+			_frameCpuAvg = _frameCpuAvg * 0.95 + elapsed_seconds / std::chrono::milliseconds(1) * 0.05;
 		}
 	}
 }
