@@ -55,6 +55,7 @@ struct Mesh {
 
 	bool load_from_obj(const char* filename);
 #if MESHSHADER_ON
+	void remapVertexToVertexMS();
 	void buildMeshlets();
 #endif
 };
