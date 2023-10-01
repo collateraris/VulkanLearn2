@@ -16,9 +16,7 @@
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
-#include <imgui.h>
-#include <imgui_impl_sdl.h>
-#include <imgui_impl_vulkan.h>
+#include <imgui_menu.h>
 
 #include <vk_assimp_loader.h>
 
@@ -132,6 +130,9 @@ void VulkanEngine::draw()
 
 	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
+	vkCmdResetQueryPool(cmd, get_current_frame().queryPool, 0, 128);
+	vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 0);
+
 	//make a clear-color from frame number. This will flash with a 120*pi frame period.
 	VkClearValue clearValue;
 	float flash = abs(sin(_frameNumber / 120.f));
@@ -176,6 +177,8 @@ void VulkanEngine::draw()
 
 	//finalize the render pass
 	vkCmdEndRenderPass(cmd);
+
+	vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 1);
 	//finalize the command buffer (we can no longer add commands, but it can now be executed)
 	VK_CHECK(vkEndCommandBuffer(cmd));
 
@@ -221,6 +224,14 @@ void VulkanEngine::draw()
 
 	VK_CHECK(vkQueuePresentKHR(_graphicsQueue, &presentInfo));
 
+	uint64_t queryResults[2];
+
+	VK_CHECK(vkGetQueryPoolResults(_device, get_current_frame().queryPool, 0, 2, sizeof(queryResults), queryResults, sizeof(queryResults[0]), VK_QUERY_RESULT_64_BIT));
+
+	double frameGpuBegin = double(queryResults[0]) * physDevProp.limits.timestampPeriod * 1e-6;
+	double frameGpuEnd = double(queryResults[1]) * physDevProp.limits.timestampPeriod * 1e-6;
+
+	frameGpuAvg = frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
 	//increase the number of frames drawn
 	_frameNumber++;
 }
@@ -235,9 +246,13 @@ void VulkanEngine::run()
 	start = std::chrono::system_clock::now();
 	end = std::chrono::system_clock::now();
 
+	std::chrono::time_point<std::chrono::high_resolution_clock> frameCpuStart;
+	std::chrono::time_point<std::chrono::high_resolution_clock> frameCpuEnd;
+
 	//main loop
 	while (!bQuit)
 	{
+		frameCpuStart = std::chrono::high_resolution_clock::now();
 		//Handle events on queue
 		while (SDL_PollEvent(&e) != 0)
 		{
@@ -260,11 +275,18 @@ void VulkanEngine::run()
 		ImGui::NewFrame();
 
 		//imgui commands
-		ImGui::ShowDemoWindow();
+		ImguiAppLog::ShowFPSLog(frameCpuAvg, frameGpuAvg);
 
 		ImGui::Render();
 
 		draw();
+
+		frameCpuEnd = std::chrono::high_resolution_clock::now();
+
+		{
+			std::chrono::duration<double> elapsed_seconds = frameCpuEnd - frameCpuStart;
+			frameCpuAvg = frameCpuAvg * 0.95 + elapsed_seconds / std::chrono::milliseconds(1) * 0.05;
+		}
 	}
 }
 
@@ -343,6 +365,8 @@ void VulkanEngine::init_vulkan()
 	// Get the VkDevice handle used in the rest of a Vulkan application
 	_device = vkbDevice.device;
 	_chosenGPU = physicalDevice.physical_device;
+
+	vkGetPhysicalDeviceProperties(_chosenGPU, &physDevProp);
 
 	// use vkbootstrap to get a Graphics queue
 	_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
@@ -472,6 +496,11 @@ void VulkanEngine::init_commands()
 
 	VkCommandBuffer cmd;
 	VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_uploadContext._commandBuffer));
+
+	for (int i = 0; i < FRAME_OVERLAP; i++)
+	{
+		_frames[i].queryPool = createQueryPool(128);
+	}
 }
 
 void VulkanEngine::init_default_renderpass()
@@ -893,6 +922,18 @@ std::string VulkanEngine::shader_path(std::string_view path)
 	return "../../shaders/" + std::string(path);
 }
 
+VkQueryPool VulkanEngine::createQueryPool(uint32_t queryCount)
+{
+	VkQueryPoolCreateInfo createInfo = { VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO };
+	createInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+	createInfo.queryCount = queryCount;
+
+	VkQueryPool queryPool = 0;
+	VK_CHECK(vkCreateQueryPool(_device, &createInfo, 0, &queryPool));
+
+	return queryPool;
+}
+
 FrameData& VulkanEngine::get_current_frame()
 {
 	return _frames[_frameNumber % FRAME_OVERLAP];
@@ -1069,7 +1110,6 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
 	VK_CHECK(vkEndCommandBuffer(cmd));
 
 	VkSubmitInfo submit = vkinit::submit_info(&cmd);
-
 
 	//submit command buffer to the queue and execute it.
 	// _uploadFence will now block until the graphic commands finish execution

@@ -93,6 +93,8 @@ struct FrameData {
 	VkDescriptorSet objectDescriptor;
 
 	VkDescriptorSet globalDescriptor;
+
+	VkQueryPool queryPool;
 };
 
 //number of frames to overlap when rendering
@@ -131,6 +133,10 @@ public:
 
 	//frame storage
 	FrameData _frames[FRAME_OVERLAP];
+
+	VkPhysicalDeviceProperties physDevProp{};
+	double frameCpuAvg = 0;
+	double frameGpuAvg = 0;
 
 	//getter for the frame we are rendering to right now.
 	FrameData& get_current_frame();
@@ -214,6 +220,8 @@ public:
 	static std::string asset_path(std::string_view path);
 
 	static std::string shader_path(std::string_view path);
+
+	VkQueryPool createQueryPool(uint32_t queryCount);
 
 private:
 
