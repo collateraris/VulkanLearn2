@@ -25,15 +25,15 @@ struct Vertex {
 
 struct Vertex_MS
 {
-	uint16_t vx, vy, vz, vw;
+	float vx, vy, vz;
 	uint8_t nx, ny, nz, nw;
 	uint16_t tu, tv;
 };
 
-struct Meshlet
+struct alignas(16) Meshlet
 {
-	uint32_t vertices[64];
-	uint8_t indices[126 * 3]; // up to 126 triangles
+	float cone[4];
+	uint32_t dataOffset; // dataOffset..dataOffset+vertexCount-1 stores vertex indices, we store indices packed in 4b units after that
 	uint8_t triangleCount;
 	uint8_t vertexCount;
 };
@@ -45,10 +45,12 @@ struct Mesh {
 #if MESHSHADER_ON
 	std::vector<Meshlet> _meshlets;
 	std::array<VkDescriptorSet, 2> meshletsSet{VK_NULL_HANDLE };
+	std::vector<uint32_t> meshletdata;
 #endif
 	std::array<AllocatedBuffer, 2> _vertexBuffer;
 #if MESHSHADER_ON
 	std::array<AllocatedBuffer, 2> _meshletsBuffer;
+	std::array<AllocatedBuffer, 2> _meshletdataBuffer;
 #else
 	std::array<AllocatedBuffer, 2> _indicesBuffer;
 #endif

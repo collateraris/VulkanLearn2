@@ -8,10 +8,10 @@
 
 #include "meshlets.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
-layout(triangles, max_vertices = 64, max_primitives = 126) out;
+layout(triangles, max_vertices = 64, max_primitives = 124) out;
 
 layout(set = 0, binding = 0) uniform  CameraBuffer{
 	mat4 view;
@@ -28,6 +28,11 @@ layout (set = 1, binding = 0) readonly buffer _vertices
 layout (set = 1, binding = 1) readonly buffer _meshlets
 {
 	s_meshlet meshlets[];
+};
+
+layout(set = 1, binding = 2) readonly buffer MeshletData
+{
+	uint meshletData[];
 };
 
 in taskNV block
@@ -61,6 +66,10 @@ void main()
 	uint triangleCount = uint(meshlets[mi].triangleCount);
 	uint indexCount = triangleCount * 3;
 
+	uint dataOffset = meshlets[mi].dataOffset;
+	uint vertexOffset = dataOffset;
+	uint indexOffset = dataOffset + vertexCount;
+
 #if DEBUG
 	uint mhash = hash(mi);
 	vec3 mcolor = vec3(float(mhash & 255), float((mhash >> 8) & 255), float((mhash >> 16) & 255)) / 255.0;
@@ -69,7 +78,7 @@ void main()
 	// TODO: if we have meshlets with 62 or 63 vertices then we pay a small penalty for branch divergence here - we can instead redundantly xform the last vertex
 	for (uint i = ti; i < vertexCount; i += 32)
 	{
-		uint vi = meshlets[mi].vertices[i];
+		uint vi = meshletData[vertexOffset + i];
 
 		vec3 position = vec3(vertices[vi].vx, vertices[vi].vy, vertices[vi].vz);
 		vec3 normal = vec3(int(vertices[vi].nx), int(vertices[vi].ny), int(vertices[vi].nz)) / 127.0 - 1.0;
@@ -87,7 +96,7 @@ void main()
 	{
 		// TODO: We tried to use writePackedPrimitiveIndices4x8NV, it wasn't giving us better perf
 		// We are currently writing one byte from each thread of a warp, which seems like it's bad for perf (bank conflicts etc.) but GPU doesn't seem to care much?
-		gl_PrimitiveIndicesNV[i] = uint(meshlets[mi].indices[i]);
+		gl_PrimitiveIndicesNV[i] = uint(meshletData[indexOffset + i]);
 	}
 
 	if (ti == 0)

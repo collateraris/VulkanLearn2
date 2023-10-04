@@ -1,14 +1,14 @@
 struct s_vertex
 {
-	float16_t vx, vy, vz, vw;
+	float vx, vy, vz;
 	uint8_t nx, ny, nz, nw;
 	float16_t tu, tv;
 };
 
 struct s_meshlet
 {
-	uint vertices[64];
-	uint8_t indices[126*3]; // up to 126 triangles
+    vec4 cone;
+	uint dataOffset;
 	uint8_t triangleCount;
 	uint8_t vertexCount;
 };

@@ -25,10 +25,9 @@ bool Mesh::load_from_obj(const char* filename)
 		float ny = vni < 0 ? 0.f : file.vn[vni * 3 + 1];
 		float nz = vni < 0 ? 1.f : file.vn[vni * 3 + 2];
 
-		v.vx = meshopt_quantizeHalf(file.v[vi * 3 + 0]);
-		v.vy = meshopt_quantizeHalf(file.v[vi * 3 + 1]);
-		v.vz = meshopt_quantizeHalf(file.v[vi * 3 + 2]);
-		v.vw = 0;
+		v.vx = file.v[vi * 3 + 0];
+		v.vy = file.v[vi * 3 + 1];
+		v.vz = file.v[vi * 3 + 2];
 		v.nx = uint8_t(nx * 127.f + 127.f); // TODO: fix rounding
 		v.ny = uint8_t(ny * 127.f + 127.f); // TODO: fix rounding
 		v.nz = uint8_t(nz * 127.f + 127.f); // TODO: fix rounding
@@ -59,10 +58,9 @@ void Mesh::remapVertexToVertexMS()
 	for (const Vertex& vert: _vertices)
 	{
 		Vertex_MS vertMS;
-		vertMS.vx = meshopt_quantizeHalf(vert.position.x);
-		vertMS.vy = meshopt_quantizeHalf(vert.position.y);
-		vertMS.vz = meshopt_quantizeHalf(vert.position.z);
-		vertMS.vw = 0;
+		vertMS.vx = vert.position.x;
+		vertMS.vy = vert.position.y;
+		vertMS.vz = vert.position.z;
 
 		vertMS.nx = uint8_t(vert.normal.x * 127.f + 127.f);
 		vertMS.ny = uint8_t(vert.normal.y * 127.f + 127.f);
@@ -78,59 +76,50 @@ void Mesh::remapVertexToVertexMS()
 
 void Mesh::buildMeshlets()
 {
-	Meshlet meshlet = {};
+	const size_t max_vertices = 64;
+	const size_t max_triangles = 124;
+	const float cone_weight = 0.0f;
 
-	std::vector<uint8_t> meshletVertices(_verticesMS.size(), 0xff);
+	size_t max_meshlets = meshopt_buildMeshletsBound(_indices.size(), max_vertices, max_triangles);
+	std::vector<meshopt_Meshlet> meshlets(max_meshlets);
+	std::vector<unsigned int> meshlet_vertices(max_meshlets * max_vertices);
+	std::vector<unsigned char> meshlet_triangles(max_meshlets * max_triangles * 3);
 
-	for (size_t i = 0; i < _indices.size(); i += 3)
+	size_t meshlet_count = meshopt_buildMeshlets(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), _indices.data(),
+		_indices.size(), &_verticesMS[0].vx, _vertices.size(), sizeof(Vertex_MS), max_vertices, max_triangles, cone_weight);
+
+	meshlets.resize(meshlet_count);
+
+	// TODO: we don't *really* need this but this makes sure we can assume that we need all 32 meshlets in task shader
+	while (meshlets.size() % 32)
+		meshlets.push_back(meshopt_Meshlet());
+
+	meshletdata.clear();
+	for (auto& meshlet : meshlets)
 	{
-		auto a = _indices[i + 0];
-		auto b = _indices[i + 1];
-		auto c = _indices[i + 2];
+		size_t dataOffset = meshletdata.size();
 
-		auto& av = meshletVertices[a];
-		auto& bv = meshletVertices[b];
-		auto& cv = meshletVertices[c];
+		for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
+			meshletdata.push_back(meshlet_vertices[meshlet.vertex_offset + i]);
 
-		if (meshlet.vertexCount + (av == 0xff) + (bv == 0xff) + (cv == 0xff) > 64 || meshlet.triangleCount >= 126)
-		{
-			_meshlets.push_back(meshlet);
+		for (unsigned int i = 0; i < meshlet.triangle_count * 3; ++i)
+			meshletdata.push_back(meshlet_triangles[meshlet.triangle_offset + i]);
 
-			for (size_t j = 0; j < meshlet.vertexCount; ++j)
-				meshletVertices[meshlet.vertices[j]] = 0xff;
+		meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet_vertices[meshlet.vertex_offset], &meshlet_triangles[meshlet.triangle_offset],
+			meshlet.triangle_count, &_verticesMS[0].vx, _verticesMS.size(), sizeof(Vertex_MS));
 
-			meshlet = {};
-		}
+		Meshlet m = {};
+		m.dataOffset = uint32_t(dataOffset);
+		m.triangleCount = meshlet.triangle_count;
+		m.vertexCount = meshlet.vertex_count;
 
-		if (av == 0xff)
-		{
-			av = meshlet.vertexCount;
-			meshlet.vertices[meshlet.vertexCount++] = a;
-		}
+		m.cone[0] = bounds.cone_axis[0];
+		m.cone[1] = bounds.cone_axis[1];
+		m.cone[2] = bounds.cone_axis[2];
+		m.cone[3] = bounds.cone_cutoff;
 
-		if (bv == 0xff)
-		{
-			bv = meshlet.vertexCount;
-			meshlet.vertices[meshlet.vertexCount++] = b;
-		}
-
-		if (cv == 0xff)
-		{
-			cv = meshlet.vertexCount;
-			meshlet.vertices[meshlet.vertexCount++] = c;
-		}
-
-		meshlet.indices[meshlet.triangleCount * 3 + 0] = av;
-		meshlet.indices[meshlet.triangleCount * 3 + 1] = bv;
-		meshlet.indices[meshlet.triangleCount * 3 + 2] = cv;
-		meshlet.triangleCount++;
+		_meshlets.push_back(m);
 	}
-
-	if (meshlet.triangleCount)
-		_meshlets.push_back(meshlet);
-
-	while (_meshlets.size() % 32)
-		_meshlets.push_back(Meshlet());
 }
 #endif
 VertexInputDescription Vertex::get_vertex_description()

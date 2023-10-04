@@ -205,6 +205,7 @@ public:
 	//run main loop
 	void run();
 
+	AllocatedBuffer create_buffer_n_copy_data(size_t allocSize, void* copyData, VkBufferUsageFlags usage);
 	AllocatedBuffer create_gpuonly_buffer(size_t allocSize, VkBufferUsageFlags usage);
 	AllocatedBuffer create_staging_buffer(size_t allocSize, VkBufferUsageFlags usage);
 	AllocatedBuffer create_cpu_to_gpu_buffer(size_t allocSize, VkBufferUsageFlags usage);
