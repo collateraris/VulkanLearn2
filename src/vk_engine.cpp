@@ -995,7 +995,9 @@ void VulkanEngine::init_descriptors()
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
 		_frames[i].cameraBuffer = create_cpu_to_gpu_buffer(sizeof(GPUCameraData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-#if !MESHSHADER_ON
+#if MESHSHADER_ON
+		_frames[i].indirectBuffer = create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawMeshTasksIndirectCommandNV), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+#else
 		_frames[i].objectBuffer = create_cpu_to_gpu_buffer(sizeof(GPUObjectData) * MAX_OBJECTS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		_frames[i].indirectBuffer = create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
 #endif
@@ -1142,17 +1144,32 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 
 	size_t frameIndex = _frameNumber % FRAME_OVERLAP;
 #if MESHSHADER_ON
+
+	map_buffer(_allocator, get_current_frame().indirectBuffer._allocation, [&](void*& data) {
+		VkDrawMeshTasksIndirectCommandNV* drawCommands = (VkDrawMeshTasksIndirectCommandNV*)data;
+		//encode the draw data of each object into the indirect draw buffer
+		for (int i = 0; i < count; i++)
+		{
+			RenderObject& object = first[i];
+			drawCommands[i].firstTask = 0;
+			drawCommands[i].taskCount = uint32_t(object.mesh->_meshlets.size() / 32);
+		}
+		});
+
 	for (int i = 0; i < count; i++)
 	{
 		RenderObject& object = first[i];
 		//only bind the pipeline if it doesn't match with the already bound one
-
+		lastMaterial = object.material;
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
 
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 0, nullptr);
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &object.mesh->meshletsSet[frameIndex], 0, nullptr);
 
-		vkCmdDrawMeshTasksNV(cmd, object.mesh->_meshlets.size() / 32, 0);
+		VkDeviceSize indirect_offset = i * sizeof(VkDrawMeshTasksIndirectCommandNV);
+		uint32_t draw_stride = sizeof(VkDrawMeshTasksIndirectCommandNV);
+		vkCmdDrawMeshTasksIndirectNV(cmd, get_current_frame().indirectBuffer._buffer, indirect_offset, 1, draw_stride);
+
 	}
 #else
 
