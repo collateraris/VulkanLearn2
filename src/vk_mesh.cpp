@@ -128,6 +128,9 @@ void Mesh::buildMeshlets()
 
 	if (meshlet.triangleCount)
 		_meshlets.push_back(meshlet);
+
+	while (_meshlets.size() % 32)
+		_meshlets.push_back(Meshlet());
 }
 #endif
 VertexInputDescription Vertex::get_vertex_description()

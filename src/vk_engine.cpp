@@ -357,6 +357,7 @@ void VulkanEngine::init_vulkan()
 	featuresMesh.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV;
 	featuresMesh.pNext = nullptr;
 	featuresMesh.meshShader = true;
+	featuresMesh.taskShader = true;
 
 	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features)
 		.add_pNext(&featuresMesh)
@@ -665,6 +666,7 @@ void VulkanEngine::init_pipelines() {
 
 	ShaderEffect defaultEffect;
 #if MESHSHADER_ON
+	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.task.spv")), VK_SHADER_STAGE_TASK_BIT_NV);
 	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.mesh.spv")), VK_SHADER_STAGE_MESH_BIT_NV);
 	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
 #else
@@ -1214,7 +1216,7 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 0, nullptr);
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &object.mesh->meshletsSet[frameIndex], 0, nullptr);
 
-		vkCmdDrawMeshTasksNV(cmd, object.mesh->_meshlets.size(), 0);
+		vkCmdDrawMeshTasksNV(cmd, object.mesh->_meshlets.size() / 32, 0);
 	}
 #else
 

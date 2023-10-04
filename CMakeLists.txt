@@ -33,6 +33,7 @@ file(GLOB_RECURSE GLSL_SOURCE_FILES
     "${PROJECT_SOURCE_DIR}/shaders/*.vert"
     "${PROJECT_SOURCE_DIR}/shaders/*.comp"
     "${PROJECT_SOURCE_DIR}/shaders/*.mesh"
+    "${PROJECT_SOURCE_DIR}/shaders/*.task"
     )
 
 ## iterate each shader
