@@ -12,7 +12,7 @@
 #include <vk_material_system.h>
 #include <vk_camera.h>
 
-constexpr size_t MAX_OBJECTS = 100000;
+constexpr size_t MAX_OBJECTS = 1000;
 
 struct Material {
 	VkDescriptorSet textureSet{ VK_NULL_HANDLE }; //texture defaulted to null
@@ -36,7 +36,7 @@ struct IndirectBatch {
 	uint32_t count;
 };
 
-struct GPUCameraData {
+struct alignas(16) GPUCameraData {
 	glm::mat4 view;
 	glm::mat4 proj;
 	glm::mat4 viewproj;
@@ -50,8 +50,9 @@ struct GPUSceneData {
 	glm::vec4 sunlightColor;
 };
 
-struct GPUObjectData {
+struct alignas(16) GPUObjectData {
 	glm::mat4 modelMatrix;
+	uint32_t meshletCount;
 };
 
 struct UploadContext {
@@ -127,6 +128,9 @@ public:
 	VkQueue _graphicsQueue; //queue we will submit to
 	uint32_t _graphicsQueueFamily; //family of that queue
 
+	VkPipeline _drawcmdPipeline;
+	VkPipelineLayout _drawcmdPipelineLayout;
+
 	VkRenderPass _renderPass;
 
 	std::vector<VkFramebuffer> _framebuffers;
@@ -190,6 +194,7 @@ public:
 	//returns nullptr if it can't be found
 	Material* get_material(const std::string& name);
 
+	void compute_pass(VkCommandBuffer cmd);
 	//our draw function
 	void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
 

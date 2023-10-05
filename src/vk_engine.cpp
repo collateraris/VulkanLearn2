@@ -134,6 +134,8 @@ void VulkanEngine::draw()
 	vkCmdResetQueryPool(cmd, get_current_frame().queryPool, 0, 128);
 	vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 0);
 
+	compute_pass(cmd);
+
 	//make a clear-color from frame number. This will flash with a 120*pi frame period.
 	VkClearValue clearValue;
 	float flash = abs(sin(_frameNumber / 120.f));
@@ -676,7 +678,7 @@ void VulkanEngine::init_pipelines() {
 #endif
 	defaultEffect.reflect_layout(_device, nullptr, 0);
 	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
-	PipelineBuilder pipelineBuilder;
+	GraphicPipelineBuilder pipelineBuilder;
 
 	pipelineBuilder.setShaders(&defaultEffect);
 
@@ -741,7 +743,7 @@ void VulkanEngine::init_pipelines() {
 	pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = pipelineBuilder.vertexDescription.bindings.data();
 	pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = (uint32_t)pipelineBuilder.vertexDescription.bindings.size();
 #endif
-	VkPipeline meshPipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
+	VkPipeline meshPipeline = pipelineBuilder.build_graphic_pipeline(_device, _renderPass);
 
 	load_materials(meshPipeline, meshPipLayout);
 
@@ -750,6 +752,33 @@ void VulkanEngine::init_pipelines() {
 
 		vkDestroyPipelineLayout(_device, meshPipLayout, nullptr);
 		});
+
+#if MESHSHADER_ON
+	{
+		ShaderEffect computeEffect;
+		computeEffect.add_stage(_shaderCache.get_shader(shader_path("drawcmd.comp.spv")), VK_SHADER_STAGE_COMPUTE_BIT);
+		computeEffect.reflect_layout(_device, nullptr, 0);
+
+		ComputePipelineBuilder computePipelineBuilder;
+		computePipelineBuilder.setShaders(&computeEffect);
+		//we start from just the default empty pipeline layout info
+		VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
+
+		//hook the global set layout
+		std::vector<VkDescriptorSetLayout> setLayouts = { _objectSetLayout };
+
+		pipeline_layout_info.setLayoutCount = setLayouts.size();
+		pipeline_layout_info.pSetLayouts = setLayouts.data();
+
+		VkPipelineLayout pipLayout;
+
+		VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &pipLayout));
+		//hook the push constants layout
+		_drawcmdPipelineLayout = pipelineBuilder._pipelineLayout = pipLayout;
+
+		_drawcmdPipeline = computePipelineBuilder.build_compute_pipeline(_device);
+	}
+#endif
 }
 
 void VulkanEngine::load_meshes()
@@ -998,9 +1027,10 @@ void VulkanEngine::init_descriptors()
 #if MESHSHADER_ON
 		_frames[i].indirectBuffer = create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawMeshTasksIndirectCommandNV), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
 #else
-		_frames[i].objectBuffer = create_cpu_to_gpu_buffer(sizeof(GPUObjectData) * MAX_OBJECTS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		_frames[i].indirectBuffer = create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
 #endif
+		_frames[i].objectBuffer = create_cpu_to_gpu_buffer(sizeof(GPUObjectData) * MAX_OBJECTS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
 		VkDescriptorBufferInfo cameraInfo;
 		cameraInfo.buffer = _frames[i].cameraBuffer._buffer;
 		cameraInfo.offset = 0;
@@ -1013,12 +1043,24 @@ void VulkanEngine::init_descriptors()
 		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
 			.bind_buffer(0, &cameraInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
 			.build(_frames[i].globalDescriptor, _globalSetLayout);
+#endif
 
 		VkDescriptorBufferInfo objectBufferInfo;
 		objectBufferInfo.buffer = _frames[i].objectBuffer._buffer;
 		objectBufferInfo.offset = 0;
 		objectBufferInfo.range = sizeof(GPUObjectData) * MAX_OBJECTS;
+#if MESHSHADER_ON
 
+		VkDescriptorBufferInfo indirectBufferInfo;
+		indirectBufferInfo.buffer = _frames[i].indirectBuffer._buffer;
+		indirectBufferInfo.offset = 0;
+		indirectBufferInfo.range = sizeof(VkDrawMeshTasksIndirectCommandNV) * MAX_OBJECTS;
+
+		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
+			.bind_buffer(0, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+			.bind_buffer(1, &indirectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+			.build(_frames[i].objectDescriptor, _objectSetLayout);
+#else
 		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
 			.bind_buffer(0, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
 			.build(_frames[i].objectDescriptor, _objectSetLayout);
@@ -1122,6 +1164,28 @@ std::vector<IndirectBatch> VulkanEngine::compact_draws(RenderObject* objects, in
 	return draws;
 }
 
+void VulkanEngine::compute_pass(VkCommandBuffer cmd)
+{
+#if MESHSHADER_ON
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipeline);
+
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipelineLayout, 0, 1, &get_current_frame().objectDescriptor, 0, nullptr);
+
+	vkCmdDispatch(cmd, uint32_t((_renderables.size() + 31) / 32), 1, 1);
+
+	//VkBufferMemoryBarrier cmdEndBarrier;
+	//cmdEndBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	//cmdEndBarrier.buffer = get_current_frame().indirectBuffer._buffer;
+	//cmdEndBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+	//cmdEndBarrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+	//cmdEndBarrier.offset = 0;
+	//cmdEndBarrier.size = VK_WHOLE_SIZE;
+	//cmdEndBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	//cmdEndBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	//vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, 0, 1, &cmdEndBarrier, 0, 0);
+#endif
+}
+
 void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int count)
 {
 	//camera view
@@ -1145,17 +1209,6 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 	size_t frameIndex = _frameNumber % FRAME_OVERLAP;
 #if MESHSHADER_ON
 
-	map_buffer(_allocator, get_current_frame().indirectBuffer._allocation, [&](void*& data) {
-		VkDrawMeshTasksIndirectCommandNV* drawCommands = (VkDrawMeshTasksIndirectCommandNV*)data;
-		//encode the draw data of each object into the indirect draw buffer
-		for (int i = 0; i < count; i++)
-		{
-			RenderObject& object = first[i];
-			drawCommands[i].firstTask = 0;
-			drawCommands[i].taskCount = uint32_t(object.mesh->_meshlets.size() / 32);
-		}
-		});
-
 	for (int i = 0; i < count; i++)
 	{
 		RenderObject& object = first[i];
@@ -1172,16 +1225,6 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 
 	}
 #else
-
-	map_buffer(_allocator, get_current_frame().objectBuffer._allocation, [&](void*& data) {
-		GPUObjectData* objectSSBO = (GPUObjectData*)data;
-
-		for (int i = 0; i < count; i++)
-		{
-			RenderObject& object = first[i];
-			objectSSBO[i].modelMatrix = object.transformMatrix;
-		}
-		});
 
 	map_buffer(_allocator, get_current_frame().indirectBuffer._allocation, [&](void*& data) {
 		VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)data;
@@ -1250,6 +1293,23 @@ void VulkanEngine::init_scene()
 
 		_renderables.push_back(map);
 	}
+	
+	for (int i = 0; i < FRAME_OVERLAP; i++)
+	{
+		map_buffer(_allocator, _frames[i].objectBuffer._allocation, [&](void*& data) {
+			GPUObjectData* objectSSBO = (GPUObjectData*)data;
+
+			for (int i = 0; i < _renderables.size(); i++)
+			{
+				RenderObject& object = _renderables[i];
+				objectSSBO[i].modelMatrix = object.transformMatrix;
+#if MESHSHADER_ON
+				objectSSBO[i].meshletCount = object.mesh->_meshlets.size();
+#endif
+			}
+			});
+	}
+
 #if MESHSHADER_ON
 	for (auto& mesh : _resManager.meshList)
 	{

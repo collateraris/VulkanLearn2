@@ -3,7 +3,7 @@
 #include <vk_descriptors.h>
 #include <vk_engine.h>
 
-VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass) 
+VkPipeline GraphicPipelineBuilder::build_graphic_pipeline(VkDevice device, VkRenderPass pass) 
 {
 	//make viewport state from our stored viewport and scissor.
 	//at the moment we won't support multiple viewports or scissors
@@ -73,7 +73,7 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkRenderPass pass)
 	}
 }
 
-void PipelineBuilder::clear_vertex_input()
+void GraphicPipelineBuilder::clear_vertex_input()
 {
 	_vertexInputInfo.pVertexAttributeDescriptions = nullptr;
 	_vertexInputInfo.vertexAttributeDescriptionCount = 0;
@@ -82,7 +82,7 @@ void PipelineBuilder::clear_vertex_input()
 	_vertexInputInfo.vertexBindingDescriptionCount = 0;
 }
 
-void PipelineBuilder::setShaders(ShaderEffect* effect)
+void GraphicPipelineBuilder::setShaders(ShaderEffect* effect)
 {
 	_shaderStages.clear();
 	effect->fill_stages(_shaderStages);
@@ -174,7 +174,7 @@ ShaderEffect* vkutil::MaterialSystem::build_effect(VulkanEngine* engine, std::st
 	return effect;
 }
 
-vkutil::ShaderPass* vkutil::MaterialSystem::build_shader(VkRenderPass renderPass, PipelineBuilder& builder, ShaderEffect* effect)
+vkutil::ShaderPass* vkutil::MaterialSystem::build_shader(VkRenderPass renderPass, GraphicPipelineBuilder& builder, ShaderEffect* effect)
 {
 	auto shaderPassFound = shaderPassCache.find(effect);
 	if (shaderPassFound == shaderPassCache.end())
@@ -186,11 +186,11 @@ vkutil::ShaderPass* vkutil::MaterialSystem::build_shader(VkRenderPass renderPass
 	pass->effect = effect;
 	pass->layout = effect->builtLayout;
 
-	PipelineBuilder pipbuilder = builder;
+	GraphicPipelineBuilder pipbuilder = builder;
 
 	pipbuilder.setShaders(effect);
 
-	pass->pipeline = pipbuilder.build_pipeline(engine->_device, renderPass);
+	pass->pipeline = pipbuilder.build_graphic_pipeline(engine->_device, renderPass);
 
 	return pass;
 }
@@ -259,4 +259,26 @@ void vkutil::MaterialSystem::fill_builders()
 
 	//default depthtesting
 	forwardBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_GREATER_OR_EQUAL);
+}
+
+VkPipeline ComputePipelineBuilder::build_compute_pipeline(VkDevice device)
+{
+	VkComputePipelineCreateInfo createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	createInfo.pNext = nullptr;
+	createInfo.stage = _shaderStages[0];
+	createInfo.layout = _pipelineLayout;
+
+	VkPipeline pipeline = 0;
+	vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &createInfo, 0, &pipeline);
+
+	return pipeline;
+}
+
+void ComputePipelineBuilder::setShaders(ShaderEffect* effect)
+{
+	_shaderStages.clear();
+	effect->fill_stages(_shaderStages);
+
+	_pipelineLayout = effect->builtLayout;
 }

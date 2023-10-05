@@ -12,3 +12,15 @@ struct s_meshlet
 	uint8_t triangleCount;
 	uint8_t vertexCount;
 };
+
+struct ObjectData
+{
+	mat4 model;
+	uint meshletCount;
+};
+
+struct MeshDrawCommand
+{
+    uint taskCount;
+    uint firstTask;
+};

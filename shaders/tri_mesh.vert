@@ -5,14 +5,17 @@ layout (location = 2) in vec2 vTexCoord;
 
 layout (location = 0) out vec2 texCoord;
 
+
 layout(set = 0, binding = 0) uniform  CameraBuffer{
 	mat4 view;
 	mat4 proj;
 	mat4 viewproj;
 } cameraData;
 
-struct ObjectData{
+struct ObjectData
+{
 	mat4 model;
+	uint meshletCount;
 };
 
 //all object matrices

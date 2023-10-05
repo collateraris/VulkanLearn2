@@ -4,7 +4,7 @@
 #include <vk_mesh.h>
 #include <vk_shaders.h>
 
-class PipelineBuilder {
+class GraphicPipelineBuilder {
 public:
 
 	std::vector<VkPipelineShaderStageCreateInfo> _shaderStages;
@@ -19,8 +19,18 @@ public:
 	VkPipelineLayout _pipelineLayout;
 	VkPipelineDepthStencilStateCreateInfo _depthStencil;
 
-	VkPipeline build_pipeline(VkDevice device, VkRenderPass pass);
+	VkPipeline build_graphic_pipeline(VkDevice device, VkRenderPass pass);
 	void clear_vertex_input();
+	void setShaders(ShaderEffect* effect);
+};
+
+class ComputePipelineBuilder {
+public:
+
+	std::vector<VkPipelineShaderStageCreateInfo> _shaderStages;
+	VkPipelineLayout _pipelineLayout;
+
+	VkPipeline build_compute_pipeline(VkDevice device);
 	void setShaders(ShaderEffect* effect);
 };
 class VulkanEngine;
@@ -98,7 +108,7 @@ namespace vkutil {
 		void build_default_templates();
 
 		ShaderEffect* build_effect(VulkanEngine* eng, std::string_view vertexShader, std::string_view fragmentShader);
-		ShaderPass* build_shader(VkRenderPass renderPass, PipelineBuilder& builder, ShaderEffect* effect);
+		ShaderPass* build_shader(VkRenderPass renderPass, GraphicPipelineBuilder& builder, ShaderEffect* effect);
 
 		Material* build_material(const std::string& materialName, const MaterialData& info);
 		Material* get_material(const std::string& materialName);
@@ -115,7 +125,7 @@ namespace vkutil {
 			}
 		};
 
-		PipelineBuilder forwardBuilder;
+		GraphicPipelineBuilder forwardBuilder;
 		using vertexShaderName = std::string_view;
 		using fragmentShaderName = std::string_view;
 		std::unordered_map<vertexShaderName, std::unordered_map<fragmentShaderName, std::unique_ptr<ShaderEffect>>> shaderEffectCache;
