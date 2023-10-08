@@ -9,19 +9,17 @@
 
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
-layout(set = 0, binding = 0) uniform  CameraBuffer{
-	mat4 view;
-	mat4 proj;
-	mat4 viewproj;
+layout(push_constant) uniform block
+{
 	vec4 frustum[6];
-} cameraData;
+};
 
-layout(set = 1, std140,binding = 0) readonly buffer ObjectBuffer{
+layout(std140, binding = 0) readonly buffer ObjectBuffer{
 
 	ObjectData objects[];
 } objectBuffer;
 
-layout(set = 1,binding = 1) writeonly buffer DrawCommands
+layout(binding = 1) writeonly buffer DrawCommands
 {
 	MeshDrawCommand drawCommands[];
 };
@@ -42,13 +40,13 @@ void main()
 
 bool frustumCulling(uint di)
 {
-	vec3 center = objectBuffer.objects[di].center;
-	float radius = objectBuffer.objects[di].radius;
+	vec3 center = objectBuffer.objects[di].center_radius.xyz;
+	float radius = objectBuffer.objects[di].center_radius.w;
 
 	bool visible = false;
 	for (int i = 0; i < 6; ++i)
 	{
-		visible = visible || dot(cameraData.frustum[i], vec4(center, 1)) > -radius;
+		visible = visible || dot(frustum[i], vec4(center, 1)) > -radius;
 	}
 
 	return visible;

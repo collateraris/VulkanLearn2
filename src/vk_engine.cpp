@@ -141,14 +141,6 @@ void VulkanEngine::draw()
 		camData.view = view;
 		camData.viewproj = projection * view;
 
-		glm::mat4 projectionT = glm::transpose(projection);
-		camData.frustum[0] = projectionT[3] + projectionT[0]; // x + w < 0
-		camData.frustum[1] = projectionT[3] - projectionT[0]; // x - w > 0
-		camData.frustum[2] = projectionT[3] + projectionT[1]; // y + w < 0
-		camData.frustum[3] = projectionT[3] - projectionT[1]; // y - w > 0
-		camData.frustum[4] = projectionT[3] + projectionT[2]; // z + w > 0 near
-		camData.frustum[5] = projectionT[3] - projectionT[2]; // z - w > 0 far
-
 		map_buffer(_allocator, get_current_frame().cameraBuffer._allocation, [&](void*& data) {
 			memcpy(data, &camData, sizeof(GPUCameraData));
 			});
@@ -790,10 +782,23 @@ void VulkanEngine::init_pipelines() {
 		VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
 
 		//hook the global set layout
-		std::vector<VkDescriptorSetLayout> setLayouts = { _globalSetLayout, _objectSetLayout };
+		std::vector<VkDescriptorSetLayout> setLayouts = { _objectSetLayout };
 
 		pipeline_layout_info.setLayoutCount = setLayouts.size();
 		pipeline_layout_info.pSetLayouts = setLayouts.data();
+
+		//setup push constants
+		VkPushConstantRange push_constant;
+		//this push constant range starts at the beginning
+		push_constant.offset = 0;
+		//this push constant range takes up the size of a MeshPushConstants struct
+		glm::vec4 frustum[6];
+		push_constant.size = sizeof(frustum[0]) * 6;
+		//this push constant range is accessible only in the vertex shader
+		push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+		pipeline_layout_info.pPushConstantRanges = &push_constant;
+		pipeline_layout_info.pushConstantRangeCount = 1;
 
 		VkPipelineLayout pipLayout;
 
@@ -1065,7 +1070,7 @@ void VulkanEngine::init_descriptors()
 		cameraInfo.range = sizeof(GPUCameraData);
 #if MESHSHADER_ON	
 		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
-			.bind_buffer(0, &cameraInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_COMPUTE_BIT)
+			.bind_buffer(0, &cameraInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV)
 			.build(_frames[i].globalDescriptor, _globalSetLayout);
 #else
 		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
@@ -1195,10 +1200,21 @@ std::vector<IndirectBatch> VulkanEngine::compact_draws(RenderObject* objects, in
 void VulkanEngine::compute_pass(VkCommandBuffer cmd)
 {
 #if MESHSHADER_ON
+
+	glm::mat4 projection = _camera.get_projection_matrix();
+	glm::mat4 projectionT = glm::transpose(projection);
+	glm::vec4 frustum[6];
+	frustum[0] = projectionT[3] + projectionT[0]; // x + w < 0
+	frustum[1] = projectionT[3] - projectionT[0]; // x - w > 0
+	frustum[2] = projectionT[3] + projectionT[1]; // y + w < 0
+	frustum[3] = projectionT[3] - projectionT[1]; // y - w > 0
+	frustum[4] = projectionT[3] + projectionT[2]; // z + w > 0 near
+	frustum[5] = projectionT[3] - projectionT[2]; // z - w > 0 far
+
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipeline);
 
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 0, nullptr);
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipelineLayout, 1, 1, &get_current_frame().objectDescriptor, 0, nullptr);
+	vkCmdPushConstants(cmd, _drawcmdPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(frustum[0]) * 6, &frustum[0]);
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipelineLayout, 0, 1, &get_current_frame().objectDescriptor, 0, nullptr);
 
 	vkCmdDispatch(cmd, uint32_t((_renderables.size() + 31) / 32), 1, 1);
 
@@ -1317,8 +1333,7 @@ void VulkanEngine::init_scene()
 			{
 				RenderObject& object = _renderables[i];
 				objectSSBO[i].modelMatrix = object.transformMatrix;
-				objectSSBO[i].radius = object.mesh->_radius;
-				objectSSBO[i].center = object.mesh->_center;
+				objectSSBO[i].center_radius = glm::vec4(object.mesh->_center, object.mesh->_radius);
 #if MESHSHADER_ON
 				objectSSBO[i].meshletCount = object.mesh->_meshlets.size();
 #endif

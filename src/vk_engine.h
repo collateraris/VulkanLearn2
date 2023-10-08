@@ -40,7 +40,6 @@ struct alignas(16) GPUCameraData {
 	glm::mat4 view;
 	glm::mat4 proj;
 	glm::mat4 viewproj;
-	glm::vec4 frustum[6];
 };
 
 struct GPUSceneData {

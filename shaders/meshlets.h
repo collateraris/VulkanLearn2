@@ -16,9 +16,8 @@ struct s_meshlet
 struct ObjectData
 {
 	mat4 model;
+	vec4 center_radius;
 	uint meshletCount;
-	vec3 center;
-	float radius;
 };
 
 struct MeshDrawCommand
