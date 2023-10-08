@@ -24,6 +24,8 @@ layout(binding = 1) writeonly buffer DrawCommands
 	MeshDrawCommand drawCommands[];
 };
 
+#define FRUSTUM_CULL 1
+
 bool frustumCulling(uint di);
 
 void main()
@@ -31,9 +33,11 @@ void main()
 	uint ti = gl_LocalInvocationID.x;
 	uint gi = gl_WorkGroupID.x;
 	uint di = gi * 32 + ti;
-
+#if FRUSTUM_CULL
 	bool visible = frustumCulling(di);
-
+#else
+	bool visible = true;
+#endif
 	drawCommands[di].taskCount = visible ? (objectBuffer.objects[di].meshletCount + 31) / 32 : 0;
 	drawCommands[di].firstTask = 0;
 }

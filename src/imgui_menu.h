@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vk_types.h>
+
 #include <imgui.h>
 #include <imgui_impl_sdl.h>
 #include <imgui_impl_vulkan.h>
@@ -135,7 +137,7 @@ struct ImguiAppLog
     }
 
 // Demonstrate creating a simple log window with basic filtering.
-static void ShowFPSLog(double frameCpuAvg = 1, double frameGpuAvg = 1)
+static void ShowStatsLog(Stats stats)
 {
     static ImguiAppLog log;
     static bool p_open = true;
@@ -149,8 +151,8 @@ static void ShowFPSLog(double frameCpuAvg = 1, double frameGpuAvg = 1)
     {   
         counter = 0;
         log.Clear();
-        log.AddLog("FPS %d  ; frameCpuAvg %.2f ms ; frameGpuAvg %.2f ms\n",
-            int(1000.0 / frameCpuAvg), frameCpuAvg, frameGpuAvg);
+        log.AddLog("FPS %d  ; frameCpuAvg %.2f ms ; frameGpuAvg %.2f ms\n triangle count %.1fM trianglesPerSec %.1fB tri/sec",
+            int(1000.0 / stats.frameCpuAvg), stats.frameCpuAvg, stats.frameGpuAvg, double(stats.triangleCount) * 1e-6, stats.trianglesPerSec * 1e-9);
     }
     ImGui::End();
 

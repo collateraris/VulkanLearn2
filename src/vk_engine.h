@@ -134,8 +134,7 @@ public:
 	FrameData _frames[FRAME_OVERLAP];
 
 	VkPhysicalDeviceProperties physDevProp{};
-	double _frameCpuAvg = 0;
-	double _frameGpuAvg = 0;
+	Stats _stats;
 
 	//getter for the frame we are rendering to right now.
 	FrameData& get_current_frame();

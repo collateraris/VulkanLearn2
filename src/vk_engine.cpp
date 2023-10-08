@@ -251,7 +251,7 @@ void VulkanEngine::draw()
 	double frameGpuBegin = double(queryResults[0]) * physDevProp.limits.timestampPeriod * 1e-6;
 	double frameGpuEnd = double(queryResults[1]) * physDevProp.limits.timestampPeriod * 1e-6;
 
-	_frameGpuAvg = _frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
+	_stats.frameGpuAvg = _stats.frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
 	//increase the number of frames drawn
 	_frameNumber++;
 }
@@ -272,6 +272,9 @@ void VulkanEngine::run()
 	//main loop
 	while (!bQuit)
 	{
+		_stats.triangleCount = 0;
+		_stats.trianglesPerSec = 0;
+
 		frameCpuStart = std::chrono::high_resolution_clock::now();
 		//Handle events on queue
 		while (SDL_PollEvent(&e) != 0)
@@ -295,7 +298,7 @@ void VulkanEngine::run()
 		ImGui::NewFrame();
 
 		//imgui commands
-		ImguiAppLog::ShowFPSLog(_frameCpuAvg, _frameGpuAvg);
+		ImguiAppLog::ShowStatsLog(_stats);
 
 		ImGui::Render();
 
@@ -305,7 +308,7 @@ void VulkanEngine::run()
 
 		{
 			std::chrono::duration<double> elapsed_seconds = frameCpuEnd - frameCpuStart;
-			_frameCpuAvg = _frameCpuAvg * 0.95 + elapsed_seconds / std::chrono::milliseconds(1) * 0.05;
+			_stats.frameCpuAvg = _stats.frameCpuAvg * 0.95 + elapsed_seconds / std::chrono::milliseconds(1) * 0.05;
 		}
 	}
 }

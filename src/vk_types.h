@@ -27,6 +27,14 @@ enum class MeshpassType : uint8_t {
 	MAX
 };
 
+struct Stats
+{
+	double frameCpuAvg = 0;
+	double frameGpuAvg = 0;
+	uint32_t triangleCount = 0;
+	double trianglesPerSec = 0;
+};
+
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 #include <glm/gtx/transform.hpp>
