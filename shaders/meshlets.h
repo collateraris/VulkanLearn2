@@ -17,6 +17,8 @@ struct ObjectData
 {
 	mat4 model;
 	uint meshletCount;
+	vec3 center;
+	float radius;
 };
 
 struct MeshDrawCommand

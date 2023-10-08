@@ -10,12 +10,15 @@ layout(set = 0, binding = 0) uniform  CameraBuffer{
 	mat4 view;
 	mat4 proj;
 	mat4 viewproj;
+	vec4 frustum[6];
 } cameraData;
 
 struct ObjectData
 {
 	mat4 model;
 	uint meshletCount;
+	vec3 center;
+	float radius;
 };
 
 //all object matrices

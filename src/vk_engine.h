@@ -40,6 +40,7 @@ struct alignas(16) GPUCameraData {
 	glm::mat4 view;
 	glm::mat4 proj;
 	glm::mat4 viewproj;
+	glm::vec4 frustum[6];
 };
 
 struct GPUSceneData {
@@ -48,11 +49,6 @@ struct GPUSceneData {
 	glm::vec4 ambientColor;
 	glm::vec4 sunlightDirection; //w for sun power
 	glm::vec4 sunlightColor;
-};
-
-struct alignas(16) GPUObjectData {
-	glm::mat4 modelMatrix;
-	uint32_t meshletCount;
 };
 
 struct UploadContext {

@@ -1,58 +1,10 @@
 #include <vk_mesh.h>
 #include <meshoptimizer.h>
-#include <objparser.h>
 #include <iostream>
-bool Mesh::load_from_obj(const char* filename)
-{
-#if MESHSHADER_ON
-	ObjFile file;
-	if (!objParseFile(file, filename))
-		return false;
 
-	size_t index_count = file.f_size / 3;
-
-	std::vector<Vertex_MS> vertices(index_count);
-
-	for (size_t i = 0; i < index_count; ++i)
-	{
-		Vertex_MS& v = vertices[i];
-
-		int vi = file.f[i * 3 + 0];
-		int vti = file.f[i * 3 + 1];
-		int vni = file.f[i * 3 + 2];
-
-		float nx = vni < 0 ? 0.f : file.vn[vni * 3 + 0];
-		float ny = vni < 0 ? 0.f : file.vn[vni * 3 + 1];
-		float nz = vni < 0 ? 1.f : file.vn[vni * 3 + 2];
-
-		v.vx = file.v[vi * 3 + 0];
-		v.vy = file.v[vi * 3 + 1];
-		v.vz = file.v[vi * 3 + 2];
-		v.nx = uint8_t(nx * 127.f + 127.f); // TODO: fix rounding
-		v.ny = uint8_t(ny * 127.f + 127.f); // TODO: fix rounding
-		v.nz = uint8_t(nz * 127.f + 127.f); // TODO: fix rounding
-		v.tu = meshopt_quantizeHalf(vti < 0 ? 0.f : file.vt[vti * 3 + 0]);
-		v.tv = meshopt_quantizeHalf(vti < 0 ? 0.f : file.vt[vti * 3 + 1]);
-	}
-
-	std::vector<uint32_t> remap(index_count);
-	size_t vertex_count = meshopt_generateVertexRemap(remap.data(), 0, index_count, vertices.data(), index_count, sizeof(Vertex_MS));
-
-	_verticesMS.resize(vertex_count);
-	_indices.resize(index_count);
-
-	meshopt_remapVertexBuffer(_verticesMS.data(), vertices.data(), index_count, sizeof(Vertex_MS), remap.data());
-	meshopt_remapIndexBuffer(_indices.data(), 0, index_count, remap.data());
-
-	meshopt_optimizeVertexCache(_indices.data(), _indices.data(), index_count, vertex_count);
-	meshopt_optimizeVertexFetch(_verticesMS.data(), _indices.data(), index_count, _verticesMS.data(), vertex_count, sizeof(Vertex_MS));
-#endif
-	// TODO: optimize the mesh for more efficient GPU rendering
-	return true;
-}
 #if MESHSHADER_ON
 
-void Mesh::remapVertexToVertexMS()
+Mesh& Mesh::remapVertexToVertexMS()
 {
 	_verticesMS.clear();
 	for (const Vertex& vert: _vertices)
@@ -72,6 +24,8 @@ void Mesh::remapVertexToVertexMS()
 
 		_verticesMS.emplace_back(vertMS);
 	}
+
+	return *this;
 }
 
 void Mesh::buildMeshlets()
@@ -120,6 +74,25 @@ void Mesh::buildMeshlets()
 
 		_meshlets.push_back(m);
 	}
+}
+Mesh& Mesh::calcAddInfo()
+{
+	_center = glm::vec3(0);
+
+	for (const Vertex& vert : _vertices)
+	{
+		_center += vert.position;
+	}
+
+	_center /= _vertices.size();
+
+	_radius = 0;
+	for (const Vertex& vert : _vertices)
+	{
+		_radius = std::max(_radius, glm::distance(_center, vert.position));
+	}
+
+	return *this;
 }
 #endif
 VertexInputDescription Vertex::get_vertex_description()

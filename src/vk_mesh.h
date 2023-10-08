@@ -38,6 +38,13 @@ struct alignas(16) Meshlet
 	uint8_t vertexCount;
 };
 
+struct alignas(16) GPUObjectData {
+	glm::mat4 modelMatrix;
+	uint32_t meshletCount;
+	glm::vec3 center;
+	float radius;
+};
+
 struct Mesh {
 	std::vector<Vertex> _vertices;
 	std::vector<uint32_t> _indices;
@@ -54,10 +61,12 @@ struct Mesh {
 #else
 	std::array<AllocatedBuffer, 2> _indicesBuffer;
 #endif
+	glm::vec3 _center = glm::vec3(0);
+	float _radius = 0;
 
-	bool load_from_obj(const char* filename);
 #if MESHSHADER_ON
-	void remapVertexToVertexMS();
+	Mesh& remapVertexToVertexMS();
 	void buildMeshlets();
 #endif
+	Mesh& calcAddInfo();
 };

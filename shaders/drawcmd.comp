@@ -9,15 +9,24 @@
 
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
-layout(std140,binding = 0) readonly buffer ObjectBuffer{
+layout(set = 0, binding = 0) uniform  CameraBuffer{
+	mat4 view;
+	mat4 proj;
+	mat4 viewproj;
+	vec4 frustum[6];
+} cameraData;
+
+layout(set = 1, std140,binding = 0) readonly buffer ObjectBuffer{
 
 	ObjectData objects[];
 } objectBuffer;
 
-layout(binding = 1) writeonly buffer DrawCommands
+layout(set = 1,binding = 1) writeonly buffer DrawCommands
 {
 	MeshDrawCommand drawCommands[];
 };
+
+bool frustumCulling(uint di);
 
 void main()
 {
@@ -25,6 +34,22 @@ void main()
 	uint gi = gl_WorkGroupID.x;
 	uint di = gi * 32 + ti;
 
-	drawCommands[di].taskCount = (objectBuffer.objects[di].meshletCount + 31) / 32;
+	bool visible = frustumCulling(di);
+
+	drawCommands[di].taskCount = visible ? (objectBuffer.objects[di].meshletCount + 31) / 32 : 0;
 	drawCommands[di].firstTask = 0;
+}
+
+bool frustumCulling(uint di)
+{
+	vec3 center = objectBuffer.objects[di].center;
+	float radius = objectBuffer.objects[di].radius;
+
+	bool visible = false;
+	for (int i = 0; i < 6; ++i)
+	{
+		visible = visible || dot(cameraData.frustum[i], vec4(center, 1)) > -radius;
+	}
+
+	return visible;
 }
