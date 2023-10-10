@@ -298,7 +298,7 @@ void VulkanEngine::run()
 		ImGui::NewFrame();
 
 		//imgui commands
-		ImguiAppLog::ShowStatsLog(_stats);
+		ImguiAppLog::ShowFPSLog(_stats);
 
 		ImGui::Render();
 
@@ -1204,19 +1204,16 @@ void VulkanEngine::compute_pass(VkCommandBuffer cmd)
 {
 #if MESHSHADER_ON
 
-	glm::mat4 projection = _camera.get_projection_matrix();
-	glm::mat4 projectionT = glm::transpose(projection);
-	glm::vec4 frustum[6];
-	frustum[0] = projectionT[3] + projectionT[0]; // x + w < 0
-	frustum[1] = projectionT[3] - projectionT[0]; // x - w > 0
-	frustum[2] = projectionT[3] + projectionT[1]; // y + w < 0
-	frustum[3] = projectionT[3] - projectionT[1]; // y - w > 0
-	frustum[4] = projectionT[3] + projectionT[2]; // z + w > 0 near
-	frustum[5] = projectionT[3] - projectionT[2]; // z - w > 0 far
+	std::array<glm::vec4, 6> frustum = _camera.calcFrustumPlanes();
+
+	//due to VUID-vkCmdPushConstants-size-00369 size must be a multiple of 4
+	std::array<glm::vec4, 8> frustumAsConstant;
+	for (int i = 0; i < frustum.size(); ++i)
+		frustumAsConstant[i] = frustum[i];
 
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipeline);
 
-	vkCmdPushConstants(cmd, _drawcmdPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(frustum[0]) * 6, &frustum[0]);
+	vkCmdPushConstants(cmd, _drawcmdPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, frustumAsConstant.size(), frustumAsConstant.data());
 	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipelineLayout, 0, 1, &get_current_frame().objectDescriptor, 0, nullptr);
 
 	vkCmdDispatch(cmd, uint32_t((_renderables.size() + 31) / 32), 1, 1);

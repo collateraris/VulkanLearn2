@@ -47,10 +47,10 @@ bool frustumCulling(uint di)
 	vec3 center = objectBuffer.objects[di].center_radius.xyz;
 	float radius = objectBuffer.objects[di].center_radius.w;
 
-	bool visible = false;
+	bool visible = true;
 	for (int i = 0; i < 6; ++i)
 	{
-		visible = visible || dot(frustum[i], vec4(center, 1)) > -radius;
+		visible = visible && dot(frustum[i], vec4(center, 1)) > -radius;
 	}
 
 	return visible;

@@ -137,7 +137,7 @@ struct ImguiAppLog
     }
 
 // Demonstrate creating a simple log window with basic filtering.
-static void ShowStatsLog(Stats stats)
+static void ShowFPSLog(Stats stats)
 {
     static ImguiAppLog log;
     static bool p_open = true;

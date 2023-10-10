@@ -26,4 +26,6 @@ struct PlayerCamera {
 	glm::mat4 get_view_matrix();
 	glm::mat4 get_projection_matrix();
 	glm::mat4 get_rotation_matrix();
+
+	std::array<glm::vec4, 6> calcFrustumPlanes();
 };
