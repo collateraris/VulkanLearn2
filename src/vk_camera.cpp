@@ -133,34 +133,19 @@ std::array<glm::vec4, 6> PlayerCamera::calcFrustumPlanes()
 	glm::mat4 view = get_view_matrix();
 	glm::mat4 projection = get_projection_matrix();
 	glm::mat4 viewproj = projection * view;
-	glm::mat4 viewprojT = glm::inverse(viewproj);
+	glm::mat4 viewprojT = glm::transpose(viewproj);
 	std::array<glm::vec4, 6> frustum;
 	
-	std::array<glm::vec4, 8> ndcCube;
-
-	//near 
-	ndcCube[0] = glm::vec4(-1, -1, -1, 1);
-	ndcCube[1] = glm::vec4(1, -1, -1, 1);
-	ndcCube[2] = glm::vec4(-1, 1, -1, 1);
-	ndcCube[3] = glm::vec4(1, 1, -1, 1);
-
-	//far
-	ndcCube[0] = glm::vec4(-1, -1, 1, 1);
-	ndcCube[1] = glm::vec4(1, -1, 1, 1);
-	ndcCube[2] = glm::vec4(-1, 1, 1, 1);
-	ndcCube[3] = glm::vec4(1, 1, 1, 1);
-
-	std::array<glm::vec4, 8> frustumCorners;
-
-	for (int i = 0; i < frustumCorners.size(); ++i)
-	{
-		frustumCorners[i] = viewprojT * ndcCube[i];
-		frustumCorners[i] /= frustumCorners[i].w;
-	}
+	frustum[0] = viewprojT[3] + viewprojT[0]; // x + w < 0
+	frustum[1] = viewprojT[3] - viewprojT[0]; // x - w > 0
+	frustum[2] = viewprojT[3] + viewprojT[1]; // y + w < 0
+	frustum[3] = viewprojT[3] - viewprojT[1]; // y - w > 0
+	frustum[4] = viewprojT[3] + viewprojT[2]; // z + w > 0 near
+	frustum[5] = viewprojT[3] - viewprojT[2]; // z - w > 0 far
 
 	for (int i = 0; i < frustum.size(); ++i)
 	{
-		float len = glm::length(glm::vec3(frustum[i].x, frustum[i].y, frustum[i].z));
+		float len = glm::length(glm::vec3(frustum[i]));
 		frustum[i].x /= len;
 		frustum[i].y /= len;
 		frustum[i].z /= len;

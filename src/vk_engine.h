@@ -15,6 +15,11 @@
 
 constexpr size_t MAX_OBJECTS = 1000;
 
+struct PerFrameData
+{
+	vec4 frustumPlanes[6];
+};
+
 struct Material {
 	VkDescriptorSet textureSet{ VK_NULL_HANDLE }; //texture defaulted to null
 	VkPipeline pipeline;
@@ -84,12 +89,16 @@ struct FrameData {
 
 	//buffer that holds a single GPUCameraData to use when rendering
 	AllocatedBuffer cameraBuffer;
+	AllocatedBuffer perframeDataBuffer;
 	AllocatedBuffer indirectBuffer;
 
 	AllocatedBuffer objectBuffer;
 	VkDescriptorSet objectDescriptor;
 
 	VkDescriptorSet globalDescriptor;
+	VkDescriptorSet perframeDescriptor;
+
+
 
 	VkQueryPool queryPool;
 };

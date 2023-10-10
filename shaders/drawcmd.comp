@@ -9,11 +9,6 @@
 
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
-layout(push_constant) uniform block
-{
-	vec4 frustum[6];
-};
-
 layout(std140, binding = 0) readonly buffer ObjectBuffer{
 
 	ObjectData objects[];
@@ -22,6 +17,11 @@ layout(std140, binding = 0) readonly buffer ObjectBuffer{
 layout(binding = 1) writeonly buffer DrawCommands
 {
 	MeshDrawCommand drawCommands[];
+};
+
+layout(std140, binding = 2) uniform PerFrameData
+{
+	vec4 frustum[6];
 };
 
 #define FRUSTUM_CULL 1

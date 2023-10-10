@@ -146,6 +146,15 @@ void VulkanEngine::draw()
 		map_buffer(_allocator, get_current_frame().cameraBuffer._allocation, [&](void*& data) {
 			memcpy(data, &camData, sizeof(GPUCameraData));
 			});
+
+		PerFrameData frustumData;
+		std::array<glm::vec4, 6> frustum = _camera.calcFrustumPlanes();
+		for (int i = 0; i < frustum.size(); ++i)
+			frustumData.frustumPlanes[i] = frustum[i];
+
+		map_buffer(_allocator, get_current_frame().perframeDataBuffer._allocation, [&](void*& data) {
+			memcpy(data, &frustumData, sizeof(PerFrameData));
+			});
 	}
 
 	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
@@ -323,7 +332,7 @@ void VulkanEngine::init_vulkan()
 	//make the Vulkan instance, with basic debug features
 	auto inst_ret = builder.set_app_name("My Vulkan pet project")
 		.request_validation_layers(true)
-		.require_api_version(1, 2, 0)
+		.require_api_version(1, 3, 0)
 		.enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
 		.enable_extension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME)
 		.add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT)
@@ -792,19 +801,6 @@ void VulkanEngine::init_pipelines() {
 		pipeline_layout_info.setLayoutCount = setLayouts.size();
 		pipeline_layout_info.pSetLayouts = setLayouts.data();
 
-		//setup push constants
-		VkPushConstantRange push_constant;
-		//this push constant range starts at the beginning
-		push_constant.offset = 0;
-		//this push constant range takes up the size of a MeshPushConstants struct
-		glm::vec4 frustum[6];
-		push_constant.size = sizeof(frustum[0]) * 6;
-		//this push constant range is accessible only in the vertex shader
-		push_constant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-
-		pipeline_layout_info.pPushConstantRanges = &push_constant;
-		pipeline_layout_info.pushConstantRangeCount = 1;
-
 		VkPipelineLayout pipLayout;
 
 		VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &pipLayout));
@@ -1054,6 +1050,7 @@ void VulkanEngine::init_descriptors()
 		// add buffers to deletion queues
 		for (int i = 0; i < FRAME_OVERLAP; i++)
 		{
+			vmaDestroyBuffer(_allocator, _frames[i].perframeDataBuffer._buffer, _frames[i].perframeDataBuffer._allocation);
 			vmaDestroyBuffer(_allocator, _frames[i].cameraBuffer._buffer, _frames[i].cameraBuffer._allocation);
 			vmaDestroyBuffer(_allocator, _frames[i].objectBuffer._buffer, _frames[i].objectBuffer._allocation);
 		}
@@ -1061,6 +1058,7 @@ void VulkanEngine::init_descriptors()
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
+		_frames[i].perframeDataBuffer = create_cpu_to_gpu_buffer(sizeof(GPUCameraData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		_frames[i].cameraBuffer = create_cpu_to_gpu_buffer(sizeof(GPUCameraData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 #if MESHSHADER_ON
 		_frames[i].indirectBuffer = create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawMeshTasksIndirectCommandNV), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
@@ -1068,6 +1066,11 @@ void VulkanEngine::init_descriptors()
 		_frames[i].indirectBuffer = create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
 #endif
 		_frames[i].objectBuffer = create_cpu_to_gpu_buffer(sizeof(GPUObjectData) * MAX_OBJECTS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+		VkDescriptorBufferInfo perframeDataInfo;
+		perframeDataInfo.buffer = _frames[i].perframeDataBuffer._buffer;
+		perframeDataInfo.offset = 0;
+		perframeDataInfo.range = sizeof(PerFrameData);
 
 		VkDescriptorBufferInfo cameraInfo;
 		cameraInfo.buffer = _frames[i].cameraBuffer._buffer;
@@ -1097,6 +1100,7 @@ void VulkanEngine::init_descriptors()
 		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
 			.bind_buffer(0, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
 			.bind_buffer(1, &indirectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+			.bind_buffer(2, &perframeDataInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
 			.build(_frames[i].objectDescriptor, _objectSetLayout);
 #else
 		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
@@ -1205,17 +1209,8 @@ std::vector<IndirectBatch> VulkanEngine::compact_draws(RenderObject* objects, in
 void VulkanEngine::compute_pass(VkCommandBuffer cmd)
 {
 #if MESHSHADER_ON
-
-	std::array<glm::vec4, 6> frustum = _camera.calcFrustumPlanes();
-
-	//due to VUID-vkCmdPushConstants-size-00369 size must be a multiple of 4
-	std::array<glm::vec4, 8> frustumAsConstant;
-	for (int i = 0; i < frustum.size(); ++i)
-		frustumAsConstant[i] = frustum[i];
-
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipeline);
 
-	vkCmdPushConstants(cmd, _drawcmdPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, frustumAsConstant.size(), frustumAsConstant.data());
 	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipelineLayout, 0, 1, &get_current_frame().objectDescriptor, 0, nullptr);
 
 	vkCmdDispatch(cmd, uint32_t((_renderables.size() + 31) / 32), 1, 1);
