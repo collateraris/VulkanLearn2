@@ -48,6 +48,8 @@ void VulkanEngine::init()
 	config.scaleFactor = 0.9;
 	AsimpLoader::processScene(config, _scene, _resManager);
 
+	_logger.init("vulkan.log");
+
 	//load the core Vulkan structures
 	init_vulkan();
 
@@ -321,7 +323,7 @@ void VulkanEngine::init_vulkan()
 	//make the Vulkan instance, with basic debug features
 	auto inst_ret = builder.set_app_name("My Vulkan pet project")
 		.request_validation_layers(true)
-		.require_api_version(1, 3, 0)
+		.require_api_version(1, 2, 0)
 		.enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
 		.enable_extension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME)
 		.add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT)
@@ -329,7 +331,7 @@ void VulkanEngine::init_vulkan()
 		.add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)
 		.add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT)
 		.add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT)
-		.use_default_debug_messenger()
+		.set_debug_callback(&vk_logger_debug_callback)
 		.add_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
 			| VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
 		.build();

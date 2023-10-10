@@ -27,7 +27,9 @@ add_executable(vulkan_guide
     vk_camera.cpp
     vk_resource_manager.h
     vk_resource_manager.cpp
-    imgui_menu.h)
+    imgui_menu.h
+    vk_logger.h
+    vk_logger.cpp)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
@@ -35,6 +37,6 @@ set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGE
 target_include_directories(vulkan_guide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(vulkan_guide vkbootstrap vma glm tinyobjloader imgui stb_image assimp spirv_reflect)
 
-target_link_libraries(vulkan_guide sdl2 volk volk_headers meshoptimizer) 
+target_link_libraries(vulkan_guide sdl2 volk volk_headers meshoptimizer plog) 
 
 add_dependencies(vulkan_guide Shaders)

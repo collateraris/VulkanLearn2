@@ -52,6 +52,7 @@ struct Stats
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <format>
 
 #ifdef __GNUC__
 #define PACKED_STRUCT __attribute__((packed,aligned(1)))

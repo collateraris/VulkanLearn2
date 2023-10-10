@@ -11,6 +11,7 @@
 #include <vk_shaders.h>
 #include <vk_material_system.h>
 #include <vk_camera.h>
+#include <vk_logger.h>
 
 constexpr size_t MAX_OBJECTS = 1000;
 
@@ -181,6 +182,8 @@ public:
 
 	ResourceManager _resManager;
 	Scene _scene;
+
+	VkLogger _logger;
 
 	//create material and add it to the map
 	Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
