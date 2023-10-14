@@ -81,7 +81,7 @@ target_link_libraries(imgui PUBLIC Vulkan::Vulkan sdl2)
 target_include_directories(stb_image INTERFACE stb_image)
 target_include_directories(plog INTERFACE plog)
 
-target_sources(meshoptimizer PUBLIC
+target_sources(meshoptimizer PRIVATE 
     "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/meshoptimizer.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/allocator.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/clusterizer.cpp"

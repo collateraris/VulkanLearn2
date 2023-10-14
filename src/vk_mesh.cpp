@@ -75,6 +75,7 @@ void Mesh::buildMeshlets()
 		_meshlets.push_back(m);
 	}
 }
+#endif
 Mesh& Mesh::calcAddInfo()
 {
 	_center = glm::vec3(0);
@@ -94,7 +95,6 @@ Mesh& Mesh::calcAddInfo()
 
 	return *this;
 }
-#endif
 VertexInputDescription Vertex::get_vertex_description()
 {
 	VertexInputDescription description;
