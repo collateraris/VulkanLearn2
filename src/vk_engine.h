@@ -12,6 +12,7 @@
 #include <vk_material_system.h>
 #include <vk_camera.h>
 #include <vk_logger.h>
+#include <vk_textures.h>
 
 constexpr size_t MAX_OBJECTS = 1000;
 
@@ -62,24 +63,6 @@ struct UploadContext {
 	VkCommandBuffer _commandBuffer;
 };
 
-struct DeletionQueue
-{
-	std::deque<std::function<void()>> deletors;
-
-	void push_function(std::function<void()>&& function) {
-		deletors.push_back(function);
-	}
-
-	void flush() {
-		// reverse iterate the deletion queue to execute all the functions
-		for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
-			(*it)(); //call the function
-		}
-
-		deletors.clear();
-	}
-};
-
 struct FrameData {
 	VkSemaphore _presentSemaphore, _renderSemaphore;
 	VkFence _renderFence;
@@ -103,6 +86,24 @@ struct FrameData {
 	VkQueryPool queryPool;
 };
 
+struct DeletionQueue
+{
+	std::deque<std::function<void()>> deletors;
+
+	void push_function(std::function<void()>&& function) {
+		deletors.push_back(function);
+	}
+
+	void flush() {
+		// reverse iterate the deletion queue to execute all the functions
+		for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
+			(*it)(); //call the function
+		}
+
+		deletors.clear();
+	}
+};
+
 //number of frames to overlap when rendering
 constexpr unsigned int FRAME_OVERLAP = 2;
 constexpr unsigned int MAX_COMMANDS = 1e4;
@@ -116,8 +117,7 @@ public:
 	VkDevice _device; // Vulkan device for commands
 	VkSurfaceKHR _surface; // Vulkan window surface
 
-	VkImageView _depthImageView;
-	AllocatedImage _depthImage;
+	Texture _depthTex;
 
 	//the format for the depth image
 	VkFormat _depthFormat;
@@ -191,6 +191,7 @@ public:
 
 	ResourceManager _resManager;
 	Scene _scene;
+	VkTextureBuilder _texBuilder;
 
 	VkLogger _logger;
 
@@ -224,6 +225,10 @@ public:
 	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaAllocationCreateFlags flags);
 
 	void map_buffer(VmaAllocator& allocator, VmaAllocation& allocation, std::function<void(void*& data)> func);
+
+	void create_image(const VkImageCreateInfo& _img_info, const VmaAllocationCreateInfo& _img_allocinfo, VkImage& img, VmaAllocation& img_alloc, VmaAllocationInfo* vma_allocinfo);
+
+	void create_image_view(const VkImageViewCreateInfo& _view_info, VkImageView& image_view);
 
 	void upload_mesh(Mesh& mesh);
 

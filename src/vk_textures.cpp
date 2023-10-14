@@ -1,6 +1,6 @@
 #include <vk_textures.h>
 #include <iostream>
-
+#include <vk_engine.h>
 #include <vk_initializers.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -54,8 +54,7 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file,
 	VmaAllocationCreateInfo dimg_allocinfo = {};
 	dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-	//allocate and create the image
-	vmaCreateImage(engine._allocator, &dimg_info, &dimg_allocinfo, &newImage._image, &newImage._allocation, nullptr);
+	engine.create_image(dimg_info, dimg_allocinfo, newImage._image, newImage._allocation, nullptr);
 
 	engine.immediate_submit([&](VkCommandBuffer cmd) {
 		VkImageSubresourceRange range;
@@ -104,11 +103,6 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file,
 		//barrier the image into the shader readable layout
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
 
-		});
-
-	engine._mainDeletionQueue.push_function([&]() {
-
-		vmaDestroyImage(engine._allocator, newImage._image, newImage._allocation);
 		});
 
 	vmaDestroyBuffer(engine._allocator, stagingBuffer._buffer, stagingBuffer._allocation);
@@ -226,4 +220,81 @@ void load_image_for_dds(const char* file, void*& pixel_ptr, VkFormat& image_form
 		std::cout << "Texture failed to load at path: " << file << std::endl;
 		return;
 	}
+}
+
+uint32_t vkutil::getImageMipLevels(uint32_t width, uint32_t height)
+{
+	uint32_t result = 1;
+
+	while (width > 1 || height > 1)
+	{
+		result++;
+		width /= 2;
+		height /= 2;
+	}
+
+	return result;
+}
+
+void VkTextureBuilder::init(VulkanEngine* engine)
+{
+	_engine = engine;
+}
+
+VkTextureBuilder& VkTextureBuilder::start()
+{
+	_img_info = {};
+	_img_allocinfo = {};
+	_view_info = {};
+	return *this;
+}
+
+VkTextureBuilder& VkTextureBuilder::make_img_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent)
+{
+	_img_info = vkinit::image_create_info(format, usageFlags, extent);
+	return *this;
+}
+
+VkTextureBuilder& VkTextureBuilder::fill_img_info(std::function<void(VkImageCreateInfo& imgInfo)>& func)
+{
+	func(_img_info);
+	return *this;
+}
+
+VkTextureBuilder& VkTextureBuilder::make_img_allocinfo(VmaMemoryUsage usage, VkMemoryPropertyFlags requiredFlags)
+{
+	_img_allocinfo.usage = usage;
+	_img_allocinfo.requiredFlags = requiredFlags;
+	return *this;
+}
+
+VkTextureBuilder& VkTextureBuilder::fill_img_allocinfo(std::function<void(VmaAllocationCreateInfo& _img_allocinfo)>& func)
+{
+	func(_img_allocinfo);
+	return *this;
+}
+
+VkTextureBuilder& VkTextureBuilder::make_view_info(VkFormat format, VkImageAspectFlags aspectFlags)
+{
+	_view_info = vkinit::imageview_create_info(format, {}, VK_IMAGE_ASPECT_DEPTH_BIT);
+	return *this;
+}
+
+VkTextureBuilder& VkTextureBuilder::fill_view_info(std::function<void(VkImageViewCreateInfo& _view_info)>& func)
+{
+	func(_view_info);
+	return *this;
+}
+
+Texture VkTextureBuilder::create_texture()
+{
+	Texture tex;
+
+	_engine->create_image(_img_info, _img_allocinfo, tex.image._image, tex.image._allocation, nullptr );
+
+	_view_info.image = tex.image._image;
+
+	_engine->create_image_view(_view_info, tex.imageView);
+
+	return tex;
 }

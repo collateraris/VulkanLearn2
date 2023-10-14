@@ -50,6 +50,8 @@ void VulkanEngine::init()
 
 	_logger.init("vulkan.log");
 
+	_texBuilder.init(this);
+
 	//load the core Vulkan structures
 	init_vulkan();
 
@@ -474,27 +476,11 @@ void VulkanEngine::init_swapchain()
 	//hardcoding the depth format to 32 bit float
 	_depthFormat = VK_FORMAT_D32_SFLOAT;
 
-	//the depth image will be an image with the format we selected and Depth Attachment usage flag
-	VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthImageExtent);
-
-	//for the depth image, we want to allocate it from GPU local memory
-	VmaAllocationCreateInfo dimg_allocinfo = {};
-	dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-	dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-	//allocate and create the image
-	vmaCreateImage(_allocator, &dimg_info, &dimg_allocinfo, &_depthImage._image, &_depthImage._allocation, nullptr);
-
-	//build an image-view for the depth image to use for rendering
-	VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthFormat, _depthImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-	VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImageView));
-
-	//add to deletion queues
-	_mainDeletionQueue.push_function([=]() {
-		vkDestroyImageView(_device, _depthImageView, nullptr);
-		vmaDestroyImage(_allocator, _depthImage._image, _depthImage._allocation);
-		});
+	_depthTex = _texBuilder.start()
+		.make_img_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthImageExtent)
+		.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+		.make_view_info(_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
+		.create_texture();
 }
 
 void VulkanEngine::init_commands()
@@ -649,7 +635,7 @@ void VulkanEngine::init_framebuffers()
 
 		VkImageView attachments[2];
 		attachments[0] = _swapchainImageViews[i];
-		attachments[1] = _depthImageView;
+		attachments[1] = _depthTex.imageView;
 
 		fb_info.pAttachments = attachments;
 		fb_info.attachmentCount = 2;
@@ -999,6 +985,24 @@ void VulkanEngine::map_buffer(VmaAllocator& allocator, VmaAllocation& allocation
 	func(data);
 
 	vmaUnmapMemory(allocator, allocation);
+}
+
+void VulkanEngine::create_image(const VkImageCreateInfo& _img_info, const VmaAllocationCreateInfo& _img_allocinfo, VkImage& img, VmaAllocation& img_alloc, VmaAllocationInfo* vma_allocinfo)
+{
+	vmaCreateImage(_allocator, &_img_info, &_img_allocinfo, &img, &img_alloc, vma_allocinfo);
+
+	_mainDeletionQueue.push_function([=]() {
+		vmaDestroyImage(_allocator, img, img_alloc);
+		});
+}
+
+void VulkanEngine::create_image_view(const VkImageViewCreateInfo& _view_info, VkImageView& image_view)
+{
+	VK_CHECK(vkCreateImageView(_device, &_view_info, nullptr, &image_view));
+
+	_mainDeletionQueue.push_function([=]() {
+		vkDestroyImageView(_device, image_view, nullptr);
+		});
 }
 
 void VulkanEngine::init_descriptors()

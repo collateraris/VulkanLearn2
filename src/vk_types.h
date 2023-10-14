@@ -19,6 +19,12 @@ struct AllocatedImage {
     VmaAllocation _allocation;
 };
 
+struct Texture {
+	AllocatedImage image;
+	VkImageView imageView;
+};
+
+
 enum class MeshpassType : uint8_t {
 	None = 0,
 	Forward = 1,

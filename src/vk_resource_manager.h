@@ -3,11 +3,6 @@
 #include <vk_types.h>
 #include <vk_mesh.h>
 
-struct Texture {
-	AllocatedImage image;
-	VkImageView imageView;
-};
-
 struct MaterialDesc
 {
 	std::string matName = {};
