@@ -4,7 +4,7 @@
 #pragma once
 
 #define MESHSHADER_ON 0
-#define VULKAN_DEBUG_ON 0
+#define VULKAN_DEBUG_ON 1
 
 #include <volk.h>
 #include "vk_mem_alloc.h"

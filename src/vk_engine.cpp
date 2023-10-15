@@ -211,7 +211,7 @@ void VulkanEngine::draw()
 	//finalize the render pass
 	vkCmdEndRenderPass(cmd);
 
-	_depthReduceRenderPass.compute_pass(cmd, { Resources{ &_depthTex} });
+	_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });
 
 	vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 1);
 	//finalize the command buffer (we can no longer add commands, but it can now be executed)

@@ -12,7 +12,7 @@ public:
 	virtual void init_render_pass() = 0;
 	virtual void init_pipelines() = 0;
 	virtual void init_descriptors(const std::vector<DescriptorInfo>& descInfo) = 0;
-	virtual void compute_pass(VkCommandBuffer cmd, const std::vector<Resources>& resource) = 0;
+	virtual void compute_pass(VkCommandBuffer cmd, size_t index, const std::vector<Resources>& resource) = 0;
 };
 
 class VulkanMainRenderPass : public IVulkanRenderPass
@@ -22,7 +22,7 @@ public:
 	virtual void init_render_pass() override;
 	virtual void init_pipelines() override {};
 	virtual void init_descriptors(const std::vector<DescriptorInfo>& descInfo) override {};
-	virtual void compute_pass(VkCommandBuffer cmd, const std::vector<Resources>& resource) override {};
+	virtual void compute_pass(VkCommandBuffer cmd, size_t index, const std::vector<Resources>& resource) override {};
 
 	const VkFramebuffer& get_framebuffer(size_t index) const;
 
@@ -65,9 +65,14 @@ public:
 
 	void create_depth_pyramid(size_t w, size_t h);
 
-	virtual void compute_pass(VkCommandBuffer cmd, const std::vector<Resources>& resource) override;
+	virtual void compute_pass(VkCommandBuffer cmd, size_t index, const std::vector<Resources>& resource) override;
 
 private:
+	struct alignas(16) DepthReduceData
+	{
+		vec2 imageSize;
+	};
+
 	VulkanEngine* _engine;
 
 	//the format for the depth image
@@ -87,7 +92,7 @@ private:
 	VkPipelineLayout _drawcmdPipelineLayout;
 
 	VkDescriptorSetLayout _objectSetLayout;
-	std::vector<VkDescriptorSet> _objectDescriptor;
+	std::vector<VkDescriptorSet> _objectDescriptor[2];
 
 	std::vector<VkDescriptorImageInfo> _depthPyramidDescInfo;
 	VkDescriptorImageInfo _depthDescInfo;

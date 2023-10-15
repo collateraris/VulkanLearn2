@@ -232,28 +232,36 @@ void VulkanDepthReduceRenderPass::init_descriptors(const std::vector<DescriptorI
 
 	_objectSetLayout = _engine->_descriptorLayoutCache->create_descriptor_layout(&set1info);
 
+	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
+
+	VkSampler blockySampler;
+	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &blockySampler);
+
 	_depthDescInfo = descInfo[0].imageInfo;
-	_depthDescInfo.sampler = nullptr;
+	_depthDescInfo.sampler = blockySampler;
 	_depthDescInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	_depthPyramidDescInfo.resize(depthPyramidLevels);
 	for (uint32_t i = 0; i < depthPyramidLevels; ++i)
 	{
 		_depthPyramidDescInfo[i].imageView = depthPyramidMips[i];
-		_depthPyramidDescInfo[i].sampler = nullptr;
-		_depthPyramidDescInfo[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		_depthPyramidDescInfo[i].sampler = blockySampler;
+		_depthPyramidDescInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	}
 
-	_objectDescriptor.resize(depthPyramidLevels);
-	for (uint32_t i = 0; i < depthPyramidLevels; ++i)
+	for (size_t f = 0; f < FRAME_OVERLAP; ++f)
 	{
-		VkDescriptorImageInfo& writeImage = _depthPyramidDescInfo[i];
-		VkDescriptorImageInfo& sourceImage = i == 0 ? _depthDescInfo : _depthPyramidDescInfo[i - 1];
+		_objectDescriptor[f].resize(depthPyramidLevels);
+		for (uint32_t i = 0; i < depthPyramidLevels; ++i)
+		{
+			VkDescriptorImageInfo& writeImage = _depthPyramidDescInfo[i];
+			VkDescriptorImageInfo& sourceImage = i == 0 ? _depthDescInfo : _depthPyramidDescInfo[i - 1];
 
-		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_image(0, &writeImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT)
-			.bind_image(1, &sourceImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT)
-			.build(_objectDescriptor[i], _objectSetLayout);
+			vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+				.bind_image(0, &writeImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT)
+				.bind_image(1, &sourceImage, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
+				.build(_objectDescriptor[f][i], _objectSetLayout);
+		}
 	}
 }
 
@@ -292,7 +300,7 @@ void VulkanDepthReduceRenderPass::create_depth_pyramid(size_t w, size_t h)
 	}
 }
 
-void VulkanDepthReduceRenderPass::compute_pass(VkCommandBuffer cmd, const std::vector<Resources>& resource)
+void VulkanDepthReduceRenderPass::compute_pass(VkCommandBuffer cmd, size_t index, const std::vector<Resources>& resource)
 {
 	Texture* depthTex = resource[0].texture;
 
@@ -308,10 +316,14 @@ void VulkanDepthReduceRenderPass::compute_pass(VkCommandBuffer cmd, const std::v
 
 	for (uint32_t i = 0; i < depthPyramidLevels; ++i)
 	{
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipelineLayout, 0, 1, &_objectDescriptor[i], 0, nullptr);
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipelineLayout, 0, 1, &_objectDescriptor[index][i], 0, nullptr);
 
 		uint32_t levelWidth = std::max(1u, (_width) >> i);
 		uint32_t levelHeight = std::max(1u, (_height) >> i);
+
+		DepthReduceData reduceData = { vec2(levelWidth, levelHeight) };
+
+		vkCmdPushConstants(cmd, _drawcmdPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(reduceData), &reduceData);
 
 		vkCmdDispatch(cmd, (levelWidth + 32 - 1) / 32, (levelHeight + 32 - 1) / 32, 1);
 
