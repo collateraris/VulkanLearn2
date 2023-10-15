@@ -50,8 +50,6 @@ void VulkanEngine::init()
 
 	_logger.init("vulkan.log");
 
-	_texBuilder.init(this);
-
 	//load the core Vulkan structures
 	init_vulkan();
 
@@ -476,7 +474,9 @@ void VulkanEngine::init_swapchain()
 	//hardcoding the depth format to 32 bit float
 	_depthFormat = VK_FORMAT_D32_SFLOAT;
 
-	_depthTex = _texBuilder.start()
+	VulkanTextureBuilder texBuilder;
+	texBuilder.init(this);
+	_depthTex = texBuilder.start()
 		.make_img_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthImageExtent)
 		.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 		.make_view_info(_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
@@ -606,11 +606,7 @@ void VulkanEngine::init_default_renderpass()
 	render_pass_info.dependencyCount = 2;
 	render_pass_info.pDependencies = &dependencies[0];
 
-	VK_CHECK(vkCreateRenderPass(_device, &render_pass_info, nullptr, &_renderPass));
-
-	_mainDeletionQueue.push_function([=]() {
-		vkDestroyRenderPass(_device, _renderPass, nullptr);
-		});
+	create_render_pass(render_pass_info, _renderPass);
 }
 
 void VulkanEngine::init_framebuffers()
@@ -699,25 +695,7 @@ void VulkanEngine::init_pipelines() {
 
 	pipelineBuilder.setShaders(&defaultEffect);
 
-	//we start from just the default empty pipeline layout info
-	VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
-
-	//hook the global set layout
-#if MESHSHADER_ON
-	std::vector<VkDescriptorSetLayout> setLayouts = { _globalSetLayout, _meshletsSetLayout};
-#else
-	std::vector<VkDescriptorSetLayout> setLayouts = { _globalSetLayout, _objectSetLayout,_singleTextureSetLayout };
-#endif
-
-	mesh_pipeline_layout_info.setLayoutCount = setLayouts.size();
-	mesh_pipeline_layout_info.pSetLayouts = setLayouts.data();
-
-	VkPipelineLayout meshPipLayout;
-
-	VK_CHECK(vkCreatePipelineLayout(_device, &mesh_pipeline_layout_info, nullptr, &meshPipLayout));
-
-	//hook the push constants layout
-	pipelineBuilder._pipelineLayout = meshPipLayout;
+	VkPipelineLayout meshPipLayout = pipelineBuilder._pipelineLayout;
 
 	//vertex input controls how to read vertices from vertex buffers. We arent using it yet
 	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
@@ -778,20 +756,8 @@ void VulkanEngine::init_pipelines() {
 
 		ComputePipelineBuilder computePipelineBuilder;
 		computePipelineBuilder.setShaders(&computeEffect);
-		//we start from just the default empty pipeline layout info
-		VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-
-		//hook the global set layout
-		std::vector<VkDescriptorSetLayout> setLayouts = { _objectSetLayout };
-
-		pipeline_layout_info.setLayoutCount = setLayouts.size();
-		pipeline_layout_info.pSetLayouts = setLayouts.data();
-
-		VkPipelineLayout pipLayout;
-
-		VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &pipLayout));
 		//hook the push constants layout
-		_drawcmdPipelineLayout = pipelineBuilder._pipelineLayout = pipLayout;
+		_drawcmdPipelineLayout = computePipelineBuilder._pipelineLayout;
 
 		_drawcmdPipeline = computePipelineBuilder.build_compute_pipeline(_device);
 	}
@@ -1002,6 +968,15 @@ void VulkanEngine::create_image_view(const VkImageViewCreateInfo& _view_info, Vk
 
 	_mainDeletionQueue.push_function([=]() {
 		vkDestroyImageView(_device, image_view, nullptr);
+		});
+}
+
+void VulkanEngine::create_render_pass(const VkRenderPassCreateInfo& info, VkRenderPass& renderPass)
+{
+	VK_CHECK(vkCreateRenderPass(_device, &info, nullptr, &renderPass));
+
+	_mainDeletionQueue.push_function([=]() {
+		vkDestroyRenderPass(_device, renderPass, nullptr);
 		});
 }
 

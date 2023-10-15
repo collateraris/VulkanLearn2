@@ -191,7 +191,6 @@ public:
 
 	ResourceManager _resManager;
 	Scene _scene;
-	VkTextureBuilder _texBuilder;
 
 	VkLogger _logger;
 
@@ -229,6 +228,8 @@ public:
 	void create_image(const VkImageCreateInfo& _img_info, const VmaAllocationCreateInfo& _img_allocinfo, VkImage& img, VmaAllocation& img_alloc, VmaAllocationInfo* vma_allocinfo);
 
 	void create_image_view(const VkImageViewCreateInfo& _view_info, VkImageView& image_view);
+
+	void create_render_pass(const VkRenderPassCreateInfo& info, VkRenderPass& renderPass);
 
 	void upload_mesh(Mesh& mesh);
 

@@ -236,12 +236,12 @@ uint32_t vkutil::getImageMipLevels(uint32_t width, uint32_t height)
 	return result;
 }
 
-void VkTextureBuilder::init(VulkanEngine* engine)
+void VulkanTextureBuilder::init(VulkanEngine* engine)
 {
 	_engine = engine;
 }
 
-VkTextureBuilder& VkTextureBuilder::start()
+VulkanTextureBuilder& VulkanTextureBuilder::start()
 {
 	_img_info = {};
 	_img_allocinfo = {};
@@ -249,52 +249,65 @@ VkTextureBuilder& VkTextureBuilder::start()
 	return *this;
 }
 
-VkTextureBuilder& VkTextureBuilder::make_img_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent)
+VulkanTextureBuilder& VulkanTextureBuilder::make_img_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent)
 {
 	_img_info = vkinit::image_create_info(format, usageFlags, extent);
 	return *this;
 }
 
-VkTextureBuilder& VkTextureBuilder::fill_img_info(std::function<void(VkImageCreateInfo& imgInfo)>& func)
+VulkanTextureBuilder& VulkanTextureBuilder::fill_img_info(const std::function<void(VkImageCreateInfo& imgInfo)>& func)
 {
 	func(_img_info);
 	return *this;
 }
 
-VkTextureBuilder& VkTextureBuilder::make_img_allocinfo(VmaMemoryUsage usage, VkMemoryPropertyFlags requiredFlags)
+VulkanTextureBuilder& VulkanTextureBuilder::make_img_allocinfo(VmaMemoryUsage usage, VkMemoryPropertyFlags requiredFlags)
 {
 	_img_allocinfo.usage = usage;
 	_img_allocinfo.requiredFlags = requiredFlags;
 	return *this;
 }
 
-VkTextureBuilder& VkTextureBuilder::fill_img_allocinfo(std::function<void(VmaAllocationCreateInfo& _img_allocinfo)>& func)
+VulkanTextureBuilder& VulkanTextureBuilder::fill_img_allocinfo(const std::function<void(VmaAllocationCreateInfo& _img_allocinfo)>& func)
 {
 	func(_img_allocinfo);
 	return *this;
 }
 
-VkTextureBuilder& VkTextureBuilder::make_view_info(VkFormat format, VkImageAspectFlags aspectFlags)
+VulkanTextureBuilder& VulkanTextureBuilder::make_view_info(VkFormat format, VkImageAspectFlags aspectFlags)
 {
 	_view_info = vkinit::imageview_create_info(format, {}, VK_IMAGE_ASPECT_DEPTH_BIT);
 	return *this;
 }
 
-VkTextureBuilder& VkTextureBuilder::fill_view_info(std::function<void(VkImageViewCreateInfo& _view_info)>& func)
+VulkanTextureBuilder& VulkanTextureBuilder::fill_view_info(const std::function<void(VkImageViewCreateInfo& _view_info)>& func)
 {
 	func(_view_info);
 	return *this;
 }
 
-Texture VkTextureBuilder::create_texture()
+Texture VulkanTextureBuilder::create_texture()
 {
 	Texture tex;
-
-	_engine->create_image(_img_info, _img_allocinfo, tex.image._image, tex.image._allocation, nullptr );
-
-	_view_info.image = tex.image._image;
-
-	_engine->create_image_view(_view_info, tex.imageView);
+	tex.image = create_image();
+	tex.imageView = create_image_view(tex.image);
 
 	return tex;
+}
+
+AllocatedImage VulkanTextureBuilder::create_image()
+{
+	AllocatedImage img;
+	_engine->create_image(_img_info, _img_allocinfo, img._image, img._allocation, nullptr);
+
+	return img;
+}
+
+VkImageView VulkanTextureBuilder::create_image_view(AllocatedImage img)
+{
+	VkImageView img_view;
+	_view_info.image = img._image;
+	_engine->create_image_view(_view_info, img_view);
+
+	return img_view;
 }

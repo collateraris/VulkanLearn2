@@ -11,21 +11,22 @@ namespace vkutil {
 	uint32_t getImageMipLevels(uint32_t width, uint32_t height);
 }
 
-class VkTextureBuilder
+class VulkanTextureBuilder
 {
 public:
-	VkTextureBuilder() = default;
+	VulkanTextureBuilder() = default;
 
 	void init(VulkanEngine* engine);
-	VkTextureBuilder& start();
-	VkTextureBuilder& make_img_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
-	VkTextureBuilder& fill_img_info(std::function<void(VkImageCreateInfo& imgInfo)>& func);
-	VkTextureBuilder& make_img_allocinfo(VmaMemoryUsage usage, VkMemoryPropertyFlags requiredFlags);
-	VkTextureBuilder& fill_img_allocinfo(std::function<void(VmaAllocationCreateInfo& _img_allocinfo)>& func);
-	VkTextureBuilder& make_view_info(VkFormat format, VkImageAspectFlags aspectFlags);
-	VkTextureBuilder& fill_view_info(std::function<void(VkImageViewCreateInfo& _view_info)>& func);
+	VulkanTextureBuilder& start();
+	VulkanTextureBuilder& make_img_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
+	VulkanTextureBuilder& fill_img_info(const std::function<void(VkImageCreateInfo& imgInfo)>& func);
+	VulkanTextureBuilder& make_img_allocinfo(VmaMemoryUsage usage, VkMemoryPropertyFlags requiredFlags);
+	VulkanTextureBuilder& fill_img_allocinfo(const std::function<void(VmaAllocationCreateInfo& _img_allocinfo)>& func);
+	VulkanTextureBuilder& make_view_info(VkFormat format, VkImageAspectFlags aspectFlags);
+	VulkanTextureBuilder& fill_view_info(const std::function<void(VkImageViewCreateInfo& _view_info)>& func);
 	Texture create_texture();
-
+	AllocatedImage create_image();
+	VkImageView create_image_view(AllocatedImage img);
 
 
 private:

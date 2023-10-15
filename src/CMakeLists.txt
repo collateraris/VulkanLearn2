@@ -29,7 +29,9 @@ add_executable(vulkan_guide
     vk_resource_manager.cpp
     imgui_menu.h
     vk_logger.h
-    vk_logger.cpp)
+    vk_logger.cpp
+    vk_render_passes.h
+    vk_render_passes.cpp)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
