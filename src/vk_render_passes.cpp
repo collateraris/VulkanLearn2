@@ -290,20 +290,8 @@ void VulkanDepthReduceRenderPass::init_pipelines()
 
 	ComputePipelineBuilder computePipelineBuilder;
 	computePipelineBuilder.setShaders(&computeEffect);
-	//we start from just the default empty pipeline layout info
-	VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-
-	//hook the global set layout
-	std::vector<VkDescriptorSetLayout> setLayouts = { _objectSetLayout };
-
-	pipeline_layout_info.setLayoutCount = setLayouts.size();
-	pipeline_layout_info.pSetLayouts = setLayouts.data();
-
-	VkPipelineLayout pipLayout;
-
-	vkCreatePipelineLayout(_engine->_device, &pipeline_layout_info, nullptr, &pipLayout);
 	//hook the push constants layout
-	_drawcmdPipelineLayout = computePipelineBuilder._pipelineLayout = pipLayout;
+	_drawcmdPipelineLayout = computePipelineBuilder._pipelineLayout;
 
 	_drawcmdPipeline = computePipelineBuilder.build_compute_pipeline(_engine->_device);
 }
