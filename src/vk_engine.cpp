@@ -1194,16 +1194,13 @@ void VulkanEngine::compute_pass(VkCommandBuffer cmd)
 
 	vkCmdDispatch(cmd, uint32_t((_renderables.size() + 31) / 32), 1, 1);
 
-	//VkBufferMemoryBarrier cmdEndBarrier;
-	//cmdEndBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	//cmdEndBarrier.buffer = get_current_frame().indirectBuffer._buffer;
-	//cmdEndBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-	//cmdEndBarrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-	//cmdEndBarrier.offset = 0;
-	//cmdEndBarrier.size = VK_WHOLE_SIZE;
-	//cmdEndBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	//cmdEndBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	//vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, 0, 1, &cmdEndBarrier, 0, 0);
+	std::array<VkBufferMemoryBarrier, 2> cullBarriers =
+	{
+		vkinit::buffer_barrier(get_current_frame().indirectBuffer._buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT),
+		vkinit::buffer_barrier(get_current_frame().objectBuffer._buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT),
+	};
+
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, 0, cullBarriers.size(), cullBarriers.data(), 0, 0);
 #endif
 }
 
