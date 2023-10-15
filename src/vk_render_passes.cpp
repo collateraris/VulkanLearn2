@@ -218,8 +218,8 @@ void VulkanDepthReduceRenderPass::init_pipelines()
 void VulkanDepthReduceRenderPass::init_descriptors(const std::vector<DescriptorInfo>& descInfo)
 {
 	//another set, one that holds a single texture
-	VkDescriptorSetLayoutBinding outTextureBind = vkinit::descriptorset_layout_binding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_USAGE_STORAGE_BIT, 0);
-	VkDescriptorSetLayoutBinding inTextureBind = vkinit::descriptorset_layout_binding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_USAGE_STORAGE_BIT, 1);
+	VkDescriptorSetLayoutBinding outTextureBind = vkinit::descriptorset_layout_binding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 0);
+	VkDescriptorSetLayoutBinding inTextureBind = vkinit::descriptorset_layout_binding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1);
 
 	std::vector<VkDescriptorSetLayoutBinding> binding = { outTextureBind, inTextureBind };
 
@@ -247,12 +247,12 @@ void VulkanDepthReduceRenderPass::init_descriptors(const std::vector<DescriptorI
 	_objectDescriptor.resize(depthPyramidLevels);
 	for (uint32_t i = 0; i < depthPyramidLevels; ++i)
 	{
-		VkDescriptorImageInfo& outImage = i == 0 ? _depthDescInfo : _depthPyramidDescInfo[i - 1];
-		VkDescriptorImageInfo& inImage = _depthPyramidDescInfo[i];
+		VkDescriptorImageInfo& writeImage = _depthPyramidDescInfo[i];
+		VkDescriptorImageInfo& sourceImage = i == 0 ? _depthDescInfo : _depthPyramidDescInfo[i - 1];
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_image(0, &outImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_USAGE_STORAGE_BIT)
-			.bind_image(1, &inImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_USAGE_STORAGE_BIT)
+			.bind_image(0, &writeImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT)
+			.bind_image(1, &sourceImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT)
 			.build(_objectDescriptor[i], _objectSetLayout);
 	}
 }

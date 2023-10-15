@@ -3,7 +3,7 @@
 
 #pragma once
 
-#define MESHSHADER_ON 1
+#define MESHSHADER_ON 0
 #define VULKAN_DEBUG_ON 0
 
 #include <volk.h>

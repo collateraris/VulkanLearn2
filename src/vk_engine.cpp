@@ -373,7 +373,9 @@ void VulkanEngine::init_vulkan()
 	std::vector<const char*> extensions = {
 		VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
 		VK_KHR_8BIT_STORAGE_EXTENSION_NAME,
+#if MESHSHADER_ON
 		VK_NV_MESH_SHADER_EXTENSION_NAME,
+#endif
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
 	};
 
