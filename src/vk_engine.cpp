@@ -50,6 +50,8 @@ void VulkanEngine::init()
 
 	_logger.init("vulkan.log");
 
+	_depthReduceRenderPass.init(this);
+
 	//load the core Vulkan structures
 	init_vulkan();
 
@@ -209,6 +211,8 @@ void VulkanEngine::draw()
 	//finalize the render pass
 	vkCmdEndRenderPass(cmd);
 
+	_depthReduceRenderPass.compute_pass(cmd, { Resources{ &_depthTex} });
+
 	vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 1);
 	//finalize the command buffer (we can no longer add commands, but it can now be executed)
 	VK_CHECK(vkEndCommandBuffer(cmd));
@@ -331,8 +335,9 @@ void VulkanEngine::init_vulkan()
 	vkb::InstanceBuilder builder;
 	//make the Vulkan instance, with basic debug features
 	auto inst_ret = builder.set_app_name("My Vulkan pet project")
-		.request_validation_layers(true)
 		.require_api_version(1, 3, 0)
+#if VULKAN_DEBUG_ON
+		.request_validation_layers(true)
 		.enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
 		.enable_extension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME)
 		.add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT)
@@ -343,6 +348,7 @@ void VulkanEngine::init_vulkan()
 		.set_debug_callback(&vk_logger_debug_callback)
 		.add_debug_messenger_severity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
 			| VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+#endif
 		.build();
 
 	vkb::Instance vkb_inst = inst_ret.value();
@@ -477,7 +483,7 @@ void VulkanEngine::init_swapchain()
 	VulkanTextureBuilder texBuilder;
 	texBuilder.init(this);
 	_depthTex = texBuilder.start()
-		.make_img_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthImageExtent)
+		.make_img_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, depthImageExtent)
 		.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 		.make_view_info(_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
 		.create_texture();
@@ -762,6 +768,8 @@ void VulkanEngine::init_pipelines() {
 		_drawcmdPipeline = computePipelineBuilder.build_compute_pipeline(_device);
 	}
 #endif
+
+	_depthReduceRenderPass.init_pipelines();
 }
 
 void VulkanEngine::load_meshes()
@@ -1087,6 +1095,12 @@ void VulkanEngine::init_descriptors()
 			.build(_frames[i].objectDescriptor, _objectSetLayout);
 #endif
 	}
+
+	_depthReduceRenderPass.create_depth_pyramid(_windowExtent.width, _windowExtent.height);
+
+	VkDescriptorImageInfo depthDescInfo = {};
+	depthDescInfo.imageView = _depthTex.imageView;
+	_depthReduceRenderPass.init_descriptors({ DescriptorInfo{ {}, depthDescInfo} });
 
 }
 

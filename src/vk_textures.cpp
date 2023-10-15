@@ -276,7 +276,7 @@ VulkanTextureBuilder& VulkanTextureBuilder::fill_img_allocinfo(const std::functi
 
 VulkanTextureBuilder& VulkanTextureBuilder::make_view_info(VkFormat format, VkImageAspectFlags aspectFlags)
 {
-	_view_info = vkinit::imageview_create_info(format, {}, VK_IMAGE_ASPECT_DEPTH_BIT);
+	_view_info = vkinit::imageview_create_info(format, {}, aspectFlags);
 	return *this;
 }
 

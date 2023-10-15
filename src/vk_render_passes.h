@@ -11,7 +11,8 @@ public:
 	virtual void init(VulkanEngine* engine) = 0;
 	virtual void init_render_pass() = 0;
 	virtual void init_pipelines() = 0;
-	virtual void init_descriptors() = 0;
+	virtual void init_descriptors(const std::vector<DescriptorInfo>& descInfo) = 0;
+	virtual void compute_pass(VkCommandBuffer cmd, const std::vector<Resources>& resource) = 0;
 };
 
 class VulkanMainRenderPass : public IVulkanRenderPass
@@ -20,7 +21,8 @@ public:
 	virtual void init(VulkanEngine* engine) override;
 	virtual void init_render_pass() override;
 	virtual void init_pipelines() override {};
-	virtual void init_descriptors() override {};
+	virtual void init_descriptors(const std::vector<DescriptorInfo>& descInfo) override {};
+	virtual void compute_pass(VkCommandBuffer cmd, const std::vector<Resources>& resource) override {};
 
 	const VkFramebuffer& get_framebuffer(size_t index) const;
 
@@ -59,12 +61,13 @@ public:
 	virtual void init(VulkanEngine* engine) override;
 	virtual void init_render_pass() override;
 	virtual void init_pipelines() override;
-	virtual void init_descriptors() override;
+	virtual void init_descriptors(const std::vector<DescriptorInfo>& descInfo) override;
 
 	void create_depth_pyramid(size_t w, size_t h);
 
+	virtual void compute_pass(VkCommandBuffer cmd, const std::vector<Resources>& resource) override;
+
 private:
-	VkRenderPass _render_pass;
 	VulkanEngine* _engine;
 
 	//the format for the depth image
@@ -76,12 +79,17 @@ private:
 	VkImageView depthPyramidMips[16] = {};
 	uint32_t depthPyramidLevels = 0;
 
+	uint32_t _width = 0, _height = 0;
+
 	ShaderEffect depthreduceEffect;
 
 	VkPipeline _drawcmdPipeline;
 	VkPipelineLayout _drawcmdPipelineLayout;
 
 	VkDescriptorSetLayout _objectSetLayout;
-	VkDescriptorSet objectDescriptor;
+	std::vector<VkDescriptorSet> _objectDescriptor;
+
+	std::vector<VkDescriptorImageInfo> _depthPyramidDescInfo;
+	VkDescriptorImageInfo _depthDescInfo;
 
 };

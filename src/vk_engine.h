@@ -13,6 +13,7 @@
 #include <vk_camera.h>
 #include <vk_logger.h>
 #include <vk_textures.h>
+#include <vk_render_passes.h>
 
 constexpr size_t MAX_OBJECTS = 1000;
 
@@ -137,6 +138,8 @@ public:
 	VkPipelineLayout _drawcmdPipelineLayout;
 
 	VkRenderPass _renderPass;
+
+	VulkanDepthReduceRenderPass _depthReduceRenderPass;
 
 	std::vector<VkFramebuffer> _framebuffers;
 

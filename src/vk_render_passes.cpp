@@ -199,87 +199,6 @@ void VulkanDepthReduceRenderPass::init(VulkanEngine* engine)
 
 void VulkanDepthReduceRenderPass::init_render_pass()
 {
-	// the renderpass will use this color attachment.
-	VkAttachmentDescription color_attachment = {};
-	//the attachment will have the format needed by the swapchain
-	color_attachment.format = _swapchainImageFormat;
-	//1 sample, we won't be doing MSAA
-	color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	// we Clear when this attachment is loaded
-	color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	// we keep the attachment stored when the renderpass ends
-	color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	//we don't care about stencil
-	color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
-	//we don't know or care about the starting layout of the attachment
-	color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-	//after the renderpass ends, the image has to be on a layout ready for display
-	color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-	VkAttachmentReference color_attachment_ref = {};
-	//attachment number will index into the pAttachments array in the parent renderpass itself
-	color_attachment_ref.attachment = 0;
-	color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-
-	VkAttachmentDescription depth_attachment = {};
-	// Depth attachment
-	depth_attachment.flags = 0;
-	depth_attachment.format = _depthFormat;
-	depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-	VkAttachmentReference depth_attachment_ref = {};
-	depth_attachment_ref.attachment = 1;
-	depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-	//we are going to create 1 subpass, which is the minimum you can do
-	VkSubpassDescription subpass = {};
-	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount = 1;
-	subpass.pColorAttachments = &color_attachment_ref;
-	//hook the depth attachment into the subpass
-	subpass.pDepthStencilAttachment = &depth_attachment_ref;
-
-	VkSubpassDependency dependency = {};
-	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependency.dstSubpass = 0;
-	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.srcAccessMask = 0;
-	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-	VkSubpassDependency depth_dependency = {};
-	depth_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	depth_dependency.dstSubpass = 0;
-	depth_dependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-	depth_dependency.srcAccessMask = 0;
-	depth_dependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-	depth_dependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-	//array of 2 attachments, one for the color, and other for depth
-	VkAttachmentDescription attachments[2] = { color_attachment,depth_attachment };
-	VkSubpassDependency dependencies[2] = { dependency, depth_dependency };
-
-	VkRenderPassCreateInfo render_pass_info = {};
-	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	//2 attachments from said array
-	render_pass_info.attachmentCount = 2;
-	render_pass_info.pAttachments = &attachments[0];
-	render_pass_info.subpassCount = 1;
-	render_pass_info.pSubpasses = &subpass;
-	render_pass_info.dependencyCount = 2;
-	render_pass_info.pDependencies = &dependencies[0];
-
-	_engine->create_render_pass(render_pass_info, _render_pass);
 }
 
 void VulkanDepthReduceRenderPass::init_pipelines()
@@ -296,11 +215,11 @@ void VulkanDepthReduceRenderPass::init_pipelines()
 	_drawcmdPipeline = computePipelineBuilder.build_compute_pipeline(_engine->_device);
 }
 
-void VulkanDepthReduceRenderPass::init_descriptors()
+void VulkanDepthReduceRenderPass::init_descriptors(const std::vector<DescriptorInfo>& descInfo)
 {
 	//another set, one that holds a single texture
-	VkDescriptorSetLayoutBinding outTextureBind = vkinit::descriptorset_layout_binding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 0);
-	VkDescriptorSetLayoutBinding inTextureBind = vkinit::descriptorset_layout_binding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, 1);
+	VkDescriptorSetLayoutBinding outTextureBind = vkinit::descriptorset_layout_binding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_USAGE_STORAGE_BIT, 0);
+	VkDescriptorSetLayoutBinding inTextureBind = vkinit::descriptorset_layout_binding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_USAGE_STORAGE_BIT, 1);
 
 	std::vector<VkDescriptorSetLayoutBinding> binding = { outTextureBind, inTextureBind };
 
@@ -312,15 +231,42 @@ void VulkanDepthReduceRenderPass::init_descriptors()
 	set1info.pBindings = binding.data();
 
 	_objectSetLayout = _engine->_descriptorLayoutCache->create_descriptor_layout(&set1info);
+
+	_depthDescInfo = descInfo[0].imageInfo;
+	_depthDescInfo.sampler = nullptr;
+	_depthDescInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	_depthPyramidDescInfo.resize(depthPyramidLevels);
+	for (uint32_t i = 0; i < depthPyramidLevels; ++i)
+	{
+		_depthPyramidDescInfo[i].imageView = depthPyramidMips[i];
+		_depthPyramidDescInfo[i].sampler = nullptr;
+		_depthPyramidDescInfo[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	}
+
+	_objectDescriptor.resize(depthPyramidLevels);
+	for (uint32_t i = 0; i < depthPyramidLevels; ++i)
+	{
+		VkDescriptorImageInfo& outImage = i == 0 ? _depthDescInfo : _depthPyramidDescInfo[i - 1];
+		VkDescriptorImageInfo& inImage = _depthPyramidDescInfo[i];
+
+		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+			.bind_image(0, &outImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_USAGE_STORAGE_BIT)
+			.bind_image(1, &inImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_IMAGE_USAGE_STORAGE_BIT)
+			.build(_objectDescriptor[i], _objectSetLayout);
+	}
 }
 
 void VulkanDepthReduceRenderPass::create_depth_pyramid(size_t w, size_t h)
 {
-	depthPyramidLevels = vkutil::getImageMipLevels(w / 2, h / 2);
+	_width = w / 2;
+	_height = h / 2;
+
+	depthPyramidLevels = vkutil::getImageMipLevels(_width, _height);
 
 	VkExtent3D depthImageExtent = {
-		w / 2,
-		h / 2,
+		_width,
+		_height,
 		1
 	};
 
@@ -344,4 +290,37 @@ void VulkanDepthReduceRenderPass::create_depth_pyramid(size_t w, size_t h)
 			})
 			.create_image_view(depthPyramid);
 	}
+}
+
+void VulkanDepthReduceRenderPass::compute_pass(VkCommandBuffer cmd, const std::vector<Resources>& resource)
+{
+	Texture* depthTex = resource[0].texture;
+
+	std::array<VkImageMemoryBarrier, 2> depthReadBarriers =
+	{
+		vkinit::image_barrier(depthTex->image._image, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT),
+		vkinit::image_barrier(depthPyramid._image, 0, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
+	};
+
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, depthReadBarriers.size(), depthReadBarriers.data());
+
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipeline);
+
+	for (uint32_t i = 0; i < depthPyramidLevels; ++i)
+	{
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipelineLayout, 0, 1, &_objectDescriptor[i], 0, nullptr);
+
+		uint32_t levelWidth = std::max(1u, (_width) >> i);
+		uint32_t levelHeight = std::max(1u, (_height) >> i);
+
+		vkCmdDispatch(cmd, (levelWidth + 32 - 1) / 32, (levelHeight + 32 - 1) / 32, 1);
+
+		VkImageMemoryBarrier reduceBarrier = vkinit::image_barrier(depthPyramid._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT);
+
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &reduceBarrier);
+	}
+
+	VkImageMemoryBarrier depthWriteBarrier = vkinit::image_barrier(depthTex->image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &depthWriteBarrier);
 }

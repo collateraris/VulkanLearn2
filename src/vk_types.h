@@ -4,11 +4,13 @@
 #pragma once
 
 #define MESHSHADER_ON 1
+#define VULKAN_DEBUG_ON 0
 
 #include <volk.h>
 #include "vk_mem_alloc.h"
 
 //we will add our main reusable types here
+
 struct AllocatedBuffer {
     VkBuffer _buffer;
     VmaAllocation _allocation;
@@ -22,6 +24,18 @@ struct AllocatedImage {
 struct Texture {
 	AllocatedImage image;
 	VkImageView imageView;
+};
+
+struct Resources
+{
+	Texture* texture;
+};
+
+struct DescriptorInfo
+{
+	VkDescriptorBufferInfo bufferInfo;
+
+	VkDescriptorImageInfo imageInfo;
 };
 
 
@@ -59,6 +73,7 @@ struct Stats
 #include <fstream>
 #include <filesystem>
 #include <format>
+#include <algorithm>
 
 #ifdef __GNUC__
 #define PACKED_STRUCT __attribute__((packed,aligned(1)))
