@@ -82,11 +82,11 @@ private:
 
 	AllocatedImage depthPyramid = {};
 	VkImageView depthPyramidMips[16] = {};
-	uint32_t depthPyramidLevels = 0;
+	uint32_t _depthPyramidLevels = 0;
 
 	uint32_t _width = 0, _height = 0;
 
-	ShaderEffect depthreduceEffect;
+	ShaderEffect _depthreduceEffect;
 
 	VkPipeline _drawcmdPipeline;
 	VkPipelineLayout _drawcmdPipelineLayout;

@@ -241,8 +241,8 @@ void VulkanDepthReduceRenderPass::init_descriptors(const std::vector<DescriptorI
 	_depthDescInfo.sampler = blockySampler;
 	_depthDescInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-	_depthPyramidDescInfo.resize(depthPyramidLevels);
-	for (uint32_t i = 0; i < depthPyramidLevels; ++i)
+	_depthPyramidDescInfo.resize(_depthPyramidLevels);
+	for (uint32_t i = 0; i < _depthPyramidLevels; ++i)
 	{
 		_depthPyramidDescInfo[i].imageView = depthPyramidMips[i];
 		_depthPyramidDescInfo[i].sampler = blockySampler;
@@ -251,8 +251,8 @@ void VulkanDepthReduceRenderPass::init_descriptors(const std::vector<DescriptorI
 
 	for (size_t f = 0; f < FRAME_OVERLAP; ++f)
 	{
-		_objectDescriptor[f].resize(depthPyramidLevels);
-		for (uint32_t i = 0; i < depthPyramidLevels; ++i)
+		_objectDescriptor[f].resize(_depthPyramidLevels);
+		for (uint32_t i = 0; i < _depthPyramidLevels; ++i)
 		{
 			VkDescriptorImageInfo& writeImage = _depthPyramidDescInfo[i];
 			VkDescriptorImageInfo& sourceImage = i == 0 ? _depthDescInfo : _depthPyramidDescInfo[i - 1];
@@ -270,7 +270,7 @@ void VulkanDepthReduceRenderPass::create_depth_pyramid(size_t w, size_t h)
 	_width = w / 2;
 	_height = h / 2;
 
-	depthPyramidLevels = vkutil::getImageMipLevels(_width, _height);
+	_depthPyramidLevels = vkutil::getImageMipLevels(_width, _height);
 
 	VkExtent3D depthImageExtent = {
 		_width,
@@ -284,13 +284,13 @@ void VulkanDepthReduceRenderPass::create_depth_pyramid(size_t w, size_t h)
 	depthPyramid = texBuilder.start()
 		.make_img_info(VK_FORMAT_R32_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, depthImageExtent)
 		.fill_img_info([&](VkImageCreateInfo& imgInfo) {
-					imgInfo.mipLevels = depthPyramidLevels;
+					imgInfo.mipLevels = _depthPyramidLevels;
 			})
 		.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 		.make_view_info(VK_FORMAT_R32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT)
 		.create_image();
 
-	for (uint32_t i = 0; i < depthPyramidLevels; ++i)
+	for (uint32_t i = 0; i < _depthPyramidLevels; ++i)
 	{
 		depthPyramidMips[i] = texBuilder.fill_view_info([&](VkImageViewCreateInfo& view_info) {
 			view_info.subresourceRange.baseMipLevel = i;
@@ -307,14 +307,16 @@ void VulkanDepthReduceRenderPass::compute_pass(VkCommandBuffer cmd, size_t index
 	std::array<VkImageMemoryBarrier, 2> depthReadBarriers =
 	{
 		vkinit::image_barrier(depthTex->image._image, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT),
-		vkinit::image_barrier(depthPyramid._image, 0, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		vkinit::image_barrier(depthPyramid._image, 0, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
 	};
 
-	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, depthReadBarriers.size(), depthReadBarriers.data());
+	depthReadBarriers[1].subresourceRange.baseMipLevel = 0;
+
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, depthReadBarriers.size(), depthReadBarriers.data());
 
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipeline);
 
-	for (uint32_t i = 0; i < depthPyramidLevels; ++i)
+	for (uint32_t i = 0; i < _depthPyramidLevels; ++i)
 	{
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipelineLayout, 0, 1, &_objectDescriptor[index][i], 0, nullptr);
 
@@ -327,12 +329,22 @@ void VulkanDepthReduceRenderPass::compute_pass(VkCommandBuffer cmd, size_t index
 
 		vkCmdDispatch(cmd, (levelWidth + 32 - 1) / 32, (levelHeight + 32 - 1) / 32, 1);
 
-		VkImageMemoryBarrier reduceBarrier = vkinit::image_barrier(depthPyramid._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT);
+		if (i + 1 < _depthPyramidLevels)
+		{
+			std::array<VkImageMemoryBarrier, 2> reduceBarrier =
+			{
+				vkinit::image_barrier(depthPyramid._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
+				vkinit::image_barrier(depthPyramid._image, 0, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT)
+			};
 
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &reduceBarrier);
+			reduceBarrier[0].subresourceRange.baseMipLevel = i;
+			reduceBarrier[1].subresourceRange.baseMipLevel = i + 1;
+
+			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, reduceBarrier.size(), reduceBarrier.data());
+		}
 	}
 
-	VkImageMemoryBarrier depthWriteBarrier = vkinit::image_barrier(depthTex->image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+	VkImageMemoryBarrier depthWriteBarrier = vkinit::image_barrier(depthTex->image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
 
-	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &depthWriteBarrier);
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &depthWriteBarrier);
 }
