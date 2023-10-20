@@ -144,15 +144,18 @@ void VulkanEngine::draw()
 		camData.proj = projection;
 		camData.view = view;
 		camData.viewproj = projection * view;
-
-		map_buffer(_allocator, get_current_frame().cameraBuffer._allocation, [&](void*& data) {
-			memcpy(data, &camData, sizeof(GPUCameraData));
-			});
+		camData.znear = _camera.nearDistance;
+		camData.pyramidWidth = _depthReduceRenderPass.get_depthPyramidTex().extend.width;
+		camData.pyramidHeight = _depthReduceRenderPass.get_depthPyramidTex().extend.height;
 
 		PerFrameData frustumData;
 		std::array<glm::vec4, 6> frustum = _camera.calcFrustumPlanes();
 		for (int i = 0; i < frustum.size(); ++i)
-			frustumData.frustumPlanes[i] = frustum[i];
+			camData.frustumPlanes[i] = frustumData.frustumPlanes[i] = frustum[i];
+
+		map_buffer(_allocator, get_current_frame().cameraBuffer._allocation, [&](void*& data) {
+			memcpy(data, &camData, sizeof(GPUCameraData));
+			});
 
 		map_buffer(_allocator, get_current_frame().perframeDataBuffer._allocation, [&](void*& data) {
 			memcpy(data, &frustumData, sizeof(PerFrameData));
@@ -1047,7 +1050,7 @@ void VulkanEngine::init_descriptors()
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
-		_frames[i].perframeDataBuffer = create_cpu_to_gpu_buffer(sizeof(GPUCameraData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		_frames[i].perframeDataBuffer = create_cpu_to_gpu_buffer(sizeof(PerFrameData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		_frames[i].cameraBuffer = create_cpu_to_gpu_buffer(sizeof(GPUCameraData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 #if MESHSHADER_ON
 		_frames[i].indirectBuffer = create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawMeshTasksIndirectCommandNV), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
@@ -1067,7 +1070,7 @@ void VulkanEngine::init_descriptors()
 		cameraInfo.range = sizeof(GPUCameraData);
 #if MESHSHADER_ON	
 		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
-			.bind_buffer(0, &cameraInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV)
+			.bind_buffer(0, &cameraInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_TASK_BIT_NV | VK_SHADER_STAGE_MESH_BIT_NV)
 			.build(_frames[i].globalDescriptor, _globalSetLayout);
 #else
 		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
@@ -1350,10 +1353,16 @@ void VulkanEngine::init_scene()
 			meshletdataBufferInfo.offset = 0;
 			meshletdataBufferInfo.range = mesh->_meshletdataBuffer[i]._allocation->GetSize();
 
+			VkDescriptorImageInfo depthPyramidImageBufferInfo;
+			depthPyramidImageBufferInfo.sampler = _depthReduceRenderPass.get_depthSampl();
+			depthPyramidImageBufferInfo.imageView = _depthReduceRenderPass.get_depthPyramidTex().imageView;
+			depthPyramidImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
 			vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
 				.bind_buffer(0, &vertexBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV)
-				.bind_buffer(1, &meshletBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV)
+				.bind_buffer(1, &meshletBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_TASK_BIT_NV | VK_SHADER_STAGE_MESH_BIT_NV)
 				.bind_buffer(2, &meshletdataBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV)
+				.bind_image(3, &depthPyramidImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_TASK_BIT_NV)
 				.build(mesh->meshletsSet[i], _meshletsSetLayout);
 		}
 	}

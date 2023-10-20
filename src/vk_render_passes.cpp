@@ -234,18 +234,24 @@ void VulkanDepthReduceRenderPass::init_descriptors(const std::vector<DescriptorI
 
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
-	VkSampler blockySampler;
-	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &blockySampler);
+	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
+
+	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
+
+	samplerInfo.pNext = &createInfoReduction;
+
+	_depthSampler;
+	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &_depthSampler);
 
 	_depthDescInfo = descInfo[0].imageInfo;
-	_depthDescInfo.sampler = blockySampler;
+	_depthDescInfo.sampler = _depthSampler;
 	_depthDescInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	_depthPyramidDescInfo.resize(_depthPyramidLevels);
 	for (uint32_t i = 0; i < _depthPyramidLevels; ++i)
 	{
 		_depthPyramidDescInfo[i].imageView = depthPyramidMips[i];
-		_depthPyramidDescInfo[i].sampler = blockySampler;
+		_depthPyramidDescInfo[i].sampler = _depthSampler;
 		_depthPyramidDescInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	}
 
@@ -267,8 +273,8 @@ void VulkanDepthReduceRenderPass::init_descriptors(const std::vector<DescriptorI
 
 void VulkanDepthReduceRenderPass::create_depth_pyramid(size_t w, size_t h)
 {
-	_width = w / 2;
-	_height = h / 2;
+	_width = vkutil::previousPow2(w);
+	_height = vkutil::previousPow2(w);
 
 	_depthPyramidLevels = vkutil::getImageMipLevels(_width, _height);
 
@@ -288,7 +294,11 @@ void VulkanDepthReduceRenderPass::create_depth_pyramid(size_t w, size_t h)
 			})
 		.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 		.make_view_info(VK_FORMAT_R32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT)
-		.create_image();
+		.fill_view_info([&](VkImageViewCreateInfo& view_info) {
+				view_info.subresourceRange.baseMipLevel = 0;
+				view_info.subresourceRange.levelCount = _depthPyramidLevels;
+				})
+		.create_texture();
 
 	for (uint32_t i = 0; i < _depthPyramidLevels; ++i)
 	{
@@ -296,8 +306,18 @@ void VulkanDepthReduceRenderPass::create_depth_pyramid(size_t w, size_t h)
 			view_info.subresourceRange.baseMipLevel = i;
 			view_info.subresourceRange.levelCount = 1;
 			})
-			.create_image_view(depthPyramid);
+			.create_image_view(depthPyramid.image);
 	}
+}
+
+const Texture& VulkanDepthReduceRenderPass::get_depthPyramidTex() const
+{
+	return depthPyramid;
+}
+
+const VkSampler& VulkanDepthReduceRenderPass::get_depthSampl() const
+{
+	return _depthSampler;
 }
 
 void VulkanDepthReduceRenderPass::compute_pass(VkCommandBuffer cmd, size_t index, const std::vector<Resources>& resource)
@@ -307,7 +327,7 @@ void VulkanDepthReduceRenderPass::compute_pass(VkCommandBuffer cmd, size_t index
 	std::array<VkImageMemoryBarrier, 2> depthReadBarriers =
 	{
 		vkinit::image_barrier(depthTex->image._image, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT),
-		vkinit::image_barrier(depthPyramid._image, 0, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		vkinit::image_barrier(depthPyramid.image._image, 0, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
 	};
 
 	depthReadBarriers[1].subresourceRange.baseMipLevel = 0;
@@ -333,8 +353,8 @@ void VulkanDepthReduceRenderPass::compute_pass(VkCommandBuffer cmd, size_t index
 		{
 			std::array<VkImageMemoryBarrier, 2> reduceBarrier =
 			{
-				vkinit::image_barrier(depthPyramid._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
-				vkinit::image_barrier(depthPyramid._image, 0, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT)
+				vkinit::image_barrier(depthPyramid.image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
+				vkinit::image_barrier(depthPyramid.image._image, 0, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT)
 			};
 
 			reduceBarrier[0].subresourceRange.baseMipLevel = i;

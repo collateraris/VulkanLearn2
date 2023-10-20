@@ -32,10 +32,12 @@ struct Vertex_MS
 
 struct alignas(16) Meshlet
 {
-	float cone[4];
 	uint32_t dataOffset; // dataOffset..dataOffset+vertexCount-1 stores vertex indices, we store indices packed in 4b units after that
 	uint8_t triangleCount;
 	uint8_t vertexCount;
+	float  center_radius[4];
+	float  aabb_min[3];
+	float  aabb_max[3];
 };
 
 struct alignas(16) GPUObjectData {

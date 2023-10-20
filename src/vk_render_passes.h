@@ -65,6 +65,9 @@ public:
 
 	void create_depth_pyramid(size_t w, size_t h);
 
+	const Texture& get_depthPyramidTex() const;
+	const VkSampler& get_depthSampl() const;
+
 	virtual void compute_pass(VkCommandBuffer cmd, size_t index, const std::vector<Resources>& resource) override;
 
 private:
@@ -80,7 +83,8 @@ private:
 
 	VkFormat _swapchainImageFormat; 
 
-	AllocatedImage depthPyramid = {};
+	Texture depthPyramid = {};
+	VkSampler _depthSampler;
 	VkImageView depthPyramidMips[16] = {};
 	uint32_t _depthPyramidLevels = 0;
 

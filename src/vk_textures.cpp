@@ -236,6 +236,16 @@ uint32_t vkutil::getImageMipLevels(uint32_t width, uint32_t height)
 	return result;
 }
 
+uint32_t vkutil::previousPow2(uint32_t v)
+{
+	uint32_t r = 1;
+
+	while (r * 2 < v)
+		r *= 2;
+
+	return r;
+}
+
 void VulkanTextureBuilder::init(VulkanEngine* engine)
 {
 	_engine = engine;
@@ -246,12 +256,14 @@ VulkanTextureBuilder& VulkanTextureBuilder::start()
 	_img_info = {};
 	_img_allocinfo = {};
 	_view_info = {};
+	_extend = {};
 	return *this;
 }
 
 VulkanTextureBuilder& VulkanTextureBuilder::make_img_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent)
 {
 	_img_info = vkinit::image_create_info(format, usageFlags, extent);
+	_extend = extent;
 	return *this;
 }
 
@@ -291,6 +303,7 @@ Texture VulkanTextureBuilder::create_texture()
 	Texture tex;
 	tex.image = create_image();
 	tex.imageView = create_image_view(tex.image);
+	tex.extend = _extend;
 
 	return tex;
 }

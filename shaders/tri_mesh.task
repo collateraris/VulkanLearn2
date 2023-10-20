@@ -4,8 +4,28 @@
 #extension GL_EXT_shader_8bit_storage: require
 #extension GL_NV_mesh_shader: require
 
+#extension GL_GOOGLE_include_directive: require
+
+#include "meshlets.h"
+
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
+layout(set = 0, binding = 0) uniform  CameraBuffer{
+	mat4 view;
+	mat4 proj;
+	mat4 viewproj;
+	vec4 frustum[6];
+	float pyramidWidth;
+	float pyramidHeight;
+	float znear;
+} cameraData;
+
+layout (set = 1, binding = 1) readonly buffer _meshlets
+{
+	s_meshlet meshlets[];
+};
+
+layout(set = 1, binding = 3) uniform sampler2D depthPyramid;
 
 out taskNV block
 {
@@ -13,14 +33,104 @@ out taskNV block
 };
 
 
+#define FRUSTUM_CULL 0
+#define OCCLUSION_CULL 1
+
+bool frustumCulling(uint mi);
+
+bool occlusionCulling(uint mi);
+
+bool projectSphereView(vec3 c, float r, float znear, float P00, float P11, out vec4 aabb);
+
 void main()
 {
 	uint ti = gl_LocalInvocationID.x;
 	uint mgi = gl_WorkGroupID.x;
 	uint mi = mgi * 32 + ti;
 
-	meshletIndices[ti] = mi;
+	bool visible = occlusionCulling(mi);
 
-	if (ti == 0)
-		gl_TaskCountNV = 32;
+	if (visible)
+	{
+		meshletIndices[ti] = mi;
+
+		if (ti == 0)
+			gl_TaskCountNV = 32;
+	}
+	else
+	{
+		meshletIndices[ti] = 0;
+		if (ti == 0)
+			gl_TaskCountNV = 0;
+	}
+}
+
+bool frustumCulling(uint mi)
+{
+	float cr[4] = meshlets[mi].center_radius;
+	vec3 center = vec3(cr[0], cr[1], cr[2]);
+	float radius = cr[3];
+
+	bool visible = true;
+	for (int i = 0; i < 6; ++i)
+	{
+		visible = visible && dot(cameraData.frustum[i], vec4(center, 1)) > -radius;
+	}
+
+	return visible;
+}
+
+bool occlusionCulling(uint mi)
+{
+	float aabb_min[3] = meshlets[mi].aabb_min;
+	float aabb_max[3] = meshlets[mi].aabb_max;
+
+	vec3 bmin = vec3(aabb_min[0], aabb_min[1], aabb_min[2]);
+	vec3 bmax = vec3(aabb_max[0], aabb_max[1], aabb_max[2]);
+
+    float cr[4] = meshlets[mi].center_radius;
+	vec3 center = vec3(cr[0], cr[1], cr[2]);
+	float radius = cr[3];
+
+	float P00 = cameraData.proj[0][0], P11 = cameraData.proj[1][1];
+
+	vec4 aabb;
+	if (projectSphereView(center, radius, cameraData.znear, P00, P11, aabb))
+	{
+
+		float width = (aabb.z - aabb.x) * cameraData.pyramidWidth;
+		float height = (aabb.w - aabb.y) * cameraData.pyramidHeight;
+
+		float level = floor(log2(max(width, height)));
+
+		// Sampler is set up to do min reduction, so this computes the minimum depth of a 2x2 texel quad
+		float depth = textureLod(depthPyramid, (aabb.xy + aabb.zw) * 0.5, level).x;
+		float depthSphere = cameraData.znear / (center.z - radius);
+
+		return depthSphere > depth;
+	}
+	return true;
+}
+
+// 2D Polyhedral Bounds of a Clipped, Perspective-Projected 3D Sphere. Michael Mara, Morgan McGuire. 2013
+bool projectSphereView(vec3 c, float r, float znear, float P00, float P11, out vec4 aabb)
+{
+    if (c.z < r + znear) return false;
+
+    vec3 cr = c * r;
+    float czr2 = c.z * c.z - r * r;
+
+    float vx = sqrt(c.x * c.x + czr2);
+    float minx = (vx * c.x - cr.z) / (vx * c.z + cr.x);
+    float maxx = (vx * c.x + cr.z) / (vx * c.z - cr.x);
+
+    float vy = sqrt(c.y * c.y + czr2);
+    float miny = (vy * c.y - cr.z) / (vy * c.z + cr.y);
+    float maxy = (vy * c.y + cr.z) / (vy * c.z - cr.y);
+
+    aabb = vec4(minx * P00, miny * P11, maxx * P00, maxy * P11);
+    // clip space -> uv space
+    aabb = aabb.xwzy * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f);
+
+    return true;
 }

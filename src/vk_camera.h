@@ -12,6 +12,7 @@ struct PlayerCamera {
 	glm::vec3 inputAxis;
 
 	float farDistance = 200.0f;
+	float nearDistance = 0.1f;
 
 	float pitch{ 0 }; //up-down rotation
 	float yaw{ 0 }; //left-right rotation

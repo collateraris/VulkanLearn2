@@ -115,7 +115,7 @@ glm::mat4 PlayerCamera::get_view_matrix()
 
 glm::mat4 PlayerCamera::get_projection_matrix()
 {
-	glm::mat4 pro = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, farDistance);
+	glm::mat4 pro = glm::perspective(glm::radians(70.f), 1700.f / 900.f, nearDistance, farDistance);
 	pro[1][1] *= -1;
 	return pro;
 }

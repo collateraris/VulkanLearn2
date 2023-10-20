@@ -9,6 +9,8 @@ namespace vkutil {
 	bool load_image_from_file(VulkanEngine& engine, const std::string& file, AllocatedImage& outImage, VkFormat& image_format);
 
 	uint32_t getImageMipLevels(uint32_t width, uint32_t height);
+
+	uint32_t previousPow2(uint32_t v);
 }
 
 class VulkanTextureBuilder
@@ -35,4 +37,5 @@ private:
 	VkImageCreateInfo _img_info;
 	VmaAllocationCreateInfo _img_allocinfo;
 	VkImageViewCreateInfo _view_info;
+	VkExtent3D _extend;
 };

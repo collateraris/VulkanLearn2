@@ -7,10 +7,12 @@ struct s_vertex
 
 struct s_meshlet
 {
-    vec4 cone;
 	uint dataOffset;
 	uint8_t triangleCount;
 	uint8_t vertexCount;
+	float center_radius[4];
+	float aabb_min[3];
+	float aabb_max[3];
 };
 
 struct ObjectData

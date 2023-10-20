@@ -3,7 +3,7 @@
 
 #pragma once
 
-#define MESHSHADER_ON 0
+#define MESHSHADER_ON 1
 #define VULKAN_DEBUG_ON 1
 
 #include <volk.h>
@@ -24,6 +24,7 @@ struct AllocatedImage {
 struct Texture {
 	AllocatedImage image;
 	VkImageView imageView;
+	VkExtent3D extend;
 };
 
 struct Resources

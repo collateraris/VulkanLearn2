@@ -40,7 +40,7 @@ void Mesh::buildMeshlets()
 	std::vector<unsigned char> meshlet_triangles(max_meshlets * max_triangles * 3);
 
 	size_t meshlet_count = meshopt_buildMeshlets(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), _indices.data(),
-		_indices.size(), &_verticesMS[0].vx, _vertices.size(), sizeof(Vertex_MS), max_vertices, max_triangles, cone_weight);
+		_indices.size(), &_verticesMS[0].vx, _verticesMS.size(), sizeof(Vertex_MS), max_vertices, max_triangles, cone_weight);
 
 	meshlets.resize(meshlet_count);
 
@@ -59,18 +59,57 @@ void Mesh::buildMeshlets()
 		for (unsigned int i = 0; i < meshlet.triangle_count * 3; ++i)
 			meshletdata.push_back(meshlet_triangles[meshlet.triangle_offset + i]);
 
-		meshopt_Bounds bounds = meshopt_computeMeshletBounds(&meshlet_vertices[meshlet.vertex_offset], &meshlet_triangles[meshlet.triangle_offset],
-			meshlet.triangle_count, &_verticesMS[0].vx, _verticesMS.size(), sizeof(Vertex_MS));
+		glm::vec3 center = glm::vec3(0);
+		float radius = 0;
+
+		float aabb_min_x, aabb_min_y, aabb_min_z;
+		float aabb_max_x, aabb_max_y, aabb_max_z;
+		size_t vertex_index = meshlet_vertices[meshlet.vertex_offset];
+		aabb_min_x = aabb_max_x = _verticesMS[vertex_index].vx;
+		aabb_min_y = aabb_max_y = _verticesMS[vertex_index].vy;
+		aabb_min_z = aabb_max_z = _verticesMS[vertex_index].vz;
+
+		for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
+		{
+			const Vertex_MS& vert = _verticesMS[meshlet_vertices[meshlet.vertex_offset]];
+
+			center += glm::vec3(vert.vx, vert.vy, vert.vz);
+
+			aabb_min_x = std::min(aabb_min_x, vert.vx);
+			aabb_min_y = std::min(aabb_min_y, vert.vy);
+			aabb_min_z = std::min(aabb_min_z, vert.vz);
+
+			aabb_max_x = std::max(aabb_max_x, vert.vx);
+			aabb_max_y = std::max(aabb_max_y, vert.vy);
+			aabb_max_z = std::max(aabb_max_z, vert.vz);
+		}
+
+		for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
+		{
+			const Vertex_MS& vert = _verticesMS[meshlet_vertices[meshlet.vertex_offset]];
+
+			glm::vec3 position = glm::vec3(vert.vx, vert.vy, vert.vz);
+			radius = std::max(radius, glm::distance(center, position));
+		}
+
 
 		Meshlet m = {};
 		m.dataOffset = uint32_t(dataOffset);
 		m.triangleCount = meshlet.triangle_count;
 		m.vertexCount = meshlet.vertex_count;
 
-		m.cone[0] = bounds.cone_axis[0];
-		m.cone[1] = bounds.cone_axis[1];
-		m.cone[2] = bounds.cone_axis[2];
-		m.cone[3] = bounds.cone_cutoff;
+		m.center_radius[0] = center.x;
+		m.center_radius[1] = center.y;
+		m.center_radius[2] = center.z;
+		m.center_radius[3] = radius;
+
+		m.aabb_min[0] = aabb_min_x;
+		m.aabb_min[1] = aabb_min_y;
+		m.aabb_min[2] = aabb_min_z;
+
+		m.aabb_max[0] = aabb_max_x;
+		m.aabb_max[1] = aabb_max_y;
+		m.aabb_max[2] = aabb_max_z;
 
 		_meshlets.push_back(m);
 	}
