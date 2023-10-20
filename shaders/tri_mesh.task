@@ -32,6 +32,7 @@ out taskNV block
 	uint meshletIndices[32];
 };
 
+shared uint meshletCount;
 
 #define FRUSTUM_CULL 0
 #define OCCLUSION_CULL 1
@@ -48,21 +49,21 @@ void main()
 	uint mgi = gl_WorkGroupID.x;
 	uint mi = mgi * 32 + ti;
 
-	bool visible = occlusionCulling(mi);
+	meshletCount = 0;
 
-	if (visible)
-	{
-		meshletIndices[ti] = mi;
+	memoryBarrierShared();
 
-		if (ti == 0)
-			gl_TaskCountNV = 32;
-	}
-	else
+	if (occlusionCulling(mi))
 	{
-		meshletIndices[ti] = 0;
-		if (ti == 0)
-			gl_TaskCountNV = 0;
+		uint index = atomicAdd(meshletCount, 1);
+
+		meshletIndices[index] = mi;
 	}
+
+	memoryBarrierShared();
+
+	if (ti == 0)
+		gl_TaskCountNV = meshletCount;
 }
 
 bool frustumCulling(uint mi)
@@ -90,6 +91,7 @@ bool occlusionCulling(uint mi)
 
     float cr[4] = meshlets[mi].center_radius;
 	vec3 center = vec3(cr[0], cr[1], cr[2]);
+	center = vec3(cameraData.view * vec4(center, 1.));
 	float radius = cr[3];
 
 	float P00 = cameraData.proj[0][0], P11 = cameraData.proj[1][1];
