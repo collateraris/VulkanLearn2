@@ -1241,6 +1241,11 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 0, nullptr);
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &object.mesh->meshletsSet[frameIndex], 0, nullptr);
 
+		if (object.material->textureSet != VK_NULL_HANDLE) {
+			//texture descriptor
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet, 0, nullptr);
+		}
+
 		VkDeviceSize indirect_offset = i * sizeof(VkDrawMeshTasksIndirectCommandNV);
 		uint32_t draw_stride = sizeof(VkDrawMeshTasksIndirectCommandNV);
 		vkCmdDrawMeshTasksIndirectNV(cmd, get_current_frame().indirectBuffer._buffer, indirect_offset, 1, draw_stride);
@@ -1366,7 +1371,7 @@ void VulkanEngine::init_scene()
 				.build(mesh->meshletsSet[i], _meshletsSetLayout);
 		}
 	}
-#else
+#endif
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
 	VkSampler blockySampler;
@@ -1389,7 +1394,6 @@ void VulkanEngine::init_scene()
 			.bind_image(0, &imageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 			.build(texturedMat->textureSet, _singleTextureSetLayout);
 	}
-#endif
 }
 
 void VulkanEngine::init_imgui()

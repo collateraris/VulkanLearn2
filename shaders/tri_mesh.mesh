@@ -48,6 +48,7 @@ in taskNV block
 layout (location = 0) out PerVertexData
 {
   vec4 color;
+  vec2 texCoord;
 } v_out[];   // [max_vertices]
 
 uint hash(uint a)
@@ -89,7 +90,8 @@ void main()
 		vec2 texcoord = vec2(vertices[vi].tu, vertices[vi].tv);
 
 		gl_MeshVerticesNV[i].gl_Position = cameraData.viewproj * vec4(position, 1.0f);
-		v_out[i].color = vec4(normal * 0.5 + vec3(0.5), 1.0);
+		v_out[i].color = vec4(1.0, 1.0, 1.0, 1.0);
+		v_out[i].texCoord = texcoord;
 
 	#if DEBUG
 		v_out[i].color = vec4(mcolor, 1.0);
