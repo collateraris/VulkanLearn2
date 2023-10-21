@@ -43,9 +43,10 @@ void VulkanEngine::init()
 		window_flags
 	);
 	SceneConfig config;
-	config.fileName = "../../assets/lost_empire.obj";
+	config.fileName = "../../assets/sponza.obj";
+	//config.fileName = "../../assets/lost_empire.obj";
 	//config.fileName = "../../assets/monkey_smooth.obj";
-	config.scaleFactor = 0.9;
+	config.scaleFactor = 0.1;
 	AsimpLoader::processScene(config, _scene, _resManager);
 
 	_logger.init("vulkan.log");
@@ -459,7 +460,7 @@ void VulkanEngine::init_swapchain()
 	vkb::Swapchain vkbSwapchain = swapchainBuilder
 		.use_default_format_selection()
 		//use vsync present mode
-		.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+		.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR)
 		.set_desired_extent(_windowExtent.width, _windowExtent.height)
 		.build()
 		.value();
@@ -552,7 +553,7 @@ void VulkanEngine::init_default_renderpass()
 	color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
 	//we don't know or care about the starting layout of the attachment
-	color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	color_attachment.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
 	//after the renderpass ends, the image has to be on a layout ready for display
 	color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
@@ -1213,10 +1214,9 @@ void VulkanEngine::compute_pass(VkCommandBuffer cmd)
 
 	vkCmdDispatch(cmd, uint32_t((_renderables.size() + 31) / 32), 1, 1);
 
-	std::array<VkBufferMemoryBarrier, 2> cullBarriers =
+	std::array<VkBufferMemoryBarrier, 1> cullBarriers =
 	{
 		vkinit::buffer_barrier(get_current_frame().indirectBuffer._buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT),
-		vkinit::buffer_barrier(get_current_frame().objectBuffer._buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT),
 	};
 
 	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, 0, cullBarriers.size(), cullBarriers.data(), 0, 0);
@@ -1230,20 +1230,18 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 
 	size_t frameIndex = _frameNumber % FRAME_OVERLAP;
 #if MESHSHADER_ON
-
 	for (int i = 0; i < count; i++)
 	{
 		RenderObject& object = first[i];
 		//only bind the pipeline if it doesn't match with the already bound one
-		lastMaterial = object.material;
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
 
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 0, nullptr);
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &object.mesh->meshletsSet[frameIndex], 0, nullptr);
 
-		if (object.material->textureSet != VK_NULL_HANDLE) {
+		if (object.material->textureSet[frameIndex] != VK_NULL_HANDLE) {
 			//texture descriptor
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet, 0, nullptr);
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet[frameIndex], 0, nullptr);
 		}
 
 		VkDeviceSize indirect_offset = i * sizeof(VkDrawMeshTasksIndirectCommandNV);
@@ -1281,9 +1279,9 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 			//object data descriptor
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &get_current_frame().objectDescriptor, 0, nullptr);
 
-			if (object.material->textureSet != VK_NULL_HANDLE) {
+			if (object.material->textureSet[frameIndex] != VK_NULL_HANDLE) {
 				//texture descriptor
-				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet, 0, nullptr);
+				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet[frameIndex], 0, nullptr);
 			}
 		}
 
@@ -1346,17 +1344,17 @@ void VulkanEngine::init_scene()
 			VkDescriptorBufferInfo vertexBufferInfo;
 			vertexBufferInfo.buffer = mesh->_vertexBuffer[i]._buffer;
 			vertexBufferInfo.offset = 0;
-			vertexBufferInfo.range = mesh->_vertexBuffer[i]._allocation->GetSize();
+			vertexBufferInfo.range = VK_WHOLE_SIZE;// mesh->_vertexBuffer[i]._allocation->GetSize();
 
 			VkDescriptorBufferInfo meshletBufferInfo;
 			meshletBufferInfo.buffer = mesh->_meshletsBuffer[i]._buffer;
 			meshletBufferInfo.offset = 0;
-			meshletBufferInfo.range = mesh->_meshletsBuffer[i]._allocation->GetSize();
+			meshletBufferInfo.range = VK_WHOLE_SIZE;// mesh->_meshletsBuffer[i]._allocation->GetSize();
 
 			VkDescriptorBufferInfo meshletdataBufferInfo;
 			meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer[i]._buffer;
 			meshletdataBufferInfo.offset = 0;
-			meshletdataBufferInfo.range = mesh->_meshletdataBuffer[i]._allocation->GetSize();
+			meshletdataBufferInfo.range = VK_WHOLE_SIZE;// mesh->_meshletdataBuffer[i]._allocation->GetSize();
 
 			VkDescriptorImageInfo depthPyramidImageBufferInfo;
 			depthPyramidImageBufferInfo.sampler = _depthReduceRenderPass.get_depthSampl();
@@ -1382,17 +1380,21 @@ void VulkanEngine::init_scene()
 		if (matDesc->diffuseTexture.empty())
 			continue;
 
-		const std::string& matName = matDesc->matName;
-		Material* texturedMat = get_material(matName);
+		for (int i = 0; i < FRAME_OVERLAP; i++)
+		{
 
-		VkDescriptorImageInfo imageBufferInfo;
-		imageBufferInfo.sampler = blockySampler;
-		imageBufferInfo.imageView = _resManager.textureCache[matDesc->diffuseTexture]->imageView;
-		imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			const std::string& matName = matDesc->matName;
+			Material* texturedMat = get_material(matName);
 
-		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
-			.bind_image(0, &imageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-			.build(texturedMat->textureSet, _singleTextureSetLayout);
+			VkDescriptorImageInfo imageBufferInfo;
+			imageBufferInfo.sampler = blockySampler;
+			imageBufferInfo.imageView = _resManager.textureCache[matDesc->diffuseTexture]->imageView;
+			imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+			vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
+				.bind_image(0, &imageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+				.build(texturedMat->textureSet[i], _singleTextureSetLayout);
+		}
 	}
 }
 

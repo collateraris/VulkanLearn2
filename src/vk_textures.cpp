@@ -95,7 +95,7 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file,
 		VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;
 
 		imageBarrier_toReadable.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		imageBarrier_toReadable.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageBarrier_toReadable.newLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		imageBarrier_toReadable.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		imageBarrier_toReadable.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;

@@ -15,7 +15,7 @@
 #include <vk_textures.h>
 #include <vk_render_passes.h>
 
-constexpr size_t MAX_OBJECTS = 1000;
+constexpr size_t MAX_OBJECTS = 10000;
 
 struct PerFrameData
 {
@@ -23,7 +23,7 @@ struct PerFrameData
 };
 
 struct Material {
-	VkDescriptorSet textureSet{ VK_NULL_HANDLE }; //texture defaulted to null
+	std::array<VkDescriptorSet, 2> textureSet{ VK_NULL_HANDLE }; //texture defaulted to null
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 };
