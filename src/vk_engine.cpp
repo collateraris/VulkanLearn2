@@ -1251,22 +1251,7 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 	}
 #else
 
-	map_buffer(_allocator, get_current_frame().indirectBuffer._allocation, [&](void*& data) {
-		VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)data;
-		//encode the draw data of each object into the indirect draw buffer
-		for (int i = 0; i < count; i++)
-		{
-			RenderObject& object = first[i];
-			drawCommands[i].indexCount = object.mesh->_indices.size();
-			drawCommands[i].instanceCount = 1;
-			drawCommands[i].vertexOffset = 0;
-			drawCommands[i].firstIndex = 0;
-			drawCommands[i].firstInstance = i; //used to access object matrix in the shader
-		}
-		});
-
-	std::vector<IndirectBatch> draws = compact_draws(first, count);
-	for (IndirectBatch& object : draws)
+	for (IndirectBatch& object : _indirectBatchRO)
 	{
 		//only bind the pipeline if it doesn't match with the already bound one
 		if (object.material != lastMaterial) {
@@ -1306,6 +1291,8 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 
 void VulkanEngine::init_scene()
 {
+	std::unordered_map<int, std::unordered_map<int, std::vector<RenderObject>>> renderablesMap;
+
 	for (int nodeIndex = 1; nodeIndex < _scene._hierarchy.size(); nodeIndex++)
 	{
 		RenderObject map;
@@ -1316,8 +1303,33 @@ void VulkanEngine::init_scene()
 		map.material = get_material(matName);
 		map.transformMatrix = glm::translate(glm::vec3{ 5, -10, 0 });
 
-		_renderables.push_back(map);
+		renderablesMap[meshIndex][matDescIndex].push_back(map);
 	}
+
+	for (const auto& [meshIndex, matMap]: renderablesMap)
+		for (const auto& [matIndex, mapVector] : matMap)
+			for (const auto& map : mapVector)
+				_renderables.push_back(map);
+
+	_indirectBatchRO = compact_draws(_renderables.data(), _renderables.size());
+#if !MESHSHADER_ON
+	for (int i = 0; i < FRAME_OVERLAP; i++)
+	{
+		map_buffer(_allocator, _frames[i].indirectBuffer._allocation, [&](void*& data) {
+			VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)data;
+			//encode the draw data of each object into the indirect draw buffer
+			for (int i = 0; i < _renderables.size(); i++)
+			{
+				RenderObject& object = _renderables[i];
+				drawCommands[i].indexCount = object.mesh->_indices.size();
+				drawCommands[i].instanceCount = 1;
+				drawCommands[i].vertexOffset = 0;
+				drawCommands[i].firstIndex = 0;
+				drawCommands[i].firstInstance = i; //used to access object matrix in the shader
+			}
+			});
+	}
+#endif
 	
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{

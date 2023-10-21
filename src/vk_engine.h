@@ -190,6 +190,8 @@ public:
 	//default array of renderable objects
 	std::vector<RenderObject> _renderables;
 
+	std::vector<IndirectBatch> _indirectBatchRO;
+
 	PlayerCamera _camera;
 
 	ShaderCache _shaderCache;
