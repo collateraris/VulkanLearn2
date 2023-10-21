@@ -1225,41 +1225,47 @@ void VulkanEngine::compute_pass(VkCommandBuffer cmd)
 
 void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int count)
 {
+	if (count <= 0)
+		return;
+
 	Mesh* lastMesh = nullptr;
 	Material* lastMaterial = nullptr;
 
 	size_t frameIndex = _frameNumber % FRAME_OVERLAP;
 #if MESHSHADER_ON
-	for (int i = 0; i < count; i++)
+	//only bind the pipeline if it doesn't match with the already bound one
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _indirectBatchRO[0].material->pipeline);
+
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _indirectBatchRO[0].material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 0, nullptr);
+
+	for (IndirectBatch& object : _indirectBatchRO)
 	{
-		RenderObject& object = first[i];
-		//only bind the pipeline if it doesn't match with the already bound one
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
+		if (object.mesh != lastMesh) {
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &object.mesh->meshletsSet[frameIndex], 0, nullptr);
+			lastMesh = object.mesh;
+		}
+		if (object.material != lastMaterial) {
 
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 0, nullptr);
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &object.mesh->meshletsSet[frameIndex], 0, nullptr);
-
-		if (object.material->textureSet[frameIndex] != VK_NULL_HANDLE) {
-			//texture descriptor
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet[frameIndex], 0, nullptr);
+			if (object.material->textureSet[frameIndex] != VK_NULL_HANDLE) {
+				//texture descriptor
+				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet[frameIndex], 0, nullptr);
+			}
+			lastMaterial = object.material;
 		}
 
-		VkDeviceSize indirect_offset = i * sizeof(VkDrawMeshTasksIndirectCommandNV);
+		VkDeviceSize indirect_offset = object.first * sizeof(VkDrawMeshTasksIndirectCommandNV);
 		uint32_t draw_stride = sizeof(VkDrawMeshTasksIndirectCommandNV);
-		vkCmdDrawMeshTasksIndirectNV(cmd, get_current_frame().indirectBuffer._buffer, indirect_offset, 1, draw_stride);
+		vkCmdDrawMeshTasksIndirectNV(cmd, get_current_frame().indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
 
 	}
 #else
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _indirectBatchRO[0].material->pipeline);
 
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _indirectBatchRO[0].material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 0, nullptr);
 	for (IndirectBatch& object : _indirectBatchRO)
 	{
 		//only bind the pipeline if it doesn't match with the already bound one
 		if (object.material != lastMaterial) {
-
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipeline);
-			lastMaterial = object.material;
-
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 0, nullptr);
 
 			//object data descriptor
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &get_current_frame().objectDescriptor, 0, nullptr);
@@ -1268,6 +1274,7 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 				//texture descriptor
 				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet[frameIndex], 0, nullptr);
 			}
+			lastMaterial = object.material;
 		}
 
 		//only bind the mesh if its a different one from last bind
