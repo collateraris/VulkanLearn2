@@ -117,7 +117,7 @@ const VkSwapchainKHR& VulkanMainRenderPass::get_swap_chain() const
 
 void VulkanMainRenderPass::init_swapchain()
 {
-	vkb::SwapchainBuilder swapchainBuilder{_engine->_chosenGPU, _engine->_device, _engine->_surface };
+	vkb::SwapchainBuilder swapchainBuilder{_engine->_chosenPhysicalDeviceGPU, _engine->_device, _engine->_surface };
 
 	vkb::Swapchain vkbSwapchain = swapchainBuilder
 		.use_default_format_selection()

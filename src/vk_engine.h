@@ -118,7 +118,7 @@ public:
 
 	VkInstance _instance; // Vulkan library handle
 	VkDebugUtilsMessengerEXT _debug_messenger; // Vulkan debug output handle
-	VkPhysicalDevice _chosenGPU; // GPU chosen as the default device
+	VkPhysicalDevice _chosenPhysicalDeviceGPU; // GPU chosen as the default device
 	VkDevice _device; // Vulkan device for commands
 	VkSurfaceKHR _surface; // Vulkan window surface
 
@@ -150,11 +150,11 @@ public:
 	//frame storage
 	FrameData _frames[FRAME_OVERLAP];
 
-	VkPhysicalDeviceProperties physDevProp{};
 	Stats _stats;
 
 	//getter for the frame we are rendering to right now.
 	FrameData& get_current_frame();
+	int get_current_frame_index() const;
 
 	VkDescriptorSetLayout _globalSetLayout;
 	VkDescriptorSetLayout _objectSetLayout;
@@ -166,6 +166,10 @@ public:
 	std::unique_ptr<vkutil::MaterialSystem> _materialSystem;
 
 	VkPhysicalDeviceProperties _gpuProperties;
+	VkPhysicalDeviceProperties _physDevProp{};
+#if RAYTRACER_ON
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR _rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
+#endif
 
 	GPUSceneData _sceneParameters;
 	AllocatedBuffer _sceneParameterBuffer;

@@ -267,8 +267,8 @@ void VulkanEngine::draw()
 
 	VK_CHECK(vkGetQueryPoolResults(_device, get_current_frame().queryPool, 0, 2, sizeof(queryResults), queryResults, sizeof(queryResults[0]), VK_QUERY_RESULT_64_BIT));
 
-	double frameGpuBegin = double(queryResults[0]) * physDevProp.limits.timestampPeriod * 1e-6;
-	double frameGpuEnd = double(queryResults[1]) * physDevProp.limits.timestampPeriod * 1e-6;
+	double frameGpuBegin = double(queryResults[0]) * _physDevProp.limits.timestampPeriod * 1e-6;
+	double frameGpuEnd = double(queryResults[1]) * _physDevProp.limits.timestampPeriod * 1e-6;
 
 	_stats.frameGpuAvg = _stats.frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
 	//increase the number of frames drawn
@@ -381,6 +381,11 @@ void VulkanEngine::init_vulkan()
 		VK_NV_MESH_SHADER_EXTENSION_NAME,
 #endif
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+#if RAYTRACER_ON
+		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, // Required by ray tracing pipeline
+#endif
 	};
 
 	vkb::PhysicalDevice physicalDevice = selector
@@ -411,9 +416,14 @@ void VulkanEngine::init_vulkan()
 
 	// Get the VkDevice handle used in the rest of a Vulkan application
 	_device = vkbDevice.device;
-	_chosenGPU = physicalDevice.physical_device;
+	_chosenPhysicalDeviceGPU = physicalDevice.physical_device;
 
-	vkGetPhysicalDeviceProperties(_chosenGPU, &physDevProp);
+	vkGetPhysicalDeviceProperties(_chosenPhysicalDeviceGPU, &_physDevProp);
+#if RAYTRACER_ON
+	VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+	prop2.pNext = &_rtProperties;
+	vkGetPhysicalDeviceProperties2(_chosenPhysicalDeviceGPU, &prop2);
+#endif
 
 	// use vkbootstrap to get a Graphics queue
 	_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
@@ -442,7 +452,7 @@ void VulkanEngine::init_vulkan()
 
 
 	VmaAllocatorCreateInfo allocatorInfo = {};
-	allocatorInfo.physicalDevice = _chosenGPU;
+	allocatorInfo.physicalDevice = _chosenPhysicalDeviceGPU;
 	allocatorInfo.device = _device;
 	allocatorInfo.instance = _instance;
 	allocatorInfo.pVulkanFunctions = &vulkanFunctions;
@@ -455,7 +465,7 @@ void VulkanEngine::init_vulkan()
 
 void VulkanEngine::init_swapchain()
 {
-	vkb::SwapchainBuilder swapchainBuilder{_chosenGPU, _device, _surface };
+	vkb::SwapchainBuilder swapchainBuilder{_chosenPhysicalDeviceGPU, _device, _surface };
 
 	vkb::Swapchain vkbSwapchain = swapchainBuilder
 		.use_default_format_selection()
@@ -869,6 +879,11 @@ VkQueryPool VulkanEngine::createQueryPool(uint32_t queryCount)
 FrameData& VulkanEngine::get_current_frame()
 {
 	return _frames[_frameNumber % FRAME_OVERLAP];
+}
+
+int VulkanEngine::get_current_frame_index() const
+{
+	return _frameNumber % FRAME_OVERLAP;
 }
 
 size_t VulkanEngine::pad_uniform_buffer_size(size_t originalSize)
@@ -1458,7 +1473,7 @@ void VulkanEngine::init_imgui()
 	//this initializes imgui for Vulkan
 	ImGui_ImplVulkan_InitInfo init_info = {};
 	init_info.Instance = _instance;
-	init_info.PhysicalDevice = _chosenGPU;
+	init_info.PhysicalDevice = _chosenPhysicalDeviceGPU;
 	init_info.Device = _device;
 	init_info.Queue = _graphicsQueue;
 	init_info.DescriptorPool = imguiPool;
