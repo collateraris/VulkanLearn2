@@ -806,38 +806,35 @@ void VulkanEngine::load_meshes()
 
 void VulkanEngine::upload_mesh(Mesh& mesh)
 {
-	for (int i = 0; i < FRAME_OVERLAP; i++)
-	{
 #if MESHSHADER_ON
 		{
 			size_t bufferSize = mesh._verticesMS.size() * sizeof(Vertex_MS);
 
-			mesh._vertexBuffer[i] = create_buffer_n_copy_data(bufferSize, mesh._verticesMS.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+			mesh._vertexBuffer = create_buffer_n_copy_data(bufferSize, mesh._verticesMS.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		}
 		{
 			size_t bufferSize = mesh._meshlets.size() * sizeof(Meshlet);
 
-			mesh._meshletsBuffer[i] = create_buffer_n_copy_data(bufferSize, mesh._meshlets.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+			mesh._meshletsBuffer = create_buffer_n_copy_data(bufferSize, mesh._meshlets.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		}
 
 		{
 			size_t bufferSize = mesh.meshletdata.size() * sizeof(uint32_t);
 
-			mesh._meshletdataBuffer[i] = create_buffer_n_copy_data(bufferSize, mesh.meshletdata.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+			mesh._meshletdataBuffer = create_buffer_n_copy_data(bufferSize, mesh.meshletdata.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		}
 #else
 		{
 			size_t bufferSize = mesh._vertices.size() * sizeof(Vertex);
 
-			mesh._vertexBuffer[i] = create_buffer_n_copy_data(bufferSize, mesh._vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+			mesh._vertexBuffer = create_buffer_n_copy_data(bufferSize, mesh._vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		}
 		{
 			size_t bufferSize = mesh._indices.size() * sizeof(mesh._indices[0]);
 
-			mesh._indicesBuffer[i] = create_buffer_n_copy_data(bufferSize, mesh._indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+			mesh._indicesBuffer = create_buffer_n_copy_data(bufferSize, mesh._indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 		}
 #endif
-	}
 }
 
 void VulkanEngine::load_images()
@@ -1060,20 +1057,22 @@ void VulkanEngine::init_descriptors()
 		{
 			vmaDestroyBuffer(_allocator, _frames[i].perframeDataBuffer._buffer, _frames[i].perframeDataBuffer._allocation);
 			vmaDestroyBuffer(_allocator, _frames[i].cameraBuffer._buffer, _frames[i].cameraBuffer._allocation);
-			vmaDestroyBuffer(_allocator, _frames[i].objectBuffer._buffer, _frames[i].objectBuffer._allocation);
 		}
+
+		vmaDestroyBuffer(_allocator, _objectBuffer._buffer, _objectBuffer._allocation);
 	});
+
+#if MESHSHADER_ON
+	_indirectBuffer = create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawMeshTasksIndirectCommandNV), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+#else
+	_indirectBuffer = create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+#endif
+	_objectBuffer = create_cpu_to_gpu_buffer(sizeof(GPUObjectData) * MAX_OBJECTS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
 		_frames[i].perframeDataBuffer = create_cpu_to_gpu_buffer(sizeof(PerFrameData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		_frames[i].cameraBuffer = create_cpu_to_gpu_buffer(sizeof(GPUCameraData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-#if MESHSHADER_ON
-		_frames[i].indirectBuffer = create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawMeshTasksIndirectCommandNV), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
-#else
-		_frames[i].indirectBuffer = create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
-#endif
-		_frames[i].objectBuffer = create_cpu_to_gpu_buffer(sizeof(GPUObjectData) * MAX_OBJECTS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 		VkDescriptorBufferInfo perframeDataInfo;
 		perframeDataInfo.buffer = _frames[i].perframeDataBuffer._buffer;
@@ -1095,13 +1094,13 @@ void VulkanEngine::init_descriptors()
 #endif
 
 		VkDescriptorBufferInfo objectBufferInfo;
-		objectBufferInfo.buffer = _frames[i].objectBuffer._buffer;
+		objectBufferInfo.buffer = _objectBuffer._buffer;
 		objectBufferInfo.offset = 0;
 		objectBufferInfo.range = sizeof(GPUObjectData) * MAX_OBJECTS;
 #if MESHSHADER_ON
 
 		VkDescriptorBufferInfo indirectBufferInfo;
-		indirectBufferInfo.buffer = _frames[i].indirectBuffer._buffer;
+		indirectBufferInfo.buffer = _indirectBuffer._buffer;
 		indirectBufferInfo.offset = 0;
 		indirectBufferInfo.range = sizeof(VkDrawMeshTasksIndirectCommandNV) * MAX_OBJECTS;
 
@@ -1231,7 +1230,7 @@ void VulkanEngine::compute_pass(VkCommandBuffer cmd)
 
 	std::array<VkBufferMemoryBarrier, 1> cullBarriers =
 	{
-		vkinit::buffer_barrier(get_current_frame().indirectBuffer._buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT),
+		vkinit::buffer_barrier(_indirectBuffer._buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT),
 	};
 
 	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, 0, cullBarriers.size(), cullBarriers.data(), 0, 0);
@@ -1270,7 +1269,7 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 
 		VkDeviceSize indirect_offset = object.first * sizeof(VkDrawMeshTasksIndirectCommandNV);
 		uint32_t draw_stride = sizeof(VkDrawMeshTasksIndirectCommandNV);
-		vkCmdDrawMeshTasksIndirectNV(cmd, get_current_frame().indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
+		vkCmdDrawMeshTasksIndirectNV(cmd, _indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
 
 	}
 #else
@@ -1296,8 +1295,8 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 		if (object.mesh != lastMesh) {
 			//bind the mesh vertex buffer with offset 0
 			VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer[frameIndex]._buffer, &offset);
-			vkCmdBindIndexBuffer(cmd, object.mesh->_indicesBuffer[frameIndex]._buffer, offset, VK_INDEX_TYPE_UINT32);
+			vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
+			vkCmdBindIndexBuffer(cmd, object.mesh->_indicesBuffer._buffer, offset, VK_INDEX_TYPE_UINT32);
 			lastMesh = object.mesh;
 		}
 
@@ -1305,7 +1304,7 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 		uint32_t draw_stride = sizeof(VkDrawIndexedIndirectCommand);
 
 		//execute the draw command buffer on each section as defined by the array of draws
-		vkCmdDrawIndexedIndirect(cmd, get_current_frame().indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
+		vkCmdDrawIndexedIndirect(cmd, _indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
 	}
 #endif
 }
@@ -1335,40 +1334,34 @@ void VulkanEngine::init_scene()
 
 	_indirectBatchRO = compact_draws(_renderables.data(), _renderables.size());
 #if !MESHSHADER_ON
-	for (int i = 0; i < FRAME_OVERLAP; i++)
-	{
-		map_buffer(_allocator, _frames[i].indirectBuffer._allocation, [&](void*& data) {
-			VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)data;
-			//encode the draw data of each object into the indirect draw buffer
-			for (int i = 0; i < _renderables.size(); i++)
-			{
-				RenderObject& object = _renderables[i];
-				drawCommands[i].indexCount = object.mesh->_indices.size();
-				drawCommands[i].instanceCount = 1;
-				drawCommands[i].vertexOffset = 0;
-				drawCommands[i].firstIndex = 0;
-				drawCommands[i].firstInstance = i; //used to access object matrix in the shader
-			}
-			});
-	}
+	map_buffer(_allocator, _indirectBuffer._allocation, [&](void*& data) {
+		VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)data;
+		//encode the draw data of each object into the indirect draw buffer
+		for (int i = 0; i < _renderables.size(); i++)
+		{
+			RenderObject& object = _renderables[i];
+			drawCommands[i].indexCount = object.mesh->_indices.size();
+			drawCommands[i].instanceCount = 1;
+			drawCommands[i].vertexOffset = 0;
+			drawCommands[i].firstIndex = 0;
+			drawCommands[i].firstInstance = i; //used to access object matrix in the shader
+		}
+		});
 #endif
 	
-	for (int i = 0; i < FRAME_OVERLAP; i++)
-	{
-		map_buffer(_allocator, _frames[i].objectBuffer._allocation, [&](void*& data) {
-			GPUObjectData* objectSSBO = (GPUObjectData*)data;
+	map_buffer(_allocator, _objectBuffer._allocation, [&](void*& data) {
+		GPUObjectData* objectSSBO = (GPUObjectData*)data;
 
-			for (int i = 0; i < _renderables.size(); i++)
-			{
-				RenderObject& object = _renderables[i];
-				objectSSBO[i].modelMatrix = object.transformMatrix;
-				objectSSBO[i].center_radius = glm::vec4(object.mesh->_center, object.mesh->_radius);
+		for (int i = 0; i < _renderables.size(); i++)
+		{
+			RenderObject& object = _renderables[i];
+			objectSSBO[i].modelMatrix = object.transformMatrix;
+			objectSSBO[i].center_radius = glm::vec4(object.mesh->_center, object.mesh->_radius);
 #if MESHSHADER_ON
-				objectSSBO[i].meshletCount = object.mesh->_meshlets.size();
+			objectSSBO[i].meshletCount = object.mesh->_meshlets.size();
 #endif
-			}
-			});
-	}
+		}
+		});
 
 #if MESHSHADER_ON
 	for (auto& mesh : _resManager.meshList)
@@ -1376,19 +1369,19 @@ void VulkanEngine::init_scene()
 		for (int i = 0; i < FRAME_OVERLAP; i++)
 		{
 			VkDescriptorBufferInfo vertexBufferInfo;
-			vertexBufferInfo.buffer = mesh->_vertexBuffer[i]._buffer;
+			vertexBufferInfo.buffer = mesh->_vertexBuffer._buffer;
 			vertexBufferInfo.offset = 0;
-			vertexBufferInfo.range = VK_WHOLE_SIZE;// mesh->_vertexBuffer[i]._allocation->GetSize();
+			vertexBufferInfo.range =  mesh->_vertexBuffer._allocation->GetSize();
 
 			VkDescriptorBufferInfo meshletBufferInfo;
-			meshletBufferInfo.buffer = mesh->_meshletsBuffer[i]._buffer;
+			meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;
 			meshletBufferInfo.offset = 0;
-			meshletBufferInfo.range = VK_WHOLE_SIZE;// mesh->_meshletsBuffer[i]._allocation->GetSize();
+			meshletBufferInfo.range =  mesh->_meshletsBuffer._allocation->GetSize();
 
 			VkDescriptorBufferInfo meshletdataBufferInfo;
-			meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer[i]._buffer;
+			meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
 			meshletdataBufferInfo.offset = 0;
-			meshletdataBufferInfo.range = VK_WHOLE_SIZE;// mesh->_meshletdataBuffer[i]._allocation->GetSize();
+			meshletdataBufferInfo.range =  mesh->_meshletdataBuffer._allocation->GetSize();
 
 			VkDescriptorImageInfo depthPyramidImageBufferInfo;
 			depthPyramidImageBufferInfo.sampler = _depthReduceRenderPass.get_depthSampl();

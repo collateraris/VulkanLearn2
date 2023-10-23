@@ -55,12 +55,12 @@ struct Mesh {
 	std::array<VkDescriptorSet, 2> meshletsSet{VK_NULL_HANDLE };
 	std::vector<uint32_t> meshletdata;
 #endif
-	std::array<AllocatedBuffer, 2> _vertexBuffer;
+	AllocatedBuffer _vertexBuffer;
 #if MESHSHADER_ON
-	std::array<AllocatedBuffer, 2> _meshletsBuffer;
-	std::array<AllocatedBuffer, 2> _meshletdataBuffer;
+	AllocatedBuffer _meshletsBuffer;
+	AllocatedBuffer _meshletdataBuffer;
 #else
-	std::array<AllocatedBuffer, 2> _indicesBuffer;
+	AllocatedBuffer _indicesBuffer;
 #endif
 	glm::vec3 _center = glm::vec3(0);
 	float _radius = 0;

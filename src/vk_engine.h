@@ -78,15 +78,11 @@ struct FrameData {
 	//buffer that holds a single GPUCameraData to use when rendering
 	AllocatedBuffer cameraBuffer;
 	AllocatedBuffer perframeDataBuffer;
-	AllocatedBuffer indirectBuffer;
-
-	AllocatedBuffer objectBuffer;
-	VkDescriptorSet objectDescriptor;
 
 	VkDescriptorSet globalDescriptor;
 	VkDescriptorSet perframeDescriptor;
 
-
+	VkDescriptorSet objectDescriptor;
 
 	VkQueryPool queryPool;
 };
@@ -160,6 +156,9 @@ public:
 	VkDescriptorSetLayout _objectSetLayout;
 	VkDescriptorSetLayout _singleTextureSetLayout;
 	VkDescriptorSetLayout _meshletsSetLayout;
+
+	AllocatedBuffer _indirectBuffer;
+	AllocatedBuffer _objectBuffer;
 
 	std::unique_ptr<vkutil::DescriptorAllocator> _descriptorAllocator;
 	std::unique_ptr<vkutil::DescriptorLayoutCache> _descriptorLayoutCache;
