@@ -77,10 +77,8 @@ struct FrameData {
 
 	//buffer that holds a single GPUCameraData to use when rendering
 	AllocatedBuffer cameraBuffer;
-	AllocatedBuffer perframeDataBuffer;
 
 	VkDescriptorSet globalDescriptor;
-	VkDescriptorSet perframeDescriptor;
 
 	VkDescriptorSet objectDescriptor;
 

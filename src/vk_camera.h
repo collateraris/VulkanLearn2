@@ -11,7 +11,7 @@ struct PlayerCamera {
 	glm::vec3 velocity;
 	glm::vec3 inputAxis;
 
-	float farDistance = 200.0f;
+	float farDistance = 1000.0f;
 	float nearDistance = 0.1f;
 
 	float pitch{ 0 }; //up-down rotation

@@ -157,10 +157,6 @@ void VulkanEngine::draw()
 		map_buffer(_allocator, get_current_frame().cameraBuffer._allocation, [&](void*& data) {
 			memcpy(data, &camData, sizeof(GPUCameraData));
 			});
-
-		map_buffer(_allocator, get_current_frame().perframeDataBuffer._allocation, [&](void*& data) {
-			memcpy(data, &frustumData, sizeof(PerFrameData));
-			});
 	}
 
 	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
@@ -1055,7 +1051,6 @@ void VulkanEngine::init_descriptors()
 		// add buffers to deletion queues
 		for (int i = 0; i < FRAME_OVERLAP; i++)
 		{
-			vmaDestroyBuffer(_allocator, _frames[i].perframeDataBuffer._buffer, _frames[i].perframeDataBuffer._allocation);
 			vmaDestroyBuffer(_allocator, _frames[i].cameraBuffer._buffer, _frames[i].cameraBuffer._allocation);
 		}
 
@@ -1069,15 +1064,15 @@ void VulkanEngine::init_descriptors()
 #endif
 	_objectBuffer = create_cpu_to_gpu_buffer(sizeof(GPUObjectData) * MAX_OBJECTS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
+	_depthReduceRenderPass.create_depth_pyramid(_windowExtent.width, _windowExtent.height);
+
+	VkDescriptorImageInfo depthDescInfo = {};
+	depthDescInfo.imageView = _depthTex.imageView;
+	_depthReduceRenderPass.init_descriptors({ DescriptorInfo{ {}, depthDescInfo} });
+
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
-		_frames[i].perframeDataBuffer = create_cpu_to_gpu_buffer(sizeof(PerFrameData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		_frames[i].cameraBuffer = create_cpu_to_gpu_buffer(sizeof(GPUCameraData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-		VkDescriptorBufferInfo perframeDataInfo;
-		perframeDataInfo.buffer = _frames[i].perframeDataBuffer._buffer;
-		perframeDataInfo.offset = 0;
-		perframeDataInfo.range = sizeof(PerFrameData);
 
 		VkDescriptorBufferInfo cameraInfo;
 		cameraInfo.buffer = _frames[i].cameraBuffer._buffer;
@@ -1104,10 +1099,16 @@ void VulkanEngine::init_descriptors()
 		indirectBufferInfo.offset = 0;
 		indirectBufferInfo.range = sizeof(VkDrawMeshTasksIndirectCommandNV) * MAX_OBJECTS;
 
+		VkDescriptorImageInfo depthPyramidImageBufferInfo;
+		depthPyramidImageBufferInfo.sampler = _depthReduceRenderPass.get_depthSampl();
+		depthPyramidImageBufferInfo.imageView = _depthReduceRenderPass.get_depthPyramidTex().imageView;
+		depthPyramidImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
 		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
 			.bind_buffer(0, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
 			.bind_buffer(1, &indirectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
-			.bind_buffer(2, &perframeDataInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+			.bind_buffer(2, &cameraInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+			.bind_image(3, &depthPyramidImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
 			.build(_frames[i].objectDescriptor, _objectSetLayout);
 #else
 		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
@@ -1115,12 +1116,6 @@ void VulkanEngine::init_descriptors()
 			.build(_frames[i].objectDescriptor, _objectSetLayout);
 #endif
 	}
-
-	_depthReduceRenderPass.create_depth_pyramid(_windowExtent.width, _windowExtent.height);
-
-	VkDescriptorImageInfo depthDescInfo = {};
-	depthDescInfo.imageView = _depthTex.imageView;
-	_depthReduceRenderPass.init_descriptors({ DescriptorInfo{ {}, depthDescInfo} });
 
 }
 

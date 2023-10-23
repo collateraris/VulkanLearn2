@@ -83,12 +83,6 @@ bool frustumCulling(uint mi)
 
 bool occlusionCulling(uint mi)
 {
-	float aabb_min[3] = meshlets[mi].aabb_min;
-	float aabb_max[3] = meshlets[mi].aabb_max;
-
-	vec3 bmin = vec3(aabb_min[0], aabb_min[1], aabb_min[2]);
-	vec3 bmax = vec3(aabb_max[0], aabb_max[1], aabb_max[2]);
-
     float cr[4] = meshlets[mi].center_radius;
 	vec3 center = vec3(cr[0], cr[1], cr[2]);
 	center = vec3(cameraData.view * vec4(center, 1.));
@@ -112,27 +106,4 @@ bool occlusionCulling(uint mi)
 		return depthSphere > depth;
 	}
 	return true;
-}
-
-// 2D Polyhedral Bounds of a Clipped, Perspective-Projected 3D Sphere. Michael Mara, Morgan McGuire. 2013
-bool projectSphereView(vec3 c, float r, float znear, float P00, float P11, out vec4 aabb)
-{
-    if (c.z < r + znear) return false;
-
-    vec3 cr = c * r;
-    float czr2 = c.z * c.z - r * r;
-
-    float vx = sqrt(c.x * c.x + czr2);
-    float minx = (vx * c.x - cr.z) / (vx * c.z + cr.x);
-    float maxx = (vx * c.x + cr.z) / (vx * c.z - cr.x);
-
-    float vy = sqrt(c.y * c.y + czr2);
-    float miny = (vy * c.y - cr.z) / (vy * c.z + cr.y);
-    float maxy = (vy * c.y + cr.z) / (vy * c.z - cr.y);
-
-    aabb = vec4(minx * P00, miny * P11, maxx * P00, maxy * P11);
-    // clip space -> uv space
-    aabb = aabb.xwzy * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f);
-
-    return true;
 }
