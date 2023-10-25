@@ -44,7 +44,7 @@ void main()
 	uint gi = gl_WorkGroupID.x;
 	uint di = gi * 32 + ti;
 
-	bool visible = frustumCulling(di) && occlusionCulling(di);
+	bool visible =  frustumCulling(di) && occlusionCulling(di);
 
 	drawCommands[di].taskCount = visible ? (objectBuffer.objects[di].meshletCount + 31) / 32 : 0;
 	drawCommands[di].firstTask = 0;
@@ -66,7 +66,7 @@ bool frustumCulling(uint di)
 
 bool occlusionCulling(uint di)
 {
-	vec3 center = objectBuffer.objects[di].center_radius.xyz;
+	vec3 center = vec3(cameraData.view * vec4(objectBuffer.objects[di].center_radius.xyz, 1.f));
 	float radius = objectBuffer.objects[di].center_radius.w;
 
 	float P00 = cameraData.proj[0][0], P11 = cameraData.proj[1][1];

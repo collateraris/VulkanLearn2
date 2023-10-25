@@ -286,6 +286,7 @@ private:
 	std::vector<IndirectBatch> compact_draws(RenderObject* first, int count);
 #if RAYTRACER_ON
 	void create_blas();
+	void create_tlas();
 
 	VulkanRaytracerBuilder::BlasInput create_blas_input(Mesh& mesh);
 #endif
