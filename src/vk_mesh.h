@@ -1,9 +1,6 @@
 #pragma once
 
 #include <vk_types.h>
-#include <vector>
-#include <glm/vec3.hpp>
-#include <glm/vec2.hpp>
 
 struct VertexInputDescription {
 
@@ -61,6 +58,10 @@ struct Mesh {
 	AllocatedBuffer _meshletdataBuffer;
 #else
 	AllocatedBuffer _indicesBuffer;
+#endif
+#if RAYTRACER_ON
+	AllocatedBuffer _vertexBufferRT;
+	AllocatedBuffer _indicesBufferRT;
 #endif
 	glm::vec3 _center = glm::vec3(0);
 	float _radius = 0;

@@ -60,6 +60,8 @@ struct Stats
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 #include <glm/gtx/transform.hpp>
+#include <glm/vec3.hpp>
+#include <glm/vec2.hpp>
 
 #include <string>
 #include <unordered_map>

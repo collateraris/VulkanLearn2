@@ -14,6 +14,7 @@
 #include <vk_logger.h>
 #include <vk_textures.h>
 #include <vk_render_passes.h>
+#include <vk_raytracer_builder.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
 
@@ -138,7 +139,9 @@ public:
 	VkRenderPass _renderPass;
 
 	VulkanDepthReduceRenderPass _depthReduceRenderPass;
-
+#if RAYTRACER_ON
+	VulkanRaytracerBuilder _rtBuilder;
+#endif
 	std::vector<VkFramebuffer> _framebuffers;
 
 	//frame storage
@@ -228,6 +231,7 @@ public:
 
 	AllocatedBuffer create_buffer_n_copy_data(size_t allocSize, void* copyData, VkBufferUsageFlags usage);
 	AllocatedBuffer create_gpuonly_buffer(size_t allocSize, VkBufferUsageFlags usage);
+	AllocatedBuffer create_gpuonly_buffer_with_device_address(size_t allocSize, VkBufferUsageFlags usage);
 	AllocatedBuffer create_staging_buffer(size_t allocSize, VkBufferUsageFlags usage);
 	AllocatedBuffer create_cpu_to_gpu_buffer(size_t allocSize, VkBufferUsageFlags usage);
 
@@ -240,6 +244,8 @@ public:
 	void create_image_view(const VkImageViewCreateInfo& _view_info, VkImageView& image_view);
 
 	void create_render_pass(const VkRenderPassCreateInfo& info, VkRenderPass& renderPass);
+
+	VkDeviceAddress get_buffer_device_address(VkBuffer buffer);
 
 	void upload_mesh(Mesh& mesh);
 
@@ -278,4 +284,9 @@ private:
 	void init_imgui();
 
 	std::vector<IndirectBatch> compact_draws(RenderObject* first, int count);
+#if RAYTRACER_ON
+	void create_blas();
+
+	VulkanRaytracerBuilder::BlasInput create_blas_input(Mesh& mesh);
+#endif
 };

@@ -373,6 +373,9 @@ void VulkanEngine::init_vulkan()
 	std::vector<const char*> extensions = {
 		VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
 		VK_KHR_8BIT_STORAGE_EXTENSION_NAME,
+		VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+		VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
+		VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,
 #if MESHSHADER_ON
 		VK_NV_MESH_SHADER_EXTENSION_NAME,
 #endif
@@ -406,8 +409,14 @@ void VulkanEngine::init_vulkan()
 	featuresMesh.meshShader = true;
 	featuresMesh.taskShader = true;
 
+	VkPhysicalDeviceBufferDeviceAddressFeatures buffer_device_address_features = {};
+	buffer_device_address_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
+	buffer_device_address_features.pNext = nullptr;
+	buffer_device_address_features.bufferDeviceAddress = true;
+
 	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features)
 		.add_pNext(&featuresMesh)
+		.add_pNext(&buffer_device_address_features)
 		.build().value();
 
 	// Get the VkDevice handle used in the rest of a Vulkan application
@@ -445,6 +454,10 @@ void VulkanEngine::init_vulkan()
 	vulkanFunctions.vkCreateImage = vkCreateImage;
 	vulkanFunctions.vkDestroyImage = vkDestroyImage;
 	vulkanFunctions.vkCmdCopyBuffer = vkCmdCopyBuffer;
+	vulkanFunctions.vkGetBufferMemoryRequirements2KHR = vkGetBufferMemoryRequirements2KHR;
+	vulkanFunctions.vkGetImageMemoryRequirements2KHR = vkGetImageMemoryRequirements2KHR;
+	vulkanFunctions.vkGetDeviceBufferMemoryRequirements = vkGetDeviceBufferMemoryRequirements;
+	vulkanFunctions.vkGetDeviceImageMemoryRequirements = vkGetDeviceImageMemoryRequirements;
 
 
 	VmaAllocatorCreateInfo allocatorInfo = {};
@@ -452,6 +465,8 @@ void VulkanEngine::init_vulkan()
 	allocatorInfo.device = _device;
 	allocatorInfo.instance = _instance;
 	allocatorInfo.pVulkanFunctions = &vulkanFunctions;
+	allocatorInfo.vulkanApiVersion = VK_MAKE_VERSION(1, 3, 0);
+	allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 	vmaCreateAllocator(&allocatorInfo, &_allocator);
 
 	_gpuProperties = vkbDevice.physical_device.properties;
@@ -797,7 +812,9 @@ void VulkanEngine::load_meshes()
 #endif // MESHSHADER_ON
 		upload_mesh(*mesh);
 	}
-
+#if RAYTRACER_ON
+	create_blas();
+#endif
 }
 
 void VulkanEngine::upload_mesh(Mesh& mesh)
@@ -831,7 +848,77 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 			mesh._indicesBuffer = create_buffer_n_copy_data(bufferSize, mesh._indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 		}
 #endif
+
+#if RAYTRACER_ON
+		VkBufferUsageFlags flag = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		VkBufferUsageFlags rayTracingFlags =  // used also for building acceleration structures
+			flag | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		{
+			size_t bufferSize = mesh._vertices.size() * sizeof(Vertex);
+
+			mesh._vertexBufferRT = create_buffer_n_copy_data(bufferSize, mesh._vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | rayTracingFlags);
+		}
+		{
+			size_t bufferSize = mesh._indices.size() * sizeof(mesh._indices[0]);
+
+			mesh._indicesBufferRT = create_buffer_n_copy_data(bufferSize, mesh._indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rayTracingFlags);
+		}
+#endif
 }
+#if RAYTRACER_ON
+void VulkanEngine::create_blas()
+{
+	std::vector<VulkanRaytracerBuilder::BlasInput> allBlas;
+	allBlas.reserve(_resManager.meshList.size());
+	for (auto& mesh : _resManager.meshList)
+	{	
+		allBlas.emplace_back(create_blas_input(*mesh));
+	}
+
+	_rtBuilder.build_blas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+}
+
+VulkanRaytracerBuilder::BlasInput VulkanEngine::create_blas_input(Mesh& mesh)
+{
+	// BLAS builder requires raw device addresses.
+	VkDeviceAddress vertexAddress = get_buffer_device_address(mesh._vertexBufferRT._buffer);
+	VkDeviceAddress indexAddress = get_buffer_device_address(mesh._indicesBufferRT._buffer);
+
+	uint32_t maxPrimitiveCount = mesh._indices.size() / 3;
+
+	// Describe buffer.
+	VkAccelerationStructureGeometryTrianglesDataKHR triangles{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR };
+	triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;  // vec3 vertex position data.
+	triangles.vertexData.deviceAddress = vertexAddress;
+	triangles.vertexStride = sizeof(Vertex);
+	// Describe index data (32-bit unsigned int)
+	triangles.indexType = VK_INDEX_TYPE_UINT32;
+	triangles.indexData.deviceAddress = indexAddress;
+	// Indicate identity transform by setting transformData to null device pointer.
+	//triangles.transformData = {};
+	triangles.maxVertex = mesh._vertices.size() - 1;
+
+	// Identify the above data as containing opaque triangles.
+	VkAccelerationStructureGeometryKHR asGeom{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
+	asGeom.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+	asGeom.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+	asGeom.geometry.triangles = triangles;
+
+	// The entire array will be used to build the BLAS.
+	VkAccelerationStructureBuildRangeInfoKHR offset;
+	offset.firstVertex = 0;
+	offset.primitiveCount = maxPrimitiveCount;
+	offset.primitiveOffset = 0;
+	offset.transformOffset = 0;
+
+	// Our blas is made from only one geometry, but could be made of many geometries
+	VulkanRaytracerBuilder::BlasInput input;
+	input.asGeometry.emplace_back(asGeom);
+	input.asBuildOffsetInfo.emplace_back(offset);
+
+	return input;
+}
+#endif
 
 void VulkanEngine::load_images()
 {
@@ -904,7 +991,14 @@ AllocatedBuffer VulkanEngine::create_buffer_n_copy_data(size_t allocSize, void* 
 			memcpy(data, copyData, allocSize);
 			});
 
-		resBuffer = create_gpuonly_buffer(allocSize, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+		if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
+		{
+			resBuffer = create_gpuonly_buffer_with_device_address(allocSize, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+		}
+		else
+		{
+			resBuffer = create_gpuonly_buffer(allocSize, usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+		}
 
 		immediate_submit([=](VkCommandBuffer cmd) {
 			VkBufferCopy copy;
@@ -927,6 +1021,11 @@ AllocatedBuffer VulkanEngine::create_buffer_n_copy_data(size_t allocSize, void* 
 AllocatedBuffer VulkanEngine::create_gpuonly_buffer(size_t allocSize, VkBufferUsageFlags usage)
 {
 	return create_buffer(allocSize, usage, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+}
+
+AllocatedBuffer VulkanEngine::create_gpuonly_buffer_with_device_address(size_t allocSize, VkBufferUsageFlags usage)
+{
+	return create_buffer(allocSize, usage, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT | VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT);
 }
 
 AllocatedBuffer VulkanEngine::create_staging_buffer(size_t allocSize, VkBufferUsageFlags usage)
@@ -1000,6 +1099,16 @@ void VulkanEngine::create_render_pass(const VkRenderPassCreateInfo& info, VkRend
 	_mainDeletionQueue.push_function([=]() {
 		vkDestroyRenderPass(_device, renderPass, nullptr);
 		});
+}
+
+VkDeviceAddress VulkanEngine::get_buffer_device_address(VkBuffer buffer)
+{
+	if (buffer == VK_NULL_HANDLE)
+		return 0ULL;
+
+	VkBufferDeviceAddressInfo info = { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+	info.buffer = buffer;
+	return vkGetBufferDeviceAddress(_device, &info);
 }
 
 void VulkanEngine::init_descriptors()
