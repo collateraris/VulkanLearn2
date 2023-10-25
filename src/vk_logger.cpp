@@ -28,6 +28,7 @@ const char* to_string_message_type(VkDebugUtilsMessageTypeFlagsEXT s) {
 
 void VkLogger::init(const std::string& logFilePath)
 {
+	std::remove(logFilePath.c_str());
     plog::init(plog::debug, logFilePath.c_str());
     PLOG_DEBUG << "Hello VkLogger!\n";
 }
