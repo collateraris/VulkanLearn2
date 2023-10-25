@@ -414,9 +414,19 @@ void VulkanEngine::init_vulkan()
 	buffer_device_address_features.pNext = nullptr;
 	buffer_device_address_features.bufferDeviceAddress = true;
 
+#if RAYTRACER_ON
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
+	acceleration_structure_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+	acceleration_structure_features.pNext = nullptr;
+	acceleration_structure_features.accelerationStructure = true;
+#endif
+
 	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features)
 		.add_pNext(&featuresMesh)
 		.add_pNext(&buffer_device_address_features)
+#if RAYTRACER_ON
+		.add_pNext(&acceleration_structure_features)
+#endif
 		.build().value();
 
 	// Get the VkDevice handle used in the rest of a Vulkan application
@@ -1475,17 +1485,17 @@ void VulkanEngine::init_scene()
 			VkDescriptorBufferInfo vertexBufferInfo;
 			vertexBufferInfo.buffer = mesh->_vertexBuffer._buffer;
 			vertexBufferInfo.offset = 0;
-			vertexBufferInfo.range =  mesh->_vertexBuffer._allocation->GetSize();
+			vertexBufferInfo.range = VK_WHOLE_SIZE;
 
 			VkDescriptorBufferInfo meshletBufferInfo;
 			meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;
 			meshletBufferInfo.offset = 0;
-			meshletBufferInfo.range =  mesh->_meshletsBuffer._allocation->GetSize();
+			meshletBufferInfo.range = VK_WHOLE_SIZE;
 
 			VkDescriptorBufferInfo meshletdataBufferInfo;
 			meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
 			meshletdataBufferInfo.offset = 0;
-			meshletdataBufferInfo.range =  mesh->_meshletdataBuffer._allocation->GetSize();
+			meshletdataBufferInfo.range = VK_WHOLE_SIZE;
 
 			VkDescriptorImageInfo depthPyramidImageBufferInfo;
 			depthPyramidImageBufferInfo.sampler = _depthReduceRenderPass.get_depthSampl();
