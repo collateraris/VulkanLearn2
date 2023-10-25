@@ -40,6 +40,12 @@ struct DescriptorInfo
 	VkDescriptorImageInfo imageInfo;
 };
 
+struct AccelerationStruct
+{
+	VkAccelerationStructureKHR accel = VK_NULL_HANDLE;
+	AllocatedBuffer               buffer;
+};
+
 
 enum class MeshpassType : uint8_t {
 	None = 0,

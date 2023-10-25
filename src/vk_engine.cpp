@@ -875,7 +875,7 @@ void VulkanEngine::create_blas()
 		allBlas.emplace_back(create_blas_input(*mesh));
 	}
 
-	_rtBuilder.build_blas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+	_rtBuilder.build_blas(*this, allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 
 VulkanRaytracerBuilder::BlasInput VulkanEngine::create_blas_input(Mesh& mesh)
