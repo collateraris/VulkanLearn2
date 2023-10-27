@@ -890,7 +890,22 @@ void VulkanEngine::create_blas()
 
 void VulkanEngine::create_tlas()
 {
-
+	std::vector<VkAccelerationStructureInstanceKHR> tlas;
+	tlas.reserve(_renderables.size());
+	for (const auto& inst : _renderables)
+	{
+		VkAccelerationStructureInstanceKHR rayInst{};
+		VkTransformMatrixKHR out_matrix;
+		memcpy(&out_matrix, &inst.transformMatrix, sizeof(VkTransformMatrixKHR));
+		rayInst.transform = out_matrix;  // Position of the instance
+		rayInst.instanceCustomIndex = inst.meshIndex; // gl_InstanceCustomIndexEXT
+		rayInst.accelerationStructureReference = _rtBuilder.get_blas_device_address(_device, inst.meshIndex);
+		rayInst.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+		rayInst.mask = 0xFF;       //  Only be hit if rayMask & instance.mask != 0
+		rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
+		tlas.emplace_back(rayInst);
+	}
+	_rtBuilder.build_tlas(*this, tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 
 VulkanRaytracerBuilder::BlasInput VulkanEngine::create_blas_input(Mesh& mesh)
@@ -1440,14 +1455,14 @@ void VulkanEngine::init_scene()
 	for (int nodeIndex = 1; nodeIndex < _scene._hierarchy.size(); nodeIndex++)
 	{
 		RenderObject map;
-		int meshIndex = _scene._meshes[nodeIndex];
-		map.mesh = _resManager.meshList[meshIndex].get();
-		int matDescIndex = _scene._matForNode[nodeIndex];
-		const std::string& matName = _resManager.matDescList[matDescIndex].get()->matName;
+		map.meshIndex = _scene._meshes[nodeIndex];
+		map.mesh = _resManager.meshList[map.meshIndex].get();
+		map.matDescIndex = _scene._matForNode[nodeIndex];
+		const std::string& matName = _resManager.matDescList[map.matDescIndex].get()->matName;
 		map.material = get_material(matName);
 		map.transformMatrix = _scene._localTransforms[nodeIndex];
 
-		renderablesMap[meshIndex][matDescIndex].push_back(map);
+		renderablesMap[map.meshIndex][map.matDescIndex].push_back(map);
 	}
 
 	for (const auto& [meshIndex, matMap]: renderablesMap)

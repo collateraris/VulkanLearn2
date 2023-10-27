@@ -29,7 +29,13 @@ public:
 
     void build_blas(VulkanEngine& engine, const std::vector<VulkanRaytracerBuilder::BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags);
 
+    void build_tlas(VulkanEngine& engine, std::vector<VkAccelerationStructureInstanceKHR>& instances,
+        VkBuildAccelerationStructureFlagsKHR flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
+        bool                                 update = false);
+
     static AccelerationStruct create_acceleration(VulkanEngine& engine, VkAccelerationStructureCreateInfoKHR& accel_);
+
+    VkDeviceAddress get_blas_device_address(VkDevice _device, uint32_t blasId);
 
 protected:
 

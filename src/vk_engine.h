@@ -35,6 +35,8 @@ struct RenderObject {
 	Material* material;
 
 	glm::mat4 transformMatrix;
+	int meshIndex;
+	int matDescIndex;
 };
 
 struct IndirectBatch {
