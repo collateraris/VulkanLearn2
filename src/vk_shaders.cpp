@@ -76,10 +76,14 @@ uint32_t ShaderLoader::hash_descriptor_layout_info(VkDescriptorSetLayoutCreateIn
 	return fnv1a_32(str.c_str(), str.length());
 }
 
-void ShaderEffect::add_stage(ShaderModule* shaderModule, VkShaderStageFlagBits stage)
+size_t ShaderEffect::add_stage(ShaderModule* shaderModule, VkShaderStageFlagBits stage)
 {
 	ShaderStage newStage = { shaderModule,stage };
+	size_t index = stages.size();
+
 	stages.push_back(newStage);
+
+	return index;
 }
 
 void ShaderEffect::reflect_layout(VkDevice device, ReflectionOverrides* overrides, int overrideCount)

@@ -282,3 +282,26 @@ void ComputePipelineBuilder::setShaders(ShaderEffect* effect)
 
 	_pipelineLayout = effect->builtLayout;
 }
+
+VkPipeline RTPipelineBuilder::build_rt_pipeline(VkDevice device)
+{
+	_rayPipelineInfo.stageCount = static_cast<uint32_t>(_shaderStages.size());  // Stages are shaders
+	_rayPipelineInfo.pStages = _shaderStages.data();
+
+
+	_rayPipelineInfo.layout = _pipelineLayout;
+
+	VkPipeline rtPipeline;
+
+	vkCreateRayTracingPipelinesKHR(device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &_rayPipelineInfo, nullptr, &rtPipeline);
+
+	return rtPipeline;
+}
+
+void RTPipelineBuilder::setShaders(ShaderEffect* effect)
+{
+	_shaderStages.clear();
+	effect->fill_stages(_shaderStages);
+
+	_pipelineLayout = effect->builtLayout;
+}

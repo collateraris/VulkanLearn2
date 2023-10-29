@@ -33,6 +33,18 @@ public:
 	VkPipeline build_compute_pipeline(VkDevice device);
 	void setShaders(ShaderEffect* effect);
 };
+
+class RTPipelineBuilder {
+public:
+
+	std::vector<VkPipelineShaderStageCreateInfo> _shaderStages;
+	VkPipelineLayout _pipelineLayout;
+	VkRayTracingPipelineCreateInfoKHR _rayPipelineInfo{ VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR };
+
+	VkPipeline build_rt_pipeline(VkDevice device);
+	void setShaders(ShaderEffect* effect);
+};
+
 class VulkanEngine;
 namespace vkutil {
 

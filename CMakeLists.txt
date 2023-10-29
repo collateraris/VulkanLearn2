@@ -25,7 +25,7 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 add_subdirectory(src)
 
 
-find_program(GLSL_VALIDATOR glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32/)
+find_program(GLSLC "glslc.exe" $ENV{VULKAN_SDK}/Bin/)
 
 ## find all the shader files under the shaders folder
 file(GLOB_RECURSE GLSL_SOURCE_FILES
@@ -34,21 +34,24 @@ file(GLOB_RECURSE GLSL_SOURCE_FILES
     "${PROJECT_SOURCE_DIR}/shaders/*.comp"
     "${PROJECT_SOURCE_DIR}/shaders/*.mesh"
     "${PROJECT_SOURCE_DIR}/shaders/*.task"
+    "${PROJECT_SOURCE_DIR}/shaders/*.rgen"
+    "${PROJECT_SOURCE_DIR}/shaders/*.rmiss"
+    "${PROJECT_SOURCE_DIR}/shaders/*.rchit"
     )
 
 ## iterate each shader
-foreach(GLSL ${GLSL_SOURCE_FILES})
+foreach(GLSL_SRC ${GLSL_SOURCE_FILES})
   message(STATUS "BUILDING SHADER")
-  get_filename_component(FILE_NAME ${GLSL} NAME)
+  get_filename_component(FILE_NAME ${GLSL_SRC} NAME)
   set(SPIRV "${PROJECT_SOURCE_DIR}/shaders/${FILE_NAME}.spv")
-  message(STATUS ${GLSL})
+  message(STATUS ${GLSL_SRC})
   ##execute glslang command to compile that specific shader
   add_custom_command(
     OUTPUT ${SPIRV}
-    COMMAND ${GLSL_VALIDATOR} -V ${GLSL} -o ${SPIRV} -gVS
-    DEPENDS ${GLSL})
+    COMMAND ${GLSLC} --target-spv=spv1.4 ${GLSL_SRC} -o ${SPIRV}
+    DEPENDS ${GLSL_SRC})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
-endforeach(GLSL)
+endforeach(GLSL_SRC)
 
 add_custom_target(
     Shaders 

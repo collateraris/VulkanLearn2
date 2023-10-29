@@ -25,7 +25,7 @@ struct ShaderEffect {
 		VkDescriptorType overridenType;
 	};
 
-	void add_stage(ShaderModule* shaderModule, VkShaderStageFlagBits stage);
+	size_t add_stage(ShaderModule* shaderModule, VkShaderStageFlagBits stage);
 
 	void reflect_layout(VkDevice device, ReflectionOverrides* overrides, int overrideCount);
 

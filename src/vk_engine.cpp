@@ -419,6 +419,11 @@ void VulkanEngine::init_vulkan()
 	acceleration_structure_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
 	acceleration_structure_features.pNext = nullptr;
 	acceleration_structure_features.accelerationStructure = true;
+
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rt_features = {};
+	rt_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+	rt_features.pNext = nullptr;
+	rt_features.rayTracingPipeline = true;
 #endif
 
 	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features)
@@ -426,6 +431,7 @@ void VulkanEngine::init_vulkan()
 		.add_pNext(&buffer_device_address_features)
 #if RAYTRACER_ON
 		.add_pNext(&acceleration_structure_features)
+		.add_pNext(&rt_features)
 #endif
 		.build().value();
 
@@ -807,6 +813,10 @@ void VulkanEngine::init_pipelines() {
 #endif
 
 	_depthReduceRenderPass.init_pipelines();
+
+#if RAYTRACER_ON
+	create_rtpipeline();
+#endif
 }
 
 void VulkanEngine::load_meshes()
@@ -947,6 +957,62 @@ VulkanRaytracerBuilder::BlasInput VulkanEngine::create_blas_input(Mesh& mesh)
 	input.asBuildOffsetInfo.emplace_back(offset);
 
 	return input;
+}
+
+void VulkanEngine::create_rtpipeline()
+{
+	ShaderEffect defaultEffect;
+	uint32_t rayGenIndex = defaultEffect.add_stage(_shaderCache.get_shader(shader_path("raytrace.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
+	uint32_t rayMissIndex = defaultEffect.add_stage(_shaderCache.get_shader(shader_path("raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
+	uint32_t rayClosestHitIndex = defaultEffect.add_stage(_shaderCache.get_shader(shader_path("raytrace.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+	defaultEffect.reflect_layout(_device, nullptr, 0);
+
+	RTPipelineBuilder pipelineBuilder;
+
+	pipelineBuilder.setShaders(&defaultEffect);
+
+	// The ray tracing process can shoot rays from the camera, and a shadow ray can be shot from the
+	// hit points of the camera rays, hence a recursion level of 2. This number should be kept as low
+	// as possible for performance reasons. Even recursive ray tracing should be flattened into a loop
+	// in the ray generation to avoid deep recursion.
+	pipelineBuilder._rayPipelineInfo.maxPipelineRayRecursionDepth = 2;  // Ray depth
+
+	// Shader groups
+	std::vector<VkRayTracingShaderGroupCreateInfoKHR> rtShaderGroups;
+	VkRayTracingShaderGroupCreateInfoKHR group{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
+	group.anyHitShader = VK_SHADER_UNUSED_KHR;
+	group.closestHitShader = VK_SHADER_UNUSED_KHR;
+	group.generalShader = VK_SHADER_UNUSED_KHR;
+	group.intersectionShader = VK_SHADER_UNUSED_KHR;
+
+	// Raygen
+	group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+	group.generalShader = rayGenIndex;
+	rtShaderGroups.push_back(group);
+
+	// Miss
+	group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+	group.generalShader = rayMissIndex;
+	rtShaderGroups.push_back(group);
+
+	// closest hit shader
+	group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+	group.generalShader = VK_SHADER_UNUSED_KHR;
+	group.closestHitShader = rayClosestHitIndex;
+	rtShaderGroups.push_back(group);
+
+	pipelineBuilder._rayPipelineInfo.groupCount = static_cast<uint32_t>(rtShaderGroups.size());
+	pipelineBuilder._rayPipelineInfo.pGroups = rtShaderGroups.data();
+
+	_rtPipelineLayout = pipelineBuilder._pipelineLayout;
+
+	_rtPipeline = pipelineBuilder.build_rt_pipeline(_device);
+
+}
+
+void VulkanEngine::create_rtshader_binding_table()
+{
+
 }
 #endif
 

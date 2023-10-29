@@ -169,9 +169,6 @@ public:
 
 	VkPhysicalDeviceProperties _gpuProperties;
 	VkPhysicalDeviceProperties _physDevProp{};
-#if RAYTRACER_ON
-	VkPhysicalDeviceRayTracingPipelinePropertiesKHR _rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
-#endif
 
 	GPUSceneData _sceneParameters;
 	AllocatedBuffer _sceneParameterBuffer;
@@ -287,8 +284,24 @@ private:
 
 	std::vector<IndirectBatch> compact_draws(RenderObject* first, int count);
 #if RAYTRACER_ON
+
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR _rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
+
+	AllocatedBuffer                 _rtSBTBuffer;
+
+	VkStridedDeviceAddressRegionKHR _rgenRegion{};
+	VkStridedDeviceAddressRegionKHR _missRegion{};
+	VkStridedDeviceAddressRegionKHR _hitRegion{};
+	VkStridedDeviceAddressRegionKHR _callRegion{};
+
+	VkPipelineLayout                                  _rtPipelineLayout;
+	VkPipeline                                        _rtPipeline;
+
 	void create_blas();
 	void create_tlas();
+
+	void create_rtpipeline();
+	void create_rtshader_binding_table();
 
 	VulkanRaytracerBuilder::BlasInput create_blas_input(Mesh& mesh);
 #endif
