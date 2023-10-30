@@ -6,6 +6,7 @@
 #include <SDL_vulkan.h>
 
 #include <vk_types.h>
+#include <vk_utils.h>
 #include <vk_initializers.h>
 
 //bootstrap library
@@ -165,6 +166,10 @@ void VulkanEngine::draw()
 	vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 0);
 
 	compute_pass(cmd);
+
+#if RAYTRACER_ON
+	raytrace(cmd);
+#endif
 
 	//make a clear-color from frame number. This will flash with a 120*pi frame period.
 	VkClearValue clearValue;
@@ -497,6 +502,8 @@ void VulkanEngine::init_swapchain()
 	vkb::Swapchain vkbSwapchain = swapchainBuilder
 		.use_default_format_selection()
 		//use vsync present mode
+		.set_image_usage_flags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+		| VK_IMAGE_USAGE_STORAGE_BIT)
 		.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR)
 		.set_desired_extent(_windowExtent.width, _windowExtent.height)
 		.build()
@@ -959,6 +966,27 @@ VulkanRaytracerBuilder::BlasInput VulkanEngine::create_blas_input(Mesh& mesh)
 	return input;
 }
 
+void VulkanEngine::create_rtdescriptor_set()
+{
+	for (int i = 0; i < FRAME_OVERLAP; i++)
+	{
+		VkAccelerationStructureKHR                   tlas = _rtBuilder.get_acceleration_structure();
+		VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
+		descASInfo.accelerationStructureCount = 1;
+		descASInfo.pAccelerationStructures = &tlas;
+
+		VkDescriptorImageInfo outImageBufferInfo;
+		outImageBufferInfo.sampler = VK_NULL_HANDLE;
+		outImageBufferInfo.imageView = _swapchainImageViews[i];
+		outImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
+			.bind_rt_as(0, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(1, &outImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.build(_rtDescSet[i], _rtDescSetLayout);
+	}
+}
+
 void VulkanEngine::create_rtpipeline()
 {
 	ShaderEffect defaultEffect;
@@ -1008,11 +1036,71 @@ void VulkanEngine::create_rtpipeline()
 
 	_rtPipeline = pipelineBuilder.build_rt_pipeline(_device);
 
+	create_rtshader_binding_table();
+
 }
 
 void VulkanEngine::create_rtshader_binding_table()
 {
+	uint32_t missCount{ 1 };
+	uint32_t hitCount{ 1 };
+	auto     handleCount = 1 + missCount + hitCount;
+	uint32_t handleSize = _rtProperties.shaderGroupHandleSize;
 
+	// The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
+	uint32_t handleSizeAligned = vk_utils::align_up(handleSize, _rtProperties.shaderGroupHandleAlignment);
+
+	_rgenRegion.stride = vk_utils::align_up(handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
+	_rgenRegion.size = _rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
+	_missRegion.stride = handleSizeAligned;
+	_missRegion.size = vk_utils::align_up(missCount * handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
+	_hitRegion.stride = handleSizeAligned;
+	_hitRegion.size = vk_utils::align_up(hitCount * handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
+
+	// Get the shader group handles
+	uint32_t             dataSize = handleCount * handleSize;
+	std::vector<uint8_t> handles(dataSize);
+	auto result = vkGetRayTracingShaderGroupHandlesKHR(_device, _rtPipeline, 0, handleCount, dataSize, handles.data());
+
+	// Allocate a buffer for storing the SBT.
+	VkDeviceSize sbtSize = _rgenRegion.size + _missRegion.size + _hitRegion.size + _callRegion.size;
+	_rtSBTBuffer = create_staging_buffer(sbtSize,
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+		| VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR);
+
+	// Find the SBT addresses of each group
+	VkBufferDeviceAddressInfo info{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, _rtSBTBuffer._buffer };
+	VkDeviceAddress           sbtAddress = vkGetBufferDeviceAddress(_device, &info);
+	_rgenRegion.deviceAddress = sbtAddress;
+	_missRegion.deviceAddress = sbtAddress + _rgenRegion.size;
+	_hitRegion.deviceAddress = sbtAddress + _rgenRegion.size + _missRegion.size;
+
+	// Helper to retrieve the handle data
+	auto getHandle = [&](int i) { return handles.data() + i * handleSize; };
+
+	map_buffer(_allocator, _rtSBTBuffer._allocation, [&](void*& data) {
+		uint8_t* pSBTBuffer = reinterpret_cast<uint8_t*>(data);
+		uint8_t* pData = pSBTBuffer;
+		uint32_t handleIdx{ 0 };
+		// Raygen
+		memcpy(pData, getHandle(handleIdx++), handleSize);
+		// Miss
+		pData = pSBTBuffer + _rgenRegion.size;
+		memcpy(pData, getHandle(handleIdx++), handleSize);
+		// Hit
+		pData = pSBTBuffer + _rgenRegion.size + _missRegion.size;
+		memcpy(pData, getHandle(handleIdx++), handleSize);
+
+	});
+
+}
+
+void VulkanEngine::raytrace(const VkCommandBuffer& cmd)
+{
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _rtPipeline);
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _rtPipelineLayout, 0,
+		1, &_rtDescSet[get_current_frame_index()], 0, nullptr);
+	vkCmdTraceRaysKHR(cmd, &_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _windowExtent.width, _windowExtent.height, 1);
 }
 #endif
 
@@ -1538,6 +1626,7 @@ void VulkanEngine::init_scene()
 
 #if RAYTRACER_ON
 	create_tlas();
+	create_rtdescriptor_set();
 #endif
 
 	_indirectBatchRO = compact_draws(_renderables.data(), _renderables.size());

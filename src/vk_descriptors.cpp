@@ -281,6 +281,30 @@ vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_image(uint32_t bindin
 	return *this;
 }
 
+vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_rt_as(uint32_t binding, VkWriteDescriptorSetAccelerationStructureKHR* accelInfo, VkDescriptorType type, VkShaderStageFlags stageFlags)
+{
+	VkDescriptorSetLayoutBinding newBinding{};
+
+	newBinding.descriptorCount = 1;
+	newBinding.descriptorType = type;
+	newBinding.pImmutableSamplers = nullptr;
+	newBinding.stageFlags = stageFlags;
+	newBinding.binding = binding;
+
+	bindings.push_back(newBinding);
+
+	VkWriteDescriptorSet newWrite{};
+	newWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	newWrite.pNext = accelInfo;
+
+	newWrite.descriptorCount = 1;
+	newWrite.descriptorType = type;
+	newWrite.dstBinding = binding;
+
+	writes.push_back(newWrite);
+	return *this;
+}
+
 bool vkutil::DescriptorBuilder::build(VkDescriptorSet& set, VkDescriptorSetLayout& layout)
 {
 	//build layout first

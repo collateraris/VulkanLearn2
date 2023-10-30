@@ -37,6 +37,8 @@ public:
 
     VkDeviceAddress get_blas_device_address(VkDevice _device, uint32_t blasId);
 
+    VkAccelerationStructureKHR get_acceleration_structure() const;
+
 protected:
 
     std::vector<AccelerationStruct> _blas;  // Bottom-level acceleration structure

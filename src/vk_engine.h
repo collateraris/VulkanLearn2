@@ -294,12 +294,17 @@ private:
 	VkStridedDeviceAddressRegionKHR _hitRegion{};
 	VkStridedDeviceAddressRegionKHR _callRegion{};
 
-	VkPipelineLayout                                  _rtPipelineLayout;
-	VkPipeline                                        _rtPipeline;
+	VkPipelineLayout               _rtPipelineLayout;
+	VkPipeline                     _rtPipeline;
+
+	VkDescriptorSetLayout          _rtDescSetLayout;
+	std::array<VkDescriptorSet,2>  _rtDescSet;
 
 	void create_blas();
 	void create_tlas();
 
+	void raytrace(const VkCommandBuffer& cmd);
+	void create_rtdescriptor_set();
 	void create_rtpipeline();
 	void create_rtshader_binding_table();
 

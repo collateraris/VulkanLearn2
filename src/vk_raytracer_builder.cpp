@@ -191,3 +191,8 @@ VkDeviceAddress VulkanRaytracerBuilder::get_blas_device_address(VkDevice _device
     addressInfo.accelerationStructure = _blas[blasId].accel;
     return vkGetAccelerationStructureDeviceAddressKHR(_device, &addressInfo);
 }
+
+VkAccelerationStructureKHR VulkanRaytracerBuilder::get_acceleration_structure() const
+{
+    return _tlas.accel;
+}
