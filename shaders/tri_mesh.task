@@ -44,9 +44,9 @@ shared uint meshletCount;
 #define FRUSTUM_CULL 0
 #define OCCLUSION_CULL 1
 
-bool frustumCulling(uint mi);
+bool frustumCulling(uint mi, mat4 modelMatrix);
 
-bool occlusionCulling(uint mi);
+bool occlusionCulling(uint mi, mat4 modelMatrix);
 
 bool projectSphereView(vec3 c, float r, float znear, float P00, float P11, out vec4 aabb);
 
@@ -54,13 +54,14 @@ void main()
 {
 	uint ti = gl_LocalInvocationID.x;
 	uint mgi = gl_WorkGroupID.x;
-	uint mi = mgi * 32 + ti;
+	uint mi = mgi * 32 + ti; 
 
 	meshletCount = 0;
 
 	memoryBarrierShared();
 
-	if (frustumCulling(mi) && occlusionCulling(mi))
+	mat4 modelMatrix = objectBuffer.objects[gl_DrawID].model;
+	if (frustumCulling(mi, modelMatrix) && occlusionCulling(mi, modelMatrix))
 	{
 		uint index = atomicAdd(meshletCount, 1);
 
@@ -73,10 +74,11 @@ void main()
 		gl_TaskCountNV = meshletCount;
 }
 
-bool frustumCulling(uint mi)
+bool frustumCulling(uint mi, mat4 modelMatrix)
 {
 	float cr[4] = meshlets[mi].center_radius;
 	vec3 center = vec3(cr[0], cr[1], cr[2]);
+	center = vec3(modelMatrix * vec4(center, 1.));
 	float radius = cr[3];
 
 	bool visible = true;
@@ -88,10 +90,11 @@ bool frustumCulling(uint mi)
 	return visible;
 }
 
-bool occlusionCulling(uint mi)
+bool occlusionCulling(uint mi, mat4 modelMatrix)
 {
     float cr[4] = meshlets[mi].center_radius;
 	vec3 center = vec3(cr[0], cr[1], cr[2]);
+	center = vec3(modelMatrix * vec4(center, 1.));
 	center = vec3(cameraData.view * vec4(center, 1.));
 	float radius = cr[3];
 

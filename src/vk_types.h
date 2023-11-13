@@ -3,8 +3,8 @@
 
 #pragma once
 
-#define MESHSHADER_ON 0
-#define RAYTRACER_ON 1
+#define MESHSHADER_ON 1
+#define RAYTRACER_ON 0
 #define VULKAN_DEBUG_ON 1
 
 #include <volk.h>

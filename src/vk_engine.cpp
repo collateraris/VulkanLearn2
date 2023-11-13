@@ -419,6 +419,16 @@ void VulkanEngine::init_vulkan()
 	buffer_device_address_features.pNext = nullptr;
 	buffer_device_address_features.bufferDeviceAddress = true;
 
+	VkPhysicalDeviceDescriptorIndexingFeatures descriptor_indexing_features{};
+	descriptor_indexing_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+	descriptor_indexing_features.pNext = nullptr;
+	descriptor_indexing_features.shaderSampledImageArrayNonUniformIndexing = true;
+	descriptor_indexing_features.descriptorBindingSampledImageUpdateAfterBind = true;
+	descriptor_indexing_features.shaderUniformBufferArrayNonUniformIndexing = true;
+	descriptor_indexing_features.descriptorBindingUniformBufferUpdateAfterBind = true;
+	descriptor_indexing_features.shaderStorageBufferArrayNonUniformIndexing = true;
+	descriptor_indexing_features.descriptorBindingStorageBufferUpdateAfterBind = true;
+
 #if RAYTRACER_ON
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
 	acceleration_structure_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
@@ -434,6 +444,7 @@ void VulkanEngine::init_vulkan()
 	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features)
 		.add_pNext(&featuresMesh)
 		.add_pNext(&buffer_device_address_features)
+		.add_pNext(&descriptor_indexing_features)
 #if RAYTRACER_ON
 		.add_pNext(&acceleration_structure_features)
 		.add_pNext(&rt_features)
