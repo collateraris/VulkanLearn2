@@ -247,7 +247,7 @@ vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_buffer(uint32_t bindi
 	newWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	newWrite.pNext = nullptr;
 
-	newWrite.descriptorCount = descriptorCount;
+	newWrite.descriptorCount = 1;
 	newWrite.descriptorType = type;
 	newWrite.pBufferInfo = bufferInfo;
 	newWrite.dstBinding = binding;

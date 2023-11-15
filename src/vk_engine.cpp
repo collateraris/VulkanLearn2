@@ -1695,33 +1695,8 @@ void VulkanEngine::init_scene()
 		});
 
 #if MESHSHADER_ON
-	for (auto& mesh : _resManager.meshList)
-	{
-		for (int i = 0; i < FRAME_OVERLAP; i++)
-		{
-			VkDescriptorBufferInfo vertexBufferInfo;
-			vertexBufferInfo.buffer = mesh->_vertexBuffer._buffer;
-			vertexBufferInfo.offset = 0;
-			vertexBufferInfo.range = padSizeToMinStorageBufferOffsetAlignment(mesh->_vertexBuffer._allocation->GetSize());
-			VkDescriptorBufferInfo meshletBufferInfo;
-			meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;
-			meshletBufferInfo.offset = 0;
-			meshletBufferInfo.range = padSizeToMinStorageBufferOffsetAlignment(mesh->_meshletsBuffer._allocation->GetSize());
-			VkDescriptorBufferInfo meshletdataBufferInfo;
-			meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
-			meshletdataBufferInfo.offset = 0;
-			meshletdataBufferInfo.range = padSizeToMinStorageBufferOffsetAlignment(mesh->_meshletdataBuffer._allocation->GetSize());
-
-			vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
-				.bind_buffer(0, &vertexBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV)
-				.bind_buffer(1, &meshletBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_TASK_BIT_NV | VK_SHADER_STAGE_MESH_BIT_NV)
-				.bind_buffer(2, &meshletdataBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV)
-				.build(mesh->meshletsSet, _meshletsSetLayout);
-		}
-	}
-
-	//init_bindless_scene();
-
+	init_bindless_scene();
+#else
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
 	VkSampler blockySampler;
@@ -1732,7 +1707,6 @@ void VulkanEngine::init_scene()
 		if (matDesc->diffuseTexture.empty())
 			continue;
 
-		//for (int i = 0; i < FRAME_OVERLAP; i++)
 		{
 
 			const std::string& matName = matDesc->matName;
@@ -1783,7 +1757,7 @@ void VulkanEngine::init_bindless_scene()
 		VkDescriptorBufferInfo& vertexBufferInfo = vertexBufferInfoList[meshArrayIndex];
 		vertexBufferInfo.buffer = mesh->_vertexBuffer._buffer;
 		vertexBufferInfo.offset = 0;
-		vertexBufferInfo.range = padSizeToMinStorageBufferOffsetAlignment(mesh->_vertexBuffer._allocation->GetSize());
+		vertexBufferInfo.range = padSizeToMinStorageBufferOffsetAlignment(mesh->_vertexBuffer._allocation->GetSize()); 
 
 		VkDescriptorBufferInfo&  meshletBufferInfo = meshletBufferInfoList[meshArrayIndex];
 		meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;
