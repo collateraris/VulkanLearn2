@@ -41,6 +41,7 @@ struct alignas(16) GPUObjectData {
 	glm::mat4 modelMatrix;
 	glm::vec4 center_radius;
 	uint32_t meshletCount;
+	uint32_t pad[3];
 };
 
 struct Mesh {

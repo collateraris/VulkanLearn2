@@ -4,6 +4,7 @@
 #pragma once
 
 #include <vk_types.h>
+#include <vk_utils.h>
 #include <vk_scene.h>
 #include <vk_resource_manager.h>
 #include <vk_mesh.h>
@@ -24,7 +25,7 @@ struct PerFrameData
 };
 
 struct Material {
-	std::array<VkDescriptorSet, 2> textureSet{ VK_NULL_HANDLE }; //texture defaulted to null
+	VkDescriptorSet textureSet{ VK_NULL_HANDLE }; //texture defaulted to null
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
 };
@@ -134,9 +135,10 @@ public:
 
 	VkQueue _graphicsQueue; //queue we will submit to
 	uint32_t _graphicsQueueFamily; //family of that queue
-
+#if	DRAWCMD_BEFORE_MESHSHADER_ON
 	VkPipeline _drawcmdPipeline;
 	VkPipelineLayout _drawcmdPipelineLayout;
+#endif
 
 	VkRenderPass _renderPass;
 
@@ -165,6 +167,9 @@ public:
 
 	std::unique_ptr<vkutil::DescriptorAllocator> _descriptorAllocator;
 	std::unique_ptr<vkutil::DescriptorLayoutCache> _descriptorLayoutCache;
+
+	std::unique_ptr<vkutil::DescriptorAllocator> _descriptorBindlessAllocator;
+	std::unique_ptr<vkutil::DescriptorLayoutCache> _descriptorBindlessLayoutCache;
 	std::unique_ptr<vkutil::MaterialSystem> _materialSystem;
 
 	VkPhysicalDeviceProperties _gpuProperties;
@@ -213,6 +218,7 @@ public:
 	Material* get_material(const std::string& name);
 
 	void compute_pass(VkCommandBuffer cmd);
+
 	//our draw function
 	void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
 
@@ -255,6 +261,8 @@ public:
 	static std::string shader_path(std::string_view path);
 
 	VkQueryPool createQueryPool(uint32_t queryCount);
+
+	uint64_t padSizeToMinAlignment(uint64_t originalSize);
 
 private:
 

@@ -1,4 +1,5 @@
 #include <vk_descriptors.h>
+#include <vk_engine.h>
 
 void vkutil::DescriptorAllocator::reset_pools()
 {
@@ -66,9 +67,11 @@ bool vkutil::DescriptorAllocator::allocate(VkDescriptorSet* set, VkDescriptorSet
 	return false;
 }
 
-void vkutil::DescriptorAllocator::init(VkDevice newDevice)
+void vkutil::DescriptorAllocator::init(VkDevice newDevice, VkDescriptorPoolCreateFlags _flags/* = 0*/, size_t _poolSize/* = 1000*/)
 {
 	device = newDevice;
+	flags = _flags;
+	poolSize = _poolSize;
 }
 
 void vkutil::DescriptorAllocator::cleanup()
@@ -117,7 +120,7 @@ VkDescriptorPool vkutil::DescriptorAllocator::grab_pool()
 	else
 	{
 		//no pools availible, so create a new one
-		return createPool(device, descriptorSizes, 1000, 0);
+		return createPool(device, descriptorSizes, poolSize, flags);
 	}
 }
 
@@ -229,7 +232,7 @@ vkutil::DescriptorBuilder vkutil::DescriptorBuilder::begin(DescriptorLayoutCache
 	return builder;
 }
 
-vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_buffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo, VkDescriptorType type, VkShaderStageFlags stageFlags)
+vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_buffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement/* = 0*/)
 {
 	//create the descriptor binding for the layout
 	VkDescriptorSetLayoutBinding newBinding{};
@@ -251,12 +254,13 @@ vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_buffer(uint32_t bindi
 	newWrite.descriptorType = type;
 	newWrite.pBufferInfo = bufferInfo;
 	newWrite.dstBinding = binding;
+	newWrite.dstArrayElement = dstArrayElement;
 
 	writes.push_back(newWrite);
 	return *this;
 }
 
-vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_image(uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags)
+vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_image(uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement/* = 0*/)
 {
 	VkDescriptorSetLayoutBinding newBinding{};
 
@@ -276,12 +280,13 @@ vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_image(uint32_t bindin
 	newWrite.descriptorType = type;
 	newWrite.pImageInfo = imageInfo;
 	newWrite.dstBinding = binding;
+	newWrite.dstArrayElement = dstArrayElement;
 
 	writes.push_back(newWrite);
 	return *this;
 }
 
-vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_rt_as(uint32_t binding, VkWriteDescriptorSetAccelerationStructureKHR* accelInfo, VkDescriptorType type, VkShaderStageFlags stageFlags)
+vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_rt_as(uint32_t binding, VkWriteDescriptorSetAccelerationStructureKHR* accelInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement/* = 0*/)
 {
 	VkDescriptorSetLayoutBinding newBinding{};
 
@@ -300,6 +305,7 @@ vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_rt_as(uint32_t bindin
 	newWrite.descriptorCount = 1;
 	newWrite.descriptorType = type;
 	newWrite.dstBinding = binding;
+	newWrite.dstArrayElement = dstArrayElement;
 
 	writes.push_back(newWrite);
 	return *this;
@@ -335,4 +341,67 @@ bool vkutil::DescriptorBuilder::build(VkDescriptorSet& set)
 {
 	VkDescriptorSetLayout layout;
 	return build(set, layout);
+}
+
+bool vkutil::DescriptorBuilder::build_bindless(VkDescriptorSet& set, VkDescriptorSetLayout& layout)
+{
+	std::vector<VkDescriptorBindingFlags> flags(bindings.size(), VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT);
+
+	VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlags{};
+	bindingFlags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+	bindingFlags.pNext = nullptr;
+	bindingFlags.pBindingFlags = flags.data();
+	bindingFlags.bindingCount = flags.size();
+
+	//build layout first
+	VkDescriptorSetLayoutCreateInfo layoutInfo{};
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+	layoutInfo.pNext = &bindingFlags;
+
+	layoutInfo.pBindings = bindings.data();
+	layoutInfo.bindingCount = bindings.size();
+
+	layout = cache->create_descriptor_layout(&layoutInfo);
+
+	//allocate descriptor
+	bool success = alloc->allocate(&set, layout);
+	if (!success) { return false; };
+
+	//write descriptor
+	for (VkWriteDescriptorSet& w : writes) {
+		w.dstSet = set;
+	}
+
+	vkUpdateDescriptorSets(alloc->device, writes.size(), writes.data(), 0, nullptr);
+
+	return true;
+}
+
+void vkutil::BindlessParams::build(uint32_t binding, DescriptorLayoutCache* layoutCache, DescriptorAllocator* allocator, VmaAllocator& vmaallocator)
+{
+	_rangeBuffer = _engine->create_cpu_to_gpu_buffer(_lastOffset, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+	// Copy ranges to buffer
+	_engine->map_buffer(vmaallocator, _rangeBuffer._allocation, [&](void*& data) {
+			uint8_t* _data = (uint8_t*)data;
+			for (const auto& range : _ranges) {
+				memcpy(_data + range.offset, range.data, range.size);
+			}
+		});
+
+	// Get maximum size of a single range
+	uint32_t maxRangeSize = 0;
+	for (auto& range : _ranges) {
+		maxRangeSize = std::max(range.size, maxRangeSize);
+	}
+
+	VkDescriptorBufferInfo bufferInfo{};
+	bufferInfo.buffer = _rangeBuffer._buffer;
+	bufferInfo.offset = 0;
+	bufferInfo.range = _engine->padSizeToMinAlignment(maxRangeSize);
+
+	vkutil::DescriptorBuilder::begin(layoutCache,allocator)
+		.bind_buffer(binding, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_ALL)
+		.build(_descriptorSet, _layout);
 }

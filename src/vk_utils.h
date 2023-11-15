@@ -1,22 +1,30 @@
 #pragma once
 
+#include <vk_types.h>
+
 namespace vk_utils
 {
-	template <class integral>
-	constexpr bool is_aligned(integral x, size_t a) noexcept
+	template <Integral T>
+	constexpr bool is_aligned(T x, size_t a) noexcept
 	{
-		return (x & (integral(a) - 1)) == 0;
-	}
+		return (x & (T(a) - 1)) == 0;
+	};
 
-	template <class integral>
-	constexpr integral align_up(integral x, size_t a) noexcept
+	template <Integral T>
+	constexpr T align_up(T x, size_t a) noexcept
 	{
-		return integral((x + (integral(a) - 1)) & ~integral(a - 1));
-	}
+		return T((x + (T(a) - 1)) & ~T(a - 1));
+	};
 
-	template <class integral>
-	constexpr integral align_down(integral x, size_t a) noexcept
+	template <Integral T>
+	constexpr T align_down(T x, size_t a) noexcept
 	{
-		return integral(x & ~integral(a - 1));
-	}
+		return T(x & ~T(a - 1));
+	};
+
+	template <Integral T>
+	T padSizeToMinAlignment(T originalSize, T minAlignment)
+	{
+		return (originalSize + minAlignment - 1) & ~(minAlignment - 1);
+	};
 }

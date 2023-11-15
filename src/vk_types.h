@@ -3,6 +3,7 @@
 
 #pragma once
 
+#define DRAWCMD_BEFORE_MESHSHADER_ON 1
 #define MESHSHADER_ON 1
 #define RAYTRACER_ON 0
 #define VULKAN_DEBUG_ON 1
@@ -84,6 +85,7 @@ struct Stats
 #include <filesystem>
 #include <format>
 #include <algorithm>
+#include <type_traits>
 
 #ifdef __GNUC__
 #define PACKED_STRUCT __attribute__((packed,aligned(1)))
@@ -117,3 +119,6 @@ struct SceneConfig
 	std::string fileName;
 	float scaleFactor = 1.;
 };
+
+template <class T>
+concept Integral = std::is_integral<T>::value;

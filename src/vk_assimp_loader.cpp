@@ -158,10 +158,6 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 	if (aiGetMaterialTexture(amat, aiTextureType_DIFFUSE, 0, &Path, &Mapping, &UVIndex, &Blend, &TextureOp, TextureMapMode, &TextureFlags) == AI_SUCCESS)
 	{
 		newMatDesc->diffuseTexture = lastDirectory + "/" + std::string(Path.C_Str());
-		auto texFound = resManager.textureCache.find(newMatDesc->diffuseTexture);
-		if (texFound == resManager.textureCache.end())
-		{
-			resManager.textureCache[newMatDesc->diffuseTexture] = std::make_unique<Texture>();
-		}
+		newMatDesc->diffuseTextureIndex = resManager.storeTexture(newMatDesc->diffuseTexture);
 	}
 }

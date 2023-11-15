@@ -1,6 +1,9 @@
 #pragma once
 
 #include <vk_types.h>
+#include <vk_utils.h>
+
+class VulkanEngine;
 
 namespace vkutil {
 
@@ -27,7 +30,7 @@ namespace vkutil {
 		void reset_pools();
 		bool allocate(VkDescriptorSet* set, VkDescriptorSetLayout layout);
 
-		void init(VkDevice newDevice);
+		void init(VkDevice newDevice, VkDescriptorPoolCreateFlags _flags = 0, size_t _poolSize = 1000);
 
 		void cleanup();
 
@@ -40,6 +43,8 @@ namespace vkutil {
 		PoolSizes descriptorSizes;
 		std::vector<VkDescriptorPool> usedPools;
 		std::vector<VkDescriptorPool> freePools;
+		VkDescriptorPoolCreateFlags flags = 0;
+		size_t poolSize = 1000;
 	};
 
 	class DescriptorLayoutCache {
@@ -77,12 +82,14 @@ namespace vkutil {
 	public:
 		static DescriptorBuilder begin(DescriptorLayoutCache* layoutCache, DescriptorAllocator* allocator);
 
-		DescriptorBuilder& bind_buffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo, VkDescriptorType type, VkShaderStageFlags stageFlags);
-		DescriptorBuilder& bind_image(uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags);
-		DescriptorBuilder& bind_rt_as(uint32_t binding, VkWriteDescriptorSetAccelerationStructureKHR* accelInfo, VkDescriptorType type, VkShaderStageFlags stageFlags);
+		DescriptorBuilder& bind_buffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement = 0);
+		DescriptorBuilder& bind_image(uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement = 0);
+		DescriptorBuilder& bind_rt_as(uint32_t binding, VkWriteDescriptorSetAccelerationStructureKHR* accelInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement = 0);
 
 		bool build(VkDescriptorSet& set, VkDescriptorSetLayout& layout);
 		bool build(VkDescriptorSet& set);
+
+		bool build_bindless(VkDescriptorSet& set, VkDescriptorSetLayout& layout);
 	private:
 
 		std::vector<VkWriteDescriptorSet> writes;
@@ -90,5 +97,55 @@ namespace vkutil {
 
 		DescriptorLayoutCache* cache;
 		DescriptorAllocator* alloc;
+	};
+
+	class BindlessParams
+	{
+		struct Range
+		{
+			uint32_t offset;
+			uint32_t size;
+			void* data;
+		};
+
+	public:
+		BindlessParams(uint32_t minAlignment, VulkanEngine* e) : _minAlignment(minAlignment), _engine(e) {}
+
+		template<class TData>
+		uint32_t addRange(TData&& data) {
+			// Copy data to heap and store void pointer
+			// since we do not care about the type at
+			// point
+			size_t dataSize = sizeof(TData);
+			auto* bytes = new TData;
+			*bytes = data;
+
+			// Add range
+			uint32_t currentOffset = _lastOffset;
+			_ranges.push_back({ currentOffset, dataSize, bytes });
+
+			// Pad the data size to minimum alignment
+			// and move the offset
+			_lastOffset += vk_utils::padSizeToMinAlignment(dataSize, _minAlignment);
+			return currentOffset;
+		}
+
+		void build(uint32_t binding, DescriptorLayoutCache* layoutCache, DescriptorAllocator* allocator, VmaAllocator& vmaallocator);
+
+		inline VkDescriptorSet getDescriptorSet() { return _descriptorSet; }
+
+		inline VkDescriptorSetLayout getDescriptorSetLayout() { return _layout; }
+
+	private:
+		uint32_t _minAlignment;
+		uint32_t _lastOffset = 0;
+		std::vector<Range> _ranges;
+
+		VkDescriptorSetLayout _layout;
+		VkDescriptorSet _descriptorSet;
+
+		AllocatedBuffer _rangeBuffer;
+
+		VulkanEngine* _engine = nullptr;
 	};
 }

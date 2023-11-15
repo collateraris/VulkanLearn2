@@ -20,6 +20,7 @@ struct ObjectData
 	mat4 model;
 	vec4 center_radius;
 	uint meshletCount;
+    uint pad[3];
 };
 
 struct MeshDrawCommand

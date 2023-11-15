@@ -7,17 +7,17 @@ struct MaterialDesc
 {
 	std::string matName = {};
 	std::string diffuseTexture = {};
+	uint32_t diffuseTextureIndex;
 };
 
 class ResourceManager
 {
 public:
 
-	using meshIndex = int;
-	using matIndex = int;
-
 	std::unordered_map<std::string, std::unique_ptr<Texture>> textureCache;
 	std::vector<std::unique_ptr<Mesh>> meshList;
-	std::vector<std::unique_ptr<MaterialDesc>> matDescList;
+	std::vector<std::unique_ptr<MaterialDesc>> matDescList; 
+	std::vector<Texture*> textureList;
 
+	uint32_t storeTexture(std::string& name);
 };
