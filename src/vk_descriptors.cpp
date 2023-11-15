@@ -232,25 +232,22 @@ vkutil::DescriptorBuilder vkutil::DescriptorBuilder::begin(DescriptorLayoutCache
 	return builder;
 }
 
-vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_buffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement/* = 0*/)
+vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_buffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement/* = 0*/, uint32_t descriptorCount/* = 1*/)
 {
-	//create the descriptor binding for the layout
-	VkDescriptorSetLayoutBinding newBinding{};
+	VkDescriptorSetLayoutBinding& newBinding = bindingsMap[binding];
 
-	newBinding.descriptorCount = 1;
+	newBinding.descriptorCount = descriptorCount;
 	newBinding.descriptorType = type;
 	newBinding.pImmutableSamplers = nullptr;
 	newBinding.stageFlags = stageFlags;
 	newBinding.binding = binding;
-
-	bindings.push_back(newBinding);
 
 	//create the descriptor write
 	VkWriteDescriptorSet newWrite{};
 	newWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	newWrite.pNext = nullptr;
 
-	newWrite.descriptorCount = 1;
+	newWrite.descriptorCount = descriptorCount;
 	newWrite.descriptorType = type;
 	newWrite.pBufferInfo = bufferInfo;
 	newWrite.dstBinding = binding;
@@ -260,17 +257,15 @@ vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_buffer(uint32_t bindi
 	return *this;
 }
 
-vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_image(uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement/* = 0*/)
+vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_image(uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement/* = 0*/, uint32_t descriptorCount/* = 1*/)
 {
-	VkDescriptorSetLayoutBinding newBinding{};
+	VkDescriptorSetLayoutBinding& newBinding = bindingsMap[binding];
 
-	newBinding.descriptorCount = 1;
+	newBinding.descriptorCount = descriptorCount;
 	newBinding.descriptorType = type;
 	newBinding.pImmutableSamplers = nullptr;
 	newBinding.stageFlags = stageFlags;
 	newBinding.binding = binding;
-
-	bindings.push_back(newBinding);
 
 	VkWriteDescriptorSet newWrite{};
 	newWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -286,17 +281,15 @@ vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_image(uint32_t bindin
 	return *this;
 }
 
-vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_rt_as(uint32_t binding, VkWriteDescriptorSetAccelerationStructureKHR* accelInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement/* = 0*/)
+vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_rt_as(uint32_t binding, VkWriteDescriptorSetAccelerationStructureKHR* accelInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement/* = 0*/, uint32_t descriptorCount/* = 1*/)
 {
-	VkDescriptorSetLayoutBinding newBinding{};
+	VkDescriptorSetLayoutBinding& newBinding = bindingsMap[binding];
 
-	newBinding.descriptorCount = 1;
+	newBinding.descriptorCount = descriptorCount;
 	newBinding.descriptorType = type;
 	newBinding.pImmutableSamplers = nullptr;
 	newBinding.stageFlags = stageFlags;
 	newBinding.binding = binding;
-
-	bindings.push_back(newBinding);
 
 	VkWriteDescriptorSet newWrite{};
 	newWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -317,6 +310,10 @@ bool vkutil::DescriptorBuilder::build(VkDescriptorSet& set, VkDescriptorSetLayou
 	VkDescriptorSetLayoutCreateInfo layoutInfo{};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	layoutInfo.pNext = nullptr;
+
+	std::vector<VkDescriptorSetLayoutBinding> bindings{};
+	for (auto& [bindPoint, setLayoutBinding] : bindingsMap)
+		bindings.push_back(setLayoutBinding);
 
 	layoutInfo.pBindings = bindings.data();
 	layoutInfo.bindingCount = bindings.size();
@@ -345,6 +342,10 @@ bool vkutil::DescriptorBuilder::build(VkDescriptorSet& set)
 
 bool vkutil::DescriptorBuilder::build_bindless(VkDescriptorSet& set, VkDescriptorSetLayout& layout)
 {
+	std::vector<VkDescriptorSetLayoutBinding> bindings{};
+	for (auto& [bindPoint, setLayoutBinding] : bindingsMap)
+		bindings.push_back(setLayoutBinding);
+
 	std::vector<VkDescriptorBindingFlags> flags(bindings.size(), VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT);
 
 	VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlags{};
@@ -399,7 +400,7 @@ void vkutil::BindlessParams::build(uint32_t binding, DescriptorLayoutCache* layo
 	VkDescriptorBufferInfo bufferInfo{};
 	bufferInfo.buffer = _rangeBuffer._buffer;
 	bufferInfo.offset = 0;
-	bufferInfo.range = _engine->padSizeToMinAlignment(maxRangeSize);
+	bufferInfo.range = _engine->padSizeToMinUniformBufferOffsetAlignment(maxRangeSize);
 
 	vkutil::DescriptorBuilder::begin(layoutCache,allocator)
 		.bind_buffer(binding, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_ALL)

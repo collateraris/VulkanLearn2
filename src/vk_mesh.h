@@ -50,7 +50,7 @@ struct Mesh {
 	std::vector<Vertex_MS> _verticesMS;
 #if MESHSHADER_ON
 	std::vector<Meshlet> _meshlets;
-	std::array<VkDescriptorSet, 2> meshletsSet{VK_NULL_HANDLE };
+	VkDescriptorSet meshletsSet{VK_NULL_HANDLE };
 	std::vector<uint32_t> meshletdata;
 #endif
 	AllocatedBuffer _vertexBuffer;

@@ -23,7 +23,7 @@ namespace vk_utils
 	};
 
 	template <Integral T>
-	T padSizeToMinAlignment(T originalSize, T minAlignment)
+	T padSizeToAlignment(T originalSize, T minAlignment)
 	{
 		return (originalSize + minAlignment - 1) & ~(minAlignment - 1);
 	};

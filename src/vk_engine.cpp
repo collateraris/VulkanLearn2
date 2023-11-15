@@ -5,6 +5,8 @@
 #include <SDL.h>
 #include <SDL_vulkan.h>
 
+#include <vk_types.h>
+#include <vk_utils.h>
 #include <vk_initializers.h>
 
 //bootstrap library
@@ -99,8 +101,9 @@ void VulkanEngine::cleanup()
 		_mainDeletionQueue.flush();
 
 		_descriptorAllocator->cleanup();
-		_descriptorBindlessAllocator->cleanup();
 		_descriptorLayoutCache->cleanup();
+
+		_descriptorBindlessAllocator->cleanup();
 		_descriptorBindlessLayoutCache->cleanup();
 
 		vkDestroyDevice(_device, nullptr);
@@ -164,9 +167,8 @@ void VulkanEngine::draw()
 
 	vkCmdResetQueryPool(cmd, get_current_frame().queryPool, 0, 128);
 	vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 0);
-#if DRAWCMD_BEFORE_MESHSHADER_ON
+
 	compute_pass(cmd);
-#endif
 
 #if RAYTRACER_ON
 	raytrace(cmd);
@@ -429,6 +431,7 @@ void VulkanEngine::init_vulkan()
 	descriptor_indexing_features.descriptorBindingUniformBufferUpdateAfterBind = true;
 	descriptor_indexing_features.shaderStorageBufferArrayNonUniformIndexing = true;
 	descriptor_indexing_features.descriptorBindingStorageBufferUpdateAfterBind = true;
+	descriptor_indexing_features.descriptorBindingPartiallyBound = true;
 
 #if RAYTRACER_ON
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
@@ -816,7 +819,7 @@ void VulkanEngine::init_pipelines() {
 		vkDestroyPipelineLayout(_device, meshPipLayout, nullptr);
 		});
 
-#if MESHSHADER_ON && DRAWCMD_BEFORE_MESHSHADER_ON
+#if MESHSHADER_ON
 	{
 		ShaderEffect computeEffect;
 		computeEffect.add_stage(_shaderCache.get_shader(shader_path("drawcmd.comp.spv")), VK_SHADER_STAGE_COMPUTE_BIT);
@@ -860,18 +863,18 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 {
 #if MESHSHADER_ON
 		{
-			size_t bufferSize = mesh._verticesMS.size() * sizeof(Vertex_MS);
+			size_t bufferSize = padSizeToMinStorageBufferOffsetAlignment(mesh._verticesMS.size() * sizeof(Vertex_MS));
 
 			mesh._vertexBuffer = create_buffer_n_copy_data(bufferSize, mesh._verticesMS.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		}
 		{
-			size_t bufferSize = mesh._meshlets.size() * sizeof(Meshlet);
+			size_t bufferSize = padSizeToMinStorageBufferOffsetAlignment(mesh._meshlets.size() * sizeof(Meshlet));
 
 			mesh._meshletsBuffer = create_buffer_n_copy_data(bufferSize, mesh._meshlets.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		}
 
 		{
-			size_t bufferSize = mesh.meshletdata.size() * sizeof(uint32_t);
+			size_t bufferSize = padSizeToMinStorageBufferOffsetAlignment(mesh.meshletdata.size() * sizeof(uint32_t));
 
 			mesh._meshletdataBuffer = create_buffer_n_copy_data(bufferSize, mesh.meshletdata.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		}
@@ -1152,10 +1155,16 @@ VkQueryPool VulkanEngine::createQueryPool(uint32_t queryCount)
 	return queryPool;
 }
 
-uint64_t VulkanEngine::padSizeToMinAlignment(uint64_t originalSize)
+uint64_t VulkanEngine::padSizeToMinUniformBufferOffsetAlignment(uint64_t originalSize)
 {
 	uint64_t minAlignment = _physDevProp.limits.minUniformBufferOffsetAlignment;
-	return vk_utils::padSizeToMinAlignment(originalSize, minAlignment);
+	return vk_utils::padSizeToAlignment(originalSize, minAlignment);
+}
+
+uint64_t VulkanEngine::padSizeToMinStorageBufferOffsetAlignment(uint64_t originalSize)
+{
+	uint64_t minAlignment = _physDevProp.limits.minStorageBufferOffsetAlignment;
+	return vk_utils::padSizeToAlignment(originalSize, minAlignment);
 }
 
 FrameData& VulkanEngine::get_current_frame()
@@ -1319,11 +1328,11 @@ void VulkanEngine::init_descriptors()
 	_descriptorAllocator = std::make_unique<vkutil::DescriptorAllocator>();
 	_descriptorAllocator->init(_device);
 
-	_descriptorBindlessAllocator = std::make_unique<vkutil::DescriptorAllocator>();
-	_descriptorBindlessAllocator->init(_device, VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT);
-
 	_descriptorLayoutCache = std::make_unique<vkutil::DescriptorLayoutCache>();
 	_descriptorLayoutCache->init(_device);
+
+	_descriptorBindlessAllocator = std::make_unique<vkutil::DescriptorAllocator>();
+	_descriptorBindlessAllocator->init(_device, VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT);
 
 	_descriptorBindlessLayoutCache = std::make_unique<vkutil::DescriptorLayoutCache>();
 	_descriptorBindlessLayoutCache->init(_device);
@@ -1394,12 +1403,12 @@ void VulkanEngine::init_descriptors()
 		VkDescriptorBufferInfo objectBufferInfo;
 		objectBufferInfo.buffer = _objectBuffer._buffer;
 		objectBufferInfo.offset = 0;
-		objectBufferInfo.range = padSizeToMinAlignment(_objectBuffer._allocation->GetSize());
+		objectBufferInfo.range = sizeof(GPUObjectData) * MAX_OBJECTS;
 
 		VkDescriptorBufferInfo cameraInfo;
 		cameraInfo.buffer = _frames[i].cameraBuffer._buffer;
 		cameraInfo.offset = 0;
-		cameraInfo.range = padSizeToMinAlignment(_frames[i].cameraBuffer._allocation->GetSize());
+		cameraInfo.range = sizeof(GPUCameraData);
 #if MESHSHADER_ON
 
 		VkDescriptorImageInfo depthPyramidImageBufferInfo;
@@ -1537,7 +1546,7 @@ std::vector<IndirectBatch> VulkanEngine::compact_draws(RenderObject* objects, in
 
 void VulkanEngine::compute_pass(VkCommandBuffer cmd)
 {
-#if DRAWCMD_BEFORE_MESHSHADER_ON
+#if MESHSHADER_ON
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipeline);
 
 	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipelineLayout, 0, 1, &get_current_frame().objectDescriptor, 0, nullptr);
@@ -1571,7 +1580,7 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 	for (IndirectBatch& object : _indirectBatchRO)
 	{
 		if (object.mesh != lastMesh) {
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &object.mesh->meshletsSet[frameIndex], 0, nullptr);
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &object.mesh->meshletsSet, 0, nullptr);
 			lastMesh = object.mesh;
 		}
 		if (object.material != lastMaterial) {
@@ -1600,9 +1609,9 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 			//object data descriptor
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &get_current_frame().objectDescriptor, 0, nullptr);
 
-			if (object.material->textureSet != VK_NULL_HANDLE) {
+			if (object.material->textureSet[frameIndex] != VK_NULL_HANDLE) {
 				//texture descriptor
-				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet, 0, nullptr);
+				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet[frameIndex], 0, nullptr);
 			}
 			lastMaterial = object.material;
 		}
@@ -1654,20 +1663,7 @@ void VulkanEngine::init_scene()
 #endif
 
 	_indirectBatchRO = compact_draws(_renderables.data(), _renderables.size());
-#if MESHSHADER_ON
-	map_buffer(_allocator, _indirectBuffer._allocation, [&](void*& data) {
-		VkDrawMeshTasksIndirectCommandNV* drawCommands = (VkDrawMeshTasksIndirectCommandNV*)data;
-		//encode the draw data of each object into the indirect draw buffer
-		for (int i = 0; i < _renderables.size(); i++)
-		{
-			RenderObject& object = _renderables[i];
-
-			drawCommands[i].firstTask = 0;
-			drawCommands[i].taskCount = (object.mesh->_meshlets.size() + 31) / 32;
-		}
-	});
-#else
-
+#if !MESHSHADER_ON
 	map_buffer(_allocator, _indirectBuffer._allocation, [&](void*& data) {
 		VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)data;
 		//encode the draw data of each object into the indirect draw buffer
@@ -1706,26 +1702,26 @@ void VulkanEngine::init_scene()
 			VkDescriptorBufferInfo vertexBufferInfo;
 			vertexBufferInfo.buffer = mesh->_vertexBuffer._buffer;
 			vertexBufferInfo.offset = 0;
-			vertexBufferInfo.range = padSizeToMinAlignment(mesh->_vertexBuffer._allocation->GetSize());
-
+			vertexBufferInfo.range = padSizeToMinStorageBufferOffsetAlignment(mesh->_vertexBuffer._allocation->GetSize());
 			VkDescriptorBufferInfo meshletBufferInfo;
 			meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;
 			meshletBufferInfo.offset = 0;
-			meshletBufferInfo.range = padSizeToMinAlignment(mesh->_meshletsBuffer._allocation->GetSize());
-
+			meshletBufferInfo.range = padSizeToMinStorageBufferOffsetAlignment(mesh->_meshletsBuffer._allocation->GetSize());
 			VkDescriptorBufferInfo meshletdataBufferInfo;
 			meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
 			meshletdataBufferInfo.offset = 0;
-			meshletdataBufferInfo.range = padSizeToMinAlignment(mesh->_meshletdataBuffer._allocation->GetSize());
+			meshletdataBufferInfo.range = padSizeToMinStorageBufferOffsetAlignment(mesh->_meshletdataBuffer._allocation->GetSize());
 
 			vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
 				.bind_buffer(0, &vertexBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV)
 				.bind_buffer(1, &meshletBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_TASK_BIT_NV | VK_SHADER_STAGE_MESH_BIT_NV)
 				.bind_buffer(2, &meshletdataBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV)
-				.build(mesh->meshletsSet[i], _meshletsSetLayout);
+				.build(mesh->meshletsSet, _meshletsSetLayout);
 		}
 	}
-#endif
+
+	//init_bindless_scene();
+
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
 	VkSampler blockySampler;
@@ -1735,6 +1731,9 @@ void VulkanEngine::init_scene()
 	{
 		if (matDesc->diffuseTexture.empty())
 			continue;
+
+		//for (int i = 0; i < FRAME_OVERLAP; i++)
+		{
 
 			const std::string& matName = matDesc->matName;
 			Material* texturedMat = get_material(matName);
@@ -1747,7 +1746,84 @@ void VulkanEngine::init_scene()
 			vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
 				.bind_image(0, &imageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.build(texturedMat->textureSet, _singleTextureSetLayout);
+		}
 	}
+#endif
+}
+
+void VulkanEngine::init_bindless_scene()
+{
+	const uint32_t meshletsVerticesBinding = 0;
+	const uint32_t meshletsBinding = 1;
+	const uint32_t meshletsDataBinding = 2;
+	const uint32_t textureBinding = 3;
+
+	vkutil::DescriptorBuilder bindlessDescriptor = vkutil::DescriptorBuilder::begin(_descriptorBindlessLayoutCache.get(), _descriptorBindlessAllocator.get());
+
+	//BIND MESHDATA
+	std::vector<VkDescriptorBufferInfo> vertexBufferInfoList{};
+	vertexBufferInfoList.resize(_resManager.meshList.size());
+
+	std::vector<VkDescriptorBufferInfo> meshletBufferInfoList{};
+	meshletBufferInfoList.resize(_resManager.meshList.size());
+
+	std::vector<VkDescriptorBufferInfo> meshletdataBufferInfoList{};
+	meshletdataBufferInfoList.resize(_resManager.meshList.size());
+	
+	for (uint32_t meshArrayIndex = 0; meshArrayIndex < _resManager.meshList.size(); meshArrayIndex++)
+	{
+		Mesh* mesh = _resManager.meshList[meshArrayIndex].get();
+
+		if (!mesh ||
+			!mesh->_vertexBuffer._buffer ||
+			!mesh->_meshletsBuffer._buffer ||
+			!mesh->_meshletdataBuffer._buffer)
+			continue;
+
+		VkDescriptorBufferInfo& vertexBufferInfo = vertexBufferInfoList[meshArrayIndex];
+		vertexBufferInfo.buffer = mesh->_vertexBuffer._buffer;
+		vertexBufferInfo.offset = 0;
+		vertexBufferInfo.range = padSizeToMinStorageBufferOffsetAlignment(mesh->_vertexBuffer._allocation->GetSize());
+
+		VkDescriptorBufferInfo&  meshletBufferInfo = meshletBufferInfoList[meshArrayIndex];
+		meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;
+		meshletBufferInfo.offset = 0;
+		meshletBufferInfo.range = padSizeToMinStorageBufferOffsetAlignment(mesh->_meshletsBuffer._allocation->GetSize());
+
+		VkDescriptorBufferInfo& meshletdataBufferInfo = meshletdataBufferInfoList[meshArrayIndex];
+		meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
+		meshletdataBufferInfo.offset = 0;
+		meshletdataBufferInfo.range = padSizeToMinStorageBufferOffsetAlignment(mesh->_meshletdataBuffer._allocation->GetSize());
+
+		bindlessDescriptor
+			.bind_buffer(meshletsVerticesBinding, &vertexBufferInfoList[meshArrayIndex], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshArrayIndex, _resManager.meshList.size())
+			.bind_buffer(meshletsBinding, &meshletBufferInfoList[meshArrayIndex], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_TASK_BIT_NV | VK_SHADER_STAGE_MESH_BIT_NV, meshArrayIndex, _resManager.meshList.size())
+			.bind_buffer(meshletsDataBinding, &meshletdataBufferInfoList[meshArrayIndex], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshArrayIndex, _resManager.meshList.size());
+	}
+
+	//BIND SAMPLERS
+	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
+
+	VkSampler blockySampler;
+	vkCreateSampler(_device, &samplerInfo, nullptr, &blockySampler);
+
+	std::vector<VkDescriptorImageInfo> imageInfoList{};
+	imageInfoList.resize(_resManager.textureList.size());
+
+	for (uint32_t textureArrayIndex = 0; textureArrayIndex <  _resManager.textureList.size(); textureArrayIndex++)
+	{
+		if (!_resManager.textureList[textureArrayIndex]->imageView)
+			continue;
+
+		VkDescriptorImageInfo& imageBufferInfo = imageInfoList[textureArrayIndex];
+		imageBufferInfo.sampler = blockySampler;
+		imageBufferInfo.imageView = _resManager.textureList[textureArrayIndex]->imageView;
+		imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+		bindlessDescriptor.bind_image(textureBinding, &imageInfoList[textureArrayIndex], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, textureArrayIndex, _resManager.textureList.size());
+	}
+
+	bindlessDescriptor.build_bindless(_bindlessSet, _bindlessSetLayout);
 }
 
 void VulkanEngine::init_imgui()

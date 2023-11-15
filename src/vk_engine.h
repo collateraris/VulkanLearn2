@@ -135,10 +135,9 @@ public:
 
 	VkQueue _graphicsQueue; //queue we will submit to
 	uint32_t _graphicsQueueFamily; //family of that queue
-#if	DRAWCMD_BEFORE_MESHSHADER_ON
+
 	VkPipeline _drawcmdPipeline;
 	VkPipelineLayout _drawcmdPipelineLayout;
-#endif
 
 	VkRenderPass _renderPass;
 
@@ -170,6 +169,10 @@ public:
 
 	std::unique_ptr<vkutil::DescriptorAllocator> _descriptorBindlessAllocator;
 	std::unique_ptr<vkutil::DescriptorLayoutCache> _descriptorBindlessLayoutCache;
+	
+	VkDescriptorSet _bindlessSet;
+	VkDescriptorSetLayout _bindlessSetLayout;
+
 	std::unique_ptr<vkutil::MaterialSystem> _materialSystem;
 
 	VkPhysicalDeviceProperties _gpuProperties;
@@ -218,7 +221,6 @@ public:
 	Material* get_material(const std::string& name);
 
 	void compute_pass(VkCommandBuffer cmd);
-
 	//our draw function
 	void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
 
@@ -262,7 +264,8 @@ public:
 
 	VkQueryPool createQueryPool(uint32_t queryCount);
 
-	uint64_t padSizeToMinAlignment(uint64_t originalSize);
+	uint64_t padSizeToMinUniformBufferOffsetAlignment(uint64_t originalSize);
+	uint64_t padSizeToMinStorageBufferOffsetAlignment(uint64_t originalSize);
 
 private:
 
@@ -281,6 +284,8 @@ private:
 	void init_pipelines();
 
 	void init_scene();
+
+	void init_bindless_scene();
 
 	void load_meshes();
 

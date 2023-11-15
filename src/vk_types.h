@@ -3,7 +3,6 @@
 
 #pragma once
 
-#define DRAWCMD_BEFORE_MESHSHADER_ON 1
 #define MESHSHADER_ON 1
 #define RAYTRACER_ON 0
 #define VULKAN_DEBUG_ON 1
@@ -72,6 +71,7 @@ struct Stats
 
 #include <string>
 #include <unordered_map>
+#include <set>
 #include <vector>
 #include <assert.h>
 #include <array>
