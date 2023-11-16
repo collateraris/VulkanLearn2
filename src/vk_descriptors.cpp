@@ -232,7 +232,7 @@ vkutil::DescriptorBuilder vkutil::DescriptorBuilder::begin(DescriptorLayoutCache
 	return builder;
 }
 
-vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_buffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement/* = 0*/, uint32_t descriptorCount/* = 1*/)
+vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_buffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t descriptorCount/* = 1*/)
 {
 	VkDescriptorSetLayoutBinding& newBinding = bindingsMap[binding];
 
@@ -247,17 +247,17 @@ vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_buffer(uint32_t bindi
 	newWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	newWrite.pNext = nullptr;
 
-	newWrite.descriptorCount = 1;
+	newWrite.descriptorCount = descriptorCount;
 	newWrite.descriptorType = type;
 	newWrite.pBufferInfo = bufferInfo;
 	newWrite.dstBinding = binding;
-	newWrite.dstArrayElement = dstArrayElement;
+	newWrite.dstArrayElement = 0;
 
 	writes.push_back(newWrite);
 	return *this;
 }
 
-vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_image(uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement/* = 0*/, uint32_t descriptorCount/* = 1*/)
+vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_image(uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t descriptorCount/* = 1*/)
 {
 	VkDescriptorSetLayoutBinding& newBinding = bindingsMap[binding];
 
@@ -271,17 +271,17 @@ vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_image(uint32_t bindin
 	newWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	newWrite.pNext = nullptr;
 
-	newWrite.descriptorCount = 1;
+	newWrite.descriptorCount = descriptorCount;
 	newWrite.descriptorType = type;
 	newWrite.pImageInfo = imageInfo;
 	newWrite.dstBinding = binding;
-	newWrite.dstArrayElement = dstArrayElement;
+	newWrite.dstArrayElement = 0;
 
 	writes.push_back(newWrite);
 	return *this;
 }
 
-vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_rt_as(uint32_t binding, VkWriteDescriptorSetAccelerationStructureKHR* accelInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement/* = 0*/, uint32_t descriptorCount/* = 1*/)
+vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_rt_as(uint32_t binding, VkWriteDescriptorSetAccelerationStructureKHR* accelInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t descriptorCount/* = 1*/)
 {
 	VkDescriptorSetLayoutBinding& newBinding = bindingsMap[binding];
 
@@ -295,10 +295,10 @@ vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_rt_as(uint32_t bindin
 	newWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	newWrite.pNext = accelInfo;
 
-	newWrite.descriptorCount = 1;
+	newWrite.descriptorCount = descriptorCount;
 	newWrite.descriptorType = type;
 	newWrite.dstBinding = binding;
-	newWrite.dstArrayElement = dstArrayElement;
+	newWrite.dstArrayElement = 0;
 
 	writes.push_back(newWrite);
 	return *this;

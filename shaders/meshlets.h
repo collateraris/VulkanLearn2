@@ -1,3 +1,8 @@
+#extension GL_EXT_nonuniform_qualifier:enable
+#extension GL_EXT_shader_explicit_arithmetic_types: enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int8: enable
+#extension GL_EXT_shader_explicit_arithmetic_types_float16: enable
+
 struct s_vertex
 {
 	float vx, vy, vz;
@@ -20,7 +25,9 @@ struct ObjectData
 	mat4 model;
 	vec4 center_radius;
 	uint meshletCount;
-    uint pad[3];
+   	uint meshIndex;
+	uint diffuseTexIndex;
+	uint pad;
 };
 
 struct MeshDrawCommand

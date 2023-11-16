@@ -72,7 +72,9 @@ void VulkanEngine::init()
 
 	init_descriptors();
 
+#if !MESHSHADER_ON
 	init_pipelines();
+#endif
 
 	init_imgui();
 
@@ -81,6 +83,9 @@ void VulkanEngine::init()
 	load_meshes();
 
 	init_scene();
+#if MESHSHADER_ON
+	init_pipelines();
+#endif
 
 	_camera = {};
 	_camera.position = { 0.f,-6.f,-10.f };
@@ -377,6 +382,10 @@ void VulkanEngine::init_vulkan()
 	required_features.multiDrawIndirect = 1;
 	required_features.robustBufferAccess = 1;
 	required_features.drawIndirectFirstInstance = 1;
+	required_features.shaderUniformBufferArrayDynamicIndexing = 1;
+	required_features.shaderSampledImageArrayDynamicIndexing = 1;
+	required_features.shaderStorageBufferArrayDynamicIndexing = 1;
+	required_features.shaderStorageImageArrayDynamicIndexing = 1;
 
 	std::vector<const char*> extensions = {
 		VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
@@ -432,6 +441,7 @@ void VulkanEngine::init_vulkan()
 	descriptor_indexing_features.shaderStorageBufferArrayNonUniformIndexing = true;
 	descriptor_indexing_features.descriptorBindingStorageBufferUpdateAfterBind = true;
 	descriptor_indexing_features.descriptorBindingPartiallyBound = true;
+	descriptor_indexing_features.runtimeDescriptorArray = true;
 
 #if RAYTRACER_ON
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
@@ -765,7 +775,14 @@ void VulkanEngine::init_pipelines() {
 	GraphicPipelineBuilder pipelineBuilder;
 
 	pipelineBuilder.setShaders(&defaultEffect);
+#if MESHSHADER_ON
+	VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
+	std::vector<VkDescriptorSetLayout> setLayout = {_bindlessSetLayout, _globalSetLayout };
+	mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
+	mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
 
+	VK_CHECK(vkCreatePipelineLayout(_device, &mesh_pipeline_layout_info, nullptr, &pipelineBuilder._pipelineLayout));
+#endif
 	VkPipelineLayout meshPipLayout = pipelineBuilder._pipelineLayout;
 
 	//vertex input controls how to read vertices from vertex buffers. We arent using it yet
@@ -810,9 +827,12 @@ void VulkanEngine::init_pipelines() {
 	pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = (uint32_t)pipelineBuilder.vertexDescription.bindings.size();
 #endif
 	VkPipeline meshPipeline = pipelineBuilder.build_graphic_pipeline(_device, _renderPass);
-
+#if MESHSHADER_ON
+	_bindlessPipeline = meshPipeline;
+	_bindlessPipelineLayout = meshPipLayout;
+#else
 	load_materials(meshPipeline, meshPipLayout);
-
+#endif
 	_mainDeletionQueue.push_function([=]() {
 		vkDestroyPipeline(_device, meshPipeline, nullptr);
 
@@ -1573,30 +1593,14 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 	size_t frameIndex = _frameNumber % FRAME_OVERLAP;
 #if MESHSHADER_ON
 	//only bind the pipeline if it doesn't match with the already bound one
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _indirectBatchRO[0].material->pipeline);
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _bindlessPipeline);
 
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _indirectBatchRO[0].material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 0, nullptr);
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _bindlessPipelineLayout, 0, 1, &_bindlessSet, 0, nullptr);
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _bindlessPipelineLayout, 1, 1, &get_current_frame().globalDescriptor, 0, nullptr);
 
-	for (IndirectBatch& object : _indirectBatchRO)
-	{
-		if (object.mesh != lastMesh) {
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &object.mesh->meshletsSet, 0, nullptr);
-			lastMesh = object.mesh;
-		}
-		if (object.material != lastMaterial) {
-
-			if (object.material->textureSet != VK_NULL_HANDLE) {
-				//texture descriptor
-				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet, 0, nullptr);
-			}
-			lastMaterial = object.material;
-		}
-
-		VkDeviceSize indirect_offset = object.first * sizeof(VkDrawMeshTasksIndirectCommandNV);
-		uint32_t draw_stride = sizeof(VkDrawMeshTasksIndirectCommandNV);
-		vkCmdDrawMeshTasksIndirectNV(cmd, _indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
-
-	}
+	VkDeviceSize indirect_offset = 0 * sizeof(VkDrawMeshTasksIndirectCommandNV);
+	uint32_t draw_stride = sizeof(VkDrawMeshTasksIndirectCommandNV);
+	vkCmdDrawMeshTasksIndirectNV(cmd, _indirectBuffer._buffer, indirect_offset, count, draw_stride);
 #else
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _indirectBatchRO[0].material->pipeline);
 
@@ -1688,6 +1692,8 @@ void VulkanEngine::init_scene()
 			objectSSBO[i].modelMatrix = object.transformMatrix;
 			glm::vec3 center = glm::vec3(object.transformMatrix * glm::vec4(object.mesh->_center, 1.));
 			objectSSBO[i].center_radius = glm::vec4(center, object.mesh->_radius);
+			objectSSBO[i].meshIndex = object.meshIndex;
+			objectSSBO[i].diffuseTexIndex = _resManager.matDescList[object.matDescIndex]->diffuseTextureIndex;
 #if MESHSHADER_ON
 			objectSSBO[i].meshletCount = object.mesh->_meshlets.size();
 #endif
@@ -1732,8 +1738,6 @@ void VulkanEngine::init_bindless_scene()
 	const uint32_t meshletsDataBinding = 2;
 	const uint32_t textureBinding = 3;
 
-	vkutil::DescriptorBuilder bindlessDescriptor = vkutil::DescriptorBuilder::begin(_descriptorBindlessLayoutCache.get(), _descriptorBindlessAllocator.get());
-
 	//BIND MESHDATA
 	std::vector<VkDescriptorBufferInfo> vertexBufferInfoList{};
 	vertexBufferInfoList.resize(_resManager.meshList.size());
@@ -1747,12 +1751,6 @@ void VulkanEngine::init_bindless_scene()
 	for (uint32_t meshArrayIndex = 0; meshArrayIndex < _resManager.meshList.size(); meshArrayIndex++)
 	{
 		Mesh* mesh = _resManager.meshList[meshArrayIndex].get();
-
-		if (!mesh ||
-			!mesh->_vertexBuffer._buffer ||
-			!mesh->_meshletsBuffer._buffer ||
-			!mesh->_meshletdataBuffer._buffer)
-			continue;
 
 		VkDescriptorBufferInfo& vertexBufferInfo = vertexBufferInfoList[meshArrayIndex];
 		vertexBufferInfo.buffer = mesh->_vertexBuffer._buffer;
@@ -1768,15 +1766,10 @@ void VulkanEngine::init_bindless_scene()
 		meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
 		meshletdataBufferInfo.offset = 0;
 		meshletdataBufferInfo.range = padSizeToMinStorageBufferOffsetAlignment(mesh->_meshletdataBuffer._allocation->GetSize());
-
-		bindlessDescriptor
-			.bind_buffer(meshletsVerticesBinding, &vertexBufferInfoList[meshArrayIndex], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshArrayIndex, _resManager.meshList.size())
-			.bind_buffer(meshletsBinding, &meshletBufferInfoList[meshArrayIndex], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_TASK_BIT_NV | VK_SHADER_STAGE_MESH_BIT_NV, meshArrayIndex, _resManager.meshList.size())
-			.bind_buffer(meshletsDataBinding, &meshletdataBufferInfoList[meshArrayIndex], VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshArrayIndex, _resManager.meshList.size());
 	}
 
 	//BIND SAMPLERS
-	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
+	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
 
 	VkSampler blockySampler;
 	vkCreateSampler(_device, &samplerInfo, nullptr, &blockySampler);
@@ -1786,18 +1779,18 @@ void VulkanEngine::init_bindless_scene()
 
 	for (uint32_t textureArrayIndex = 0; textureArrayIndex <  _resManager.textureList.size(); textureArrayIndex++)
 	{
-		if (!_resManager.textureList[textureArrayIndex]->imageView)
-			continue;
-
 		VkDescriptorImageInfo& imageBufferInfo = imageInfoList[textureArrayIndex];
 		imageBufferInfo.sampler = blockySampler;
 		imageBufferInfo.imageView = _resManager.textureList[textureArrayIndex]->imageView;
 		imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-		bindlessDescriptor.bind_image(textureBinding, &imageInfoList[textureArrayIndex], VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, textureArrayIndex, _resManager.textureList.size());
 	}
 
-	bindlessDescriptor.build_bindless(_bindlessSet, _bindlessSetLayout);
+	vkutil::DescriptorBuilder::begin(_descriptorBindlessLayoutCache.get(), _descriptorBindlessAllocator.get())
+		.bind_buffer(meshletsVerticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, vertexBufferInfoList.size())
+		.bind_buffer(meshletsBinding, meshletBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_TASK_BIT_NV | VK_SHADER_STAGE_MESH_BIT_NV, meshletBufferInfoList.size())
+		.bind_buffer(meshletsDataBinding, meshletdataBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshletdataBufferInfoList.size())
+		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, imageInfoList.size())
+		.build_bindless(_bindlessSet, _bindlessSetLayout);
 }
 
 void VulkanEngine::init_imgui()

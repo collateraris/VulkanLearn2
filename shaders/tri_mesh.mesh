@@ -15,7 +15,7 @@
 layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 layout(triangles, max_vertices = 64, max_primitives = 124) out;
 
-layout(set = 0, binding = 0) uniform  CameraBuffer{
+layout(set = 1, binding = 0) uniform  CameraBuffer{
 	mat4 view;
 	mat4 proj;
 	mat4 viewproj;
@@ -25,27 +25,27 @@ layout(set = 0, binding = 0) uniform  CameraBuffer{
 	float znear;
 } cameraData;
 
-layout(binding = 1) uniform sampler2D depthPyramid;
+layout(set = 1, binding = 1) uniform sampler2D depthPyramid;
 
-layout(std140, binding = 2) readonly buffer ObjectBuffer{
+layout(set = 1, std140, binding = 2) readonly buffer ObjectBuffer{
 
 	ObjectData objects[];
 } objectBuffer;
 
-layout (set = 1, binding = 0) readonly buffer _vertices
+layout (set = 0, binding = 0) readonly buffer _vertices
 {
 	s_vertex vertices[];
-};
+} Vertex[];
 
-layout (set = 1, binding = 1) readonly buffer _meshlets
+layout (set = 0, binding = 1) readonly buffer _meshlets
 {
 	s_meshlet meshlets[];
-};
+} Meshlet[];
 
-layout(set = 1, binding = 2) readonly buffer MeshletData
+layout(set = 0, binding = 2) readonly buffer _meshletData
 {
 	uint meshletData[];
-};
+} MeshletData[];
 
 in taskNV block
 {
@@ -57,6 +57,7 @@ layout (location = 0) out PerVertexData
 {
   vec4 color;
   vec2 texCoord;
+  flat uint diffuseTexIndex;
 } v_out[];   // [max_vertices]
 
 uint hash(uint a)
@@ -75,11 +76,17 @@ void main()
 	uint mi = meshletIndices[gl_WorkGroupID.x];
 	uint ti = gl_LocalInvocationID.x;
 
-	uint vertexCount = uint(meshlets[mi].vertexCount);
-	uint triangleCount = uint(meshlets[mi].triangleCount);
+	mat4 modelMatrix = objectBuffer.objects[gl_DrawID].model;
+	uint meshletIndex = objectBuffer.objects[gl_DrawID].meshIndex;
+	s_meshlet currMeshlet = Meshlet[meshletIndex].meshlets[mi];
+
+	uint diffuseTexIndex = objectBuffer.objects[gl_DrawID].diffuseTexIndex;
+
+	uint vertexCount = uint(currMeshlet.vertexCount);
+	uint triangleCount = uint(currMeshlet.triangleCount);
 	uint indexCount = triangleCount * 3;
 
-	uint dataOffset = meshlets[mi].dataOffset;
+	uint dataOffset = currMeshlet.dataOffset;
 	uint vertexOffset = dataOffset;
 	uint indexOffset = dataOffset + vertexCount;
 
@@ -88,22 +95,22 @@ void main()
 	vec3 mcolor = vec3(float(mhash & 255), float((mhash >> 8) & 255), float((mhash >> 16) & 255)) / 255.0;
 #endif
 
-	mat4 modelMatrix = objectBuffer.objects[gl_DrawID].model;
-
 	// TODO: if we have meshlets with 62 or 63 vertices then we pay a small penalty for branch divergence here - we can instead redundantly xform the last vertex
 	for (uint i = ti; i < vertexCount; i += 32)
 	{
-		uint vi = meshletData[vertexOffset + i];
+		uint vi = MeshletData[meshletIndex].meshletData[vertexOffset + i];
+		s_vertex vert = Vertex[meshletIndex].vertices[vi];
 
-		vec3 position = vec3(vertices[vi].vx, vertices[vi].vy, vertices[vi].vz);
-		vec3 normal = vec3(int(vertices[vi].nx), int(vertices[vi].ny), int(vertices[vi].nz)) / 127.0 - 1.0;
-		vec2 texcoord = vec2(vertices[vi].tu, vertices[vi].tv);
+		vec3 position = vec3(vert.vx, vert.vy, vert.vz);
+		vec3 normal = vec3(int(vert.nx), int(vert.ny), int(vert.nz)) / 127.0 - 1.0;
+		vec2 texcoord = vec2(vert.tu, vert.tv);
 
 		position = vec3(modelMatrix * vec4(position, 1.0f));
 
 		gl_MeshVerticesNV[i].gl_Position = cameraData.viewproj * vec4(position, 1.0f);
 		v_out[i].color = vec4(1.0, 1.0, 1.0, 1.0);
 		v_out[i].texCoord = texcoord;
+		v_out[i].diffuseTexIndex = diffuseTexIndex;
 
 	#if DEBUG
 		v_out[i].color = vec4(mcolor, 1.0);
@@ -114,9 +121,9 @@ void main()
 	{
 		// TODO: We tried to use writePackedPrimitiveIndices4x8NV, it wasn't giving us better perf
 		// We are currently writing one byte from each thread of a warp, which seems like it's bad for perf (bank conflicts etc.) but GPU doesn't seem to care much?
-		gl_PrimitiveIndicesNV[i] = uint(meshletData[indexOffset + i]);
+		gl_PrimitiveIndicesNV[i] = uint(MeshletData[meshletIndex].meshletData[indexOffset + i]);
 	}
 
 	if (ti == 0)
-		gl_PrimitiveCountNV = uint(meshlets[mi].triangleCount);
+		gl_PrimitiveCountNV = uint(currMeshlet.triangleCount);
 }

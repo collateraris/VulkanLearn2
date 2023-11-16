@@ -82,9 +82,9 @@ namespace vkutil {
 	public:
 		static DescriptorBuilder begin(DescriptorLayoutCache* layoutCache, DescriptorAllocator* allocator);
 
-		DescriptorBuilder& bind_buffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement = 0, uint32_t descriptorCount = 1);
-		DescriptorBuilder& bind_image(uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement = 0, uint32_t descriptorCount = 1);
-		DescriptorBuilder& bind_rt_as(uint32_t binding, VkWriteDescriptorSetAccelerationStructureKHR* accelInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t  dstArrayElement = 0, uint32_t descriptorCount = 1);
+		DescriptorBuilder& bind_buffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t descriptorCount = 1);
+		DescriptorBuilder& bind_image(uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags,uint32_t descriptorCount = 1);
+		DescriptorBuilder& bind_rt_as(uint32_t binding, VkWriteDescriptorSetAccelerationStructureKHR* accelInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t descriptorCount = 1);
 
 		bool build(VkDescriptorSet& set, VkDescriptorSetLayout& layout);
 		bool build(VkDescriptorSet& set);

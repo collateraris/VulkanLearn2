@@ -139,6 +139,9 @@ public:
 	VkPipeline _drawcmdPipeline;
 	VkPipelineLayout _drawcmdPipelineLayout;
 
+	VkPipeline _bindlessPipeline;
+	VkPipelineLayout _bindlessPipelineLayout;
+
 	VkRenderPass _renderPass;
 
 	VulkanDepthReduceRenderPass _depthReduceRenderPass;
