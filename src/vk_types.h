@@ -71,6 +71,7 @@ struct Stats
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <set>
 #include <vector>
 #include <assert.h>
@@ -86,6 +87,7 @@ struct Stats
 #include <format>
 #include <algorithm>
 #include <type_traits>
+#include <optional>
 
 #ifdef __GNUC__
 #define PACKED_STRUCT __attribute__((packed,aligned(1)))

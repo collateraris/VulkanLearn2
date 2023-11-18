@@ -32,6 +32,8 @@ add_executable(vulkan_guide
     vk_logger.cpp
     vk_render_passes.h
     vk_render_passes.cpp
+    vk_render_graph.h
+    vk_render_graph.cpp
     vk_raytracer_builder.h
     vk_raytracer_builder.cpp
     vk_utils.h
