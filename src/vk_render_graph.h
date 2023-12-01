@@ -76,6 +76,59 @@ namespace vk_rgraph {
 		}
 	};
 
+	enum RenderPassOp
+	{
+		RENDER_PASS_OP_CLEAR_DEPTH_STENCIL_BIT = 1 << 0,
+		RENDER_PASS_OP_LOAD_DEPTH_STENCIL_BIT = 1 << 1,
+		RENDER_PASS_OP_STORE_DEPTH_STENCIL_BIT = 1 << 2,
+		RENDER_PASS_OP_DEPTH_STENCIL_READ_ONLY_BIT = 1 << 3,
+		RENDER_PASS_OP_ENABLE_TRANSIENT_STORE_BIT = 1 << 4,
+		RENDER_PASS_OP_ENABLE_TRANSIENT_LOAD_BIT = 1 << 5
+	};
+	using RenderPassOpFlags = uint32_t;
+
+	constexpr uint32_t VULKAN_NUM_ATTACHMENTS = 8;
+
+	struct RenderPassInfo
+	{
+		const Texture* color_attachments[VULKAN_NUM_ATTACHMENTS];
+		const Texture* depth_stencil = nullptr;
+		unsigned num_color_attachments = 0;
+		RenderPassOpFlags op_flags = 0;
+		uint32_t clear_attachments = 0;
+		uint32_t load_attachments = 0;
+		uint32_t store_attachments = 0;
+		uint32_t base_layer = 0;
+		uint32_t num_layers = 1;
+
+		// Render area will be clipped to the actual framebuffer.
+		VkRect2D render_area = { { 0, 0 }, { UINT32_MAX, UINT32_MAX } };
+
+		VkClearColorValue clear_color[VULKAN_NUM_ATTACHMENTS] = {};
+		VkClearDepthStencilValue clear_depth_stencil = { 1.0f, 0 };
+
+		enum class DepthStencil
+		{
+			None,
+			ReadOnly,
+			ReadWrite
+		};
+
+		struct Subpass
+		{
+			uint32_t color_attachments[VULKAN_NUM_ATTACHMENTS];
+			uint32_t input_attachments[VULKAN_NUM_ATTACHMENTS];
+			uint32_t resolve_attachments[VULKAN_NUM_ATTACHMENTS];
+			unsigned num_color_attachments = 0;
+			unsigned num_input_attachments = 0;
+			unsigned num_resolve_attachments = 0;
+			DepthStencil depth_stencil_mode = DepthStencil::ReadWrite;
+		};
+		// If 0/nullptr, assume a default subpass.
+		const Subpass* subpasses = nullptr;
+		unsigned num_subpasses = 0;
+	};
+
 	struct ResourceDimensions
 	{
 		VkFormat format = VK_FORMAT_UNDEFINED;
@@ -350,7 +403,7 @@ namespace vk_rgraph {
 		VulkanRenderBufferResource& get_buffer_resource(const std::string& name);
 
 	private:
-		VulkanEngine* _engine;
+		VulkanEngine* _engine = nullptr;
 
 		std::vector<std::unique_ptr<VulkanRenderPass>> _passesList;
 		std::unordered_map<std::string, uint32_t> _pass_to_indexMap;
@@ -422,8 +475,8 @@ namespace vk_rgraph {
 			std::vector<Barrier> history;
 			std::vector<std::pair<uint32_t, uint32_t>> alias_transfer;
 
-			//Vulkan::RenderPassInfo render_pass_info;
-			//std::vector<Vulkan::RenderPassInfo::Subpass> subpasses;
+			RenderPassInfo render_pass_info;
+			std::vector<RenderPassInfo::Subpass> subpasses;
 			std::vector<uint32_t> physical_color_attachments;
 			std::optional<uint32_t> physical_depth_stencil_attachment;
 
@@ -450,7 +503,18 @@ namespace vk_rgraph {
 		std::vector<Texture> _physical_image_attachmentsList;
 		std::vector<Texture*> _physical_history_image_attachmentsList;
 
-		void setup_physical_buffer(unsigned attachment);
-		void setup_physical_image(unsigned attachment);
+		void setup_physical_buffer(uint32_t attachment);
+		void setup_physical_image(uint32_t attachment);
+
+		void depend_passes_recursive(const VulkanRenderPass& pass, const std::unordered_set<uint32_t>& passes,
+			uint32_t stack_count, bool no_check, bool ignore_self, bool merge_dependency);
+
+		void traverse_dependencies(const VulkanRenderPass& pass, uint32_t stack_count);
+
+		std::vector<std::unordered_set<uint32_t>> _pass_dependenciesList;
+		std::vector<std::unordered_set<uint32_t>> _pass_merge_dependenciesList;
+		bool depends_on_pass(uint32_t dst_pass, uint32_t src_pass);
+
+		void reorder_passes(std::vector<uint32_t>& passes);
 	};
 }

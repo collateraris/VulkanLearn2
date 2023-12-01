@@ -50,7 +50,96 @@ void vk_rgraph::VulkanRenderGraph::bake()
 	if (itr == std::end(_resource_to_indexMap))
 		throw std::logic_error("Backbuffer source does not exist.");
 
+	_pass_stack.clear();
 
+	_pass_dependenciesList.clear();
+	_pass_merge_dependenciesList.clear();
+	_pass_dependenciesList.resize(_passesList.size());
+	_pass_merge_dependenciesList.resize(_passesList.size());
+
+	// Work our way back from the backbuffer, and sort out all the dependencies.
+	auto& backbuffer_resource = *_resourcesList[itr->second];
+
+	if (backbuffer_resource.get_write_passes().empty())
+		throw std::logic_error("No pass exists which writes to resource.");
+
+	for (auto& pass : backbuffer_resource.get_write_passes())
+		_pass_stack.push_back(pass);
+
+	auto tmp_pass_stack = _pass_stack;
+	for (auto& pushed_pass : tmp_pass_stack)
+	{
+		auto& pass = *_passesList[pushed_pass];
+		traverse_dependencies(pass, 0);
+	}
+
+	std::reverse(std::begin(_pass_stack), std::end(_pass_stack));
+	filter_passes(_pass_stack);
+
+	// Now, reorder passes to extract better pipelining.
+	reorder_passes(_pass_stack);
+
+	// Now, we have a linear list of passes to submit in-order which would obey the dependencies.
+
+	// Figure out which physical resources we need. Here we will alias resources which can trivially alias via renaming.
+	// E.g. depth input -> depth output is just one physical attachment, similar with color.
+	build_physical_resources();
+
+	// Next, try to merge adjacent passes together.
+	build_physical_passes();
+
+	// After merging physical passes and resources, if an image resource is only used in a single physical pass, make it transient.
+	build_transients();
+
+	// Now that we are done, we can make render passes.
+	build_render_pass_info();
+
+	// For each render pass in isolation, figure out the barriers required.
+	build_barriers();
+
+	// Check if the swapchain needs to be blitted to in case the geometry does not match the backbuffer,
+	// or the usage of the image makes that impossible.
+	_swapchain_physical_index = _resourcesList[_resource_to_indexMap[_backbuffer_source]]->get_physical_index();
+
+	auto& backbuffer_dim = _physical_dimensionsList[_swapchain_physical_index];
+
+	// If resource is touched in async-compute, we cannot alias with swapchain.
+	// If resource is not transient, it's being used in multiple physical passes,
+	// we can't use the implicit subpass dependencies for dealing with swapchain.
+	bool can_alias_backbuffer = (backbuffer_dim.queues & compute_queues) == 0 &&
+		(backbuffer_dim.flags & ATTACHMENT_INFO_INTERNAL_TRANSIENT_BIT) != 0;
+
+	// Resources which do not alias with the backbuffer should not be pre-rotated.
+	for (auto& dim : _physical_dimensionsList)
+		if (&dim != &backbuffer_dim)
+			dim.transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+
+	if (vk_utils::surface_transform_swaps_xy(backbuffer_dim.transform))
+		std::swap(backbuffer_dim.image_extend.width, backbuffer_dim.image_extend.height);
+
+	backbuffer_dim.flags &= ~(ATTACHMENT_INFO_INTERNAL_TRANSIENT_BIT | ATTACHMENT_INFO_SUPPORTS_PREROTATE_BIT);
+	backbuffer_dim.flags |= _swapchain_dimensions.flags & ATTACHMENT_INFO_PERSISTENT_BIT;
+
+	if (!can_alias_backbuffer || backbuffer_dim != _swapchain_dimensions)
+	{
+
+		_swapchain_physical_index = std::numeric_limits<uint32_t>::max();
+		backbuffer_dim.queues |= RENDER_GRAPH_QUEUE_GRAPHICS_BIT;
+
+		// We will need to sample from the image to blit to backbuffer.
+		backbuffer_dim.image_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+
+		// Don't use pre-transform if we can't alias anyways.
+		if (vk_utils::surface_transform_swaps_xy(backbuffer_dim.transform))
+			std::swap(backbuffer_dim.image_extend.width, backbuffer_dim.image_extend.height);
+		backbuffer_dim.transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+	}
+	else
+		_physical_dimensionsList[_swapchain_physical_index].flags |= ATTACHMENT_INFO_INTERNAL_TRANSIENT_BIT;
+
+	// Based on our render graph, figure out the barriers we actually need.
+	// Some barriers are implicit (transients), and some are redundant, i.e. same texture read in multiple passes.
+	build_physical_barriers();
 }
 
 void vk_rgraph::VulkanRenderGraph::reset()
@@ -1345,7 +1434,423 @@ void vk_rgraph::VulkanRenderGraph::build_physical_barriers()
 
 void vk_rgraph::VulkanRenderGraph::build_render_pass_info()
 {
+	for (auto& physical_pass : physical_passes)
+	{
+		auto& rp = physical_pass.render_pass_info;
+		physical_pass.subpasses.resize(physical_pass.passes.size());
+		rp.subpasses = physical_pass.subpasses.data();
+		rp.num_subpasses = physical_pass.subpasses.size();
+		rp.clear_attachments = 0;
+		rp.load_attachments = 0;
+		rp.store_attachments = ~0u;
+		physical_pass.color_clear_requests.clear();
+		physical_pass.depth_clear_request = {};
 
+		auto& colors = physical_pass.physical_color_attachments;
+		colors.clear();
+
+		const auto add_unique_color = [&](uint32_t index) -> std::pair<uint32_t, bool> {
+			auto itr = std::find(std::begin(colors), std::end(colors), index);
+			if (itr != std::end(colors))
+				return std::make_pair(uint32_t(itr - std::begin(colors)), false);
+			else
+			{
+				uint32_t ret = colors.size();
+				colors.push_back(index);
+				return std::make_pair(ret, true);
+			}
+		};
+
+		const auto add_unique_input_attachment = [&](uint32_t index) -> std::pair<uint32_t, bool> {
+			if (index == physical_pass.physical_depth_stencil_attachment)
+				return std::make_pair(uint32_t(colors.size()), false); // The N + 1 attachment refers to depth.
+			else
+				return add_unique_color(index);
+		};
+
+		for (auto& subpass : physical_pass.passes)
+		{
+			std::vector<ScaledClearRequests> scaled_clear_requests;
+
+			auto& pass = *_passesList[subpass];
+			auto subpass_index = uint32_t(&subpass - physical_pass.passes.data());
+
+			// Add color attachments.
+			uint32_t num_color_attachments = pass.get_color_outputs().size();
+			physical_pass.subpasses[subpass_index].num_color_attachments = num_color_attachments;
+			for (uint32_t i = 0; i < num_color_attachments; i++)
+			{
+				auto res = add_unique_color(pass.get_color_outputs()[i]->get_physical_index());
+				physical_pass.subpasses[subpass_index].color_attachments[i] = res.first;
+
+				if (res.second) // This is the first time the color attachment is used, check if we need LOAD, or if we can clear it.
+				{
+					bool has_color_input = !pass.get_color_inputs().empty() && pass.get_color_inputs()[i];
+					bool has_scaled_color_input = !pass.get_color_scale_inputs().empty() && pass.get_color_scale_inputs()[i];
+
+					if (!has_color_input && !has_scaled_color_input)
+					{
+						if (pass.get_clear_color(i))
+						{
+							rp.clear_attachments |= 1u << res.first;
+							physical_pass.color_clear_requests.push_back({ &pass, &rp.clear_color[res.first], i });
+						}
+					}
+					else
+					{
+						if (has_scaled_color_input)
+							scaled_clear_requests.push_back({ i, pass.get_color_scale_inputs()[i]->get_physical_index() });
+						else
+							rp.load_attachments |= 1u << res.first;
+					}
+				}
+			}
+
+			if (!pass.get_resolve_outputs().empty())
+			{
+				physical_pass.subpasses[subpass_index].num_resolve_attachments = num_color_attachments;
+				for (uint32_t i = 0; i < num_color_attachments; i++)
+				{
+					auto res = add_unique_color(pass.get_resolve_outputs()[i]->get_physical_index());
+					physical_pass.subpasses[subpass_index].resolve_attachments[i] = res.first;
+					// Resolve attachments are don't care always.
+				}
+			}
+
+			physical_pass.scaled_clear_requests.push_back(std::move(scaled_clear_requests));
+
+			auto* ds_input = pass.get_depth_stencil_input();
+			auto* ds_output = pass.get_depth_stencil_output();
+
+			const auto add_unique_ds = [&](uint32_t index) -> std::pair<uint32_t, bool> {
+				assert(physical_pass.physical_depth_stencil_attachment == std::numeric_limits<uint32_t>::max() ||
+					physical_pass.physical_depth_stencil_attachment == index);
+
+				bool new_attachment = physical_pass.physical_depth_stencil_attachment == std::numeric_limits<uint32_t>::max();
+				physical_pass.physical_depth_stencil_attachment = index;
+				return std::make_pair(index, new_attachment);
+			};
+
+			if (ds_output && ds_input)
+			{
+				auto res = add_unique_ds(ds_output->get_physical_index());
+				// If this is the first subpass the attachment is used, we need to load it.
+				if (res.second)
+					rp.load_attachments |= 1u << res.first;
+
+				rp.op_flags |= RENDER_PASS_OP_STORE_DEPTH_STENCIL_BIT;
+				physical_pass.subpasses[subpass_index].depth_stencil_mode = RenderPassInfo::DepthStencil::ReadWrite;
+			}
+			else if (ds_output)
+			{
+				auto res = add_unique_ds(ds_output->get_physical_index());
+				// If this is the first subpass the attachment is used, we need to either clear or discard.
+				if (res.second && pass.get_clear_depth_stencil())
+				{
+					rp.op_flags |= RENDER_PASS_OP_CLEAR_DEPTH_STENCIL_BIT;
+					physical_pass.depth_clear_request.pass = &pass;
+					physical_pass.depth_clear_request.target = &rp.clear_depth_stencil;
+				}
+
+				rp.op_flags |= RENDER_PASS_OP_STORE_DEPTH_STENCIL_BIT;
+				physical_pass.subpasses[subpass_index].depth_stencil_mode = RenderPassInfo::DepthStencil::ReadWrite;
+
+				assert(physical_pass.physical_depth_stencil_attachment == std::numeric_limits<uint32_t>::max() ||
+					physical_pass.physical_depth_stencil_attachment == ds_output->get_physical_index());
+				physical_pass.physical_depth_stencil_attachment = ds_output->get_physical_index();
+			}
+			else if (ds_input)
+			{
+				auto res = add_unique_ds(ds_input->get_physical_index());
+
+				// If this is the first subpass the attachment is used, we need to load.
+				if (res.second)
+				{
+					rp.op_flags |=RENDER_PASS_OP_DEPTH_STENCIL_READ_ONLY_BIT |
+						RENDER_PASS_OP_LOAD_DEPTH_STENCIL_BIT;
+
+					auto current_physical_pass = uint32_t(&physical_pass - physical_passes.data());
+
+					const auto check_preserve = [this, current_physical_pass](const VulkanRenderResource& tex) -> bool {
+						for (auto& read_pass : tex.get_read_passes())
+							if (_passesList[read_pass]->get_physical_pass_index() > current_physical_pass)
+								return true;
+						return false;
+					};
+
+					bool preserve_depth = check_preserve(*ds_input);
+					//if (!preserve_depth)
+					//{
+					//	for (auto& logical_pass : _passesList)
+					//	{
+					//		for (auto& alias : logical_pass->get_fake_resource_aliases())
+					//		{
+					//			if (alias.first == ds_input && check_preserve(*alias.second))
+					//			{
+					//				preserve_depth = true;
+					//				break;
+					//			}
+					//		}
+					//	}
+					//}
+
+					if (preserve_depth)
+					{
+						// Have to store here, or the attachment becomes undefined in future passes.
+						rp.op_flags |= RENDER_PASS_OP_STORE_DEPTH_STENCIL_BIT;
+					}
+				}
+
+				physical_pass.subpasses[subpass_index].depth_stencil_mode = RenderPassInfo::DepthStencil::ReadOnly;
+			}
+			else
+			{
+				physical_pass.subpasses[subpass_index].depth_stencil_mode = RenderPassInfo::DepthStencil::None;
+			}
+		}
+
+		for (auto& subpass : physical_pass.passes)
+		{
+			auto& pass = *_passesList[subpass];
+			uint32_t subpass_index = uint32_t(&subpass - physical_pass.passes.data());
+
+			// Add input attachments.
+			// Have to do these in a separate loop so we can pick up depth stencil input attachments properly.
+			uint32_t num_input_attachments = pass.get_attachment_inputs().size();
+			physical_pass.subpasses[subpass_index].num_input_attachments = num_input_attachments;
+			for (uint32_t i = 0; i < num_input_attachments; i++)
+			{
+				auto res = add_unique_input_attachment(pass.get_attachment_inputs()[i]->get_physical_index());
+				physical_pass.subpasses[subpass_index].input_attachments[i] = res.first;
+
+				// If this is the first subpass the attachment is used, we need to load it.
+				if (res.second)
+					rp.load_attachments |= 1u << res.first;
+			}
+		}
+
+		physical_pass.render_pass_info.num_color_attachments = physical_pass.physical_color_attachments.size();
+	}
+}
+
+void vk_rgraph::VulkanRenderGraph::depend_passes_recursive(const vk_rgraph::VulkanRenderPass& self, const std::unordered_set<uint32_t>& written_passes, uint32_t stack_count, bool no_check, bool ignore_self, bool merge_dependency)
+{
+	if (!no_check && written_passes.empty())
+		throw std::logic_error("No pass exists which writes to resource.");
+
+	if (stack_count > _passesList.size())
+		throw std::logic_error("Cycle detected.");
+
+	for (auto& pass : written_passes)
+		if (pass != self.get_index())
+			_pass_dependenciesList[self.get_index()].insert(pass);
+
+	if (merge_dependency)
+		for (auto& pass : written_passes)
+			if (pass != self.get_index())
+				_pass_merge_dependenciesList[self.get_index()].insert(pass);
+
+	stack_count++;
+
+	for (auto& pushed_pass : written_passes)
+	{
+		if (ignore_self && pushed_pass == self.get_index())
+			continue;
+		else if (pushed_pass == self.get_index())
+			throw std::logic_error("Pass depends on itself.");
+
+		_pass_stack.push_back(pushed_pass);
+		auto& pass = *_passesList[pushed_pass];
+		traverse_dependencies(pass, stack_count);
+	}
+}
+
+void vk_rgraph::VulkanRenderGraph::traverse_dependencies(const vk_rgraph::VulkanRenderPass& pass, uint32_t stack_count)
+{
+	// For these kinds of resources,
+	// make sure that we pull in the dependency right away so we can merge render passes if possible.
+	if (pass.get_depth_stencil_input())
+	{
+		depend_passes_recursive(pass, pass.get_depth_stencil_input()->get_write_passes(),
+			stack_count, false, false, true);
+	}
+
+	for (auto* input : pass.get_attachment_inputs())
+	{
+		bool self_dependency = pass.get_depth_stencil_output() == input;
+		if (std::find(std::begin(pass.get_color_outputs()), std::end(pass.get_color_outputs()), input) != std::end(pass.get_color_outputs()))
+			self_dependency = true;
+
+		if (!self_dependency)
+			depend_passes_recursive(pass, input->get_write_passes(), stack_count, false, false, true);
+	}
+
+	for (auto* input : pass.get_color_inputs())
+	{
+		if (input)
+			depend_passes_recursive(pass, input->get_write_passes(), stack_count, false, false, true);
+	}
+
+	for (auto* input : pass.get_color_scale_inputs())
+	{
+		if (input)
+			depend_passes_recursive(pass, input->get_write_passes(), stack_count, false, false, false);
+	}
+
+	for (auto* input : pass.get_blit_texture_inputs())
+	{
+		if (input)
+			depend_passes_recursive(pass, input->get_write_passes(), stack_count, false, false, false);
+	}
+
+	for (auto& input : pass.get_generic_texture_inputs())
+		depend_passes_recursive(pass, input.texture->get_write_passes(), stack_count, false, false, false);
+
+
+	for (auto* input : pass.get_storage_inputs())
+	{
+		if (input)
+		{
+			// There might be no writers of this resource if it's used in a feedback fashion.
+			depend_passes_recursive(pass, input->get_write_passes(), stack_count, true, false, false);
+			// Deal with write-after-read hazards if a storage buffer is read in other passes
+			// (feedback) before being updated.
+			depend_passes_recursive(pass, input->get_read_passes(), stack_count, true, true, false);
+		}
+	}
+
+	for (auto* input : pass.get_storage_texture_inputs())
+	{
+		if (input)
+			depend_passes_recursive(pass, input->get_write_passes(), stack_count, false, false, false);
+	}
+
+	for (auto& input : pass.get_generic_buffer_inputs())
+	{
+		// There might be no writers of this resource if it's used in a feedback fashion.
+		depend_passes_recursive(pass, input.buffer->get_write_passes(), stack_count, true, false, false);
+	}
+}
+
+bool vk_rgraph::VulkanRenderGraph::depends_on_pass(uint32_t dst_pass, uint32_t src_pass)
+{
+	if (dst_pass == src_pass)
+		return true;
+
+	for (auto& dep : _pass_dependenciesList[dst_pass])
+	{
+		if (depends_on_pass(dep, src_pass))
+			return true;
+	}
+
+	return false;
+}
+
+void vk_rgraph::VulkanRenderGraph::reorder_passes(std::vector<uint32_t>& flattened_passes)
+{
+	// If a pass depends on an earlier pass via merge dependencies,
+	// copy over dependencies to the dependees to avoid cases which can break subpass merging.
+	// This is a "soft" dependency. If we ignore it, it's not a real problem.
+	for (auto& pass_merge_deps : _pass_merge_dependenciesList)
+	{
+		auto pass_index = uint32_t(&pass_merge_deps - _pass_merge_dependenciesList.data());
+		auto& pass_deps = _pass_dependenciesList[pass_index];
+
+		for (auto& merge_dep : pass_merge_deps)
+		{
+			for (auto& dependee : pass_deps)
+			{
+				// Avoid cycles.
+				if (depends_on_pass(dependee, merge_dep))
+					continue;
+
+				if (merge_dep != dependee)
+					_pass_dependenciesList[merge_dep].insert(dependee);
+			}
+		}
+	}
+
+	// TODO: This is very inefficient, but should work okay for a reasonable amount of passes ...
+	// But, reasonable amounts are always one more than what you'd think ...
+	// Clarity in the algorithm is pretty important, because these things tend to be very annoying to debug.
+
+	if (flattened_passes.size() <= 2)
+		return;
+
+	std::vector<uint32_t> unscheduled_passes;
+	unscheduled_passes.reserve(_passesList.size());
+	std::swap(flattened_passes, unscheduled_passes);
+
+	const auto schedule = [&](uint32_t index) {
+		// Need to preserve the order of remaining elements.
+		flattened_passes.push_back(unscheduled_passes[index]);
+		std::move(unscheduled_passes.begin() + index + 1,
+			unscheduled_passes.end(),
+			unscheduled_passes.begin() + index);
+		unscheduled_passes.pop_back();
+	};
+
+	schedule(0);
+	while (!unscheduled_passes.empty())
+	{
+		// Find the next pass to schedule.
+		// We can pick any pass N, if the pass does not depend on anything left in unscheduled_passes.
+		// unscheduled_passes[0] is always okay as a fallback, so unless we find something better,
+		// we will at least pick that.
+
+		// Ideally, we pick a pass which does not introduce any hard barrier.
+		// A "hard barrier" here is where a pass depends directly on the pass before it forcing something ala vkCmdPipelineBarrier,
+		// we would like to avoid this if possible.
+
+		// Find the pass which has the optimal overlap factor which means the number of passes can be scheduled in-between
+		// the depender, and the dependee.
+
+		uint32_t best_candidate = 0;
+		uint32_t best_overlap_factor = 0;
+
+		for (uint32_t i = 0; i < unscheduled_passes.size(); i++)
+		{
+			uint32_t overlap_factor = 0;
+
+			// Always try to merge passes if possible on tilers.
+			// This might not make sense on desktop however,
+			// so we can conditionally enable this path depending on our GPU.
+			if (_pass_merge_dependenciesList[unscheduled_passes[i]].count(flattened_passes.back()))
+			{
+				overlap_factor = ~0u;
+			}
+			else
+			{
+				for (auto itr = flattened_passes.rbegin(); itr != flattened_passes.rend(); ++itr)
+				{
+					if (depends_on_pass(unscheduled_passes[i], *itr))
+						break;
+					overlap_factor++;
+				}
+			}
+
+			if (overlap_factor <= best_overlap_factor)
+				continue;
+
+			bool possible_candidate = true;
+			for (uint32_t j = 0; j < i; j++)
+			{
+				if (depends_on_pass(unscheduled_passes[i], unscheduled_passes[j]))
+				{
+					possible_candidate = false;
+					break;
+				}
+			}
+
+			if (!possible_candidate)
+				continue;
+
+			best_candidate = i;
+			best_overlap_factor = overlap_factor;
+		}
+
+		schedule(best_candidate);
+	}
 }
 
 void vk_rgraph::VulkanRenderGraph::setup_physical_buffer(uint32_t attachment)
