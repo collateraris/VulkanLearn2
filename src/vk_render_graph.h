@@ -16,6 +16,8 @@ namespace vk_rgraph {
 	};
 	using RenderGraphQueueFlags = uint32_t;
 
+	static const RenderGraphQueueFlags compute_queues = RENDER_GRAPH_QUEUE_COMPUTE_BIT;
+
 	enum AttachmentInfoFlagBits
 	{
 		ATTACHMENT_INFO_PERSISTENT_BIT = 1 << 0,
@@ -46,11 +48,55 @@ namespace vk_rgraph {
 		float size_z = 0.0f;
 		VkFormat format = VK_FORMAT_UNDEFINED;
 		std::string size_relative_name;
-		unsigned samples = 1;
-		unsigned levels = 1;
-		unsigned layers = 1;
+		uint32_t samples = 1;
+		uint32_t levels = 1;
+		uint32_t layers = 1;
 		VkImageUsageFlags aux_usage = 0;
 		AttachmentInfoFlags flags = ATTACHMENT_INFO_PERSISTENT_BIT;
+	};
+
+	struct BufferInfo
+	{
+		VkDeviceSize size = 0;
+		VkBufferUsageFlags usage = 0;
+		VmaAllocationCreateFlags vma_alloc_flags = 0;
+		AttachmentInfoFlags flags = ATTACHMENT_INFO_PERSISTENT_BIT;
+
+		bool operator==(const BufferInfo& other) const
+		{
+			return size == other.size &&
+				usage == other.usage &&
+				vma_alloc_flags == other.vma_alloc_flags &&
+				flags == other.flags;
+		}
+
+		bool operator!=(const BufferInfo& other) const
+		{
+			return !(*this == other);
+		}
+	};
+
+	struct ResourceDimensions
+	{
+		VkFormat format = VK_FORMAT_UNDEFINED;
+		BufferInfo buffer_info = {};
+		uint32_t layers = 1;
+		uint32_t levels = 1;
+		uint32_t samples = 1;
+		VkExtent3D image_extend = {};
+		AttachmentInfoFlags flags = ATTACHMENT_INFO_PERSISTENT_BIT;
+		VkSurfaceTransformFlagBitsKHR transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+		RenderGraphQueueFlags queues = 0;
+		VkImageUsageFlags image_usage = 0;
+		VkImageAspectFlags aspectFlags = 0;
+
+		bool operator==(const ResourceDimensions& other) const;
+		bool operator!=(const ResourceDimensions& other) const;
+		bool uses_semaphore() const;
+		bool is_storage_image() const;
+		bool is_buffer_like() const;
+
+		std::string name;
 	};
 
 	class VulkanRenderResource
@@ -105,29 +151,10 @@ namespace vk_rgraph {
 		RenderGraphQueueFlags _used_queues = 0;
 	};
 
-	struct BufferInfo
-	{
-		VkDeviceSize size = 0;
-		VkBufferUsageFlags usage = 0;
-		AttachmentInfoFlags flags = ATTACHMENT_INFO_PERSISTENT_BIT;
-
-		bool operator==(const BufferInfo& other) const
-		{
-			return size == other.size &&
-				usage == other.usage &&
-				flags == other.flags;
-		}
-
-		bool operator!=(const BufferInfo& other) const
-		{
-			return !(*this == other);
-		}
-	};
-
 	class VulkanRenderBufferResource : public VulkanRenderResource
 	{
 	public:
-		explicit VulkanRenderBufferResource(uint32_t index_, std::string& name_)
+		explicit VulkanRenderBufferResource(uint32_t index_, const std::string& name_)
 			: VulkanRenderResource(VulkanRenderResource::Type::Buffer, index_, name_)
 		{
 		}
@@ -148,7 +175,7 @@ namespace vk_rgraph {
 	class VulkanRenderTextureResource : public VulkanRenderResource
 	{
 	public:
-		explicit VulkanRenderTextureResource(uint32_t index_, std::string& name_)
+		explicit VulkanRenderTextureResource(uint32_t index_, const std::string& name_)
 			: VulkanRenderResource(VulkanRenderResource::Type::Texture, index_, name_)
 		{
 		}
@@ -178,12 +205,126 @@ namespace vk_rgraph {
 	public:
 		VulkanRenderPass(VulkanRenderGraph* graph_, uint32_t index_, RenderGraphQueueFlagBits queue_, const std::string& name);
 
+		struct AccessedResource
+		{
+			VkPipelineStageFlags2 stages = 0;
+			VkAccessFlags2 access = 0;
+			VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+		};
+
+		struct AccessedTextureResource : AccessedResource
+		{
+			VulkanRenderTextureResource* texture = nullptr;
+		};
+
+		struct AccessedBufferResource : AccessedResource
+		{
+			VulkanRenderBufferResource* buffer = nullptr;
+		};
+
+		RenderGraphQueueFlagBits get_queue() const
+		{
+			return _queue;
+		}
+
+		VulkanRenderGraph& get_graph()
+		{
+			return *_graph;
+		}
+
+		uint32_t get_index() const
+		{
+			return _indexInGraph;
+		}
+
+		VulkanRenderTextureResource& set_depth_stencil_input(const std::string& name);
+		VulkanRenderTextureResource& set_depth_stencil_output(const std::string& name, const AttachmentInfo& info);
+		VulkanRenderTextureResource& add_color_output(const std::string& name, const AttachmentInfo& info, const std::string& input = "");
+		VulkanRenderTextureResource& add_resolve_output(const std::string& name, const AttachmentInfo& info);
+		VulkanRenderTextureResource& add_attachment_input(const std::string& name);
+		VulkanRenderTextureResource& add_history_input(const std::string& name);
+
+		VulkanRenderTextureResource& add_texture_input(const std::string& name,
+			VkPipelineStageFlags2 stages = 0);
+		VulkanRenderTextureResource& add_blit_texture_read_only_input(const std::string& name);
+		VulkanRenderBufferResource& add_uniform_input(const std::string& name,
+			VkPipelineStageFlags2 stages = 0);
+		VulkanRenderBufferResource& add_storage_read_only_input(const std::string& name,
+			VkPipelineStageFlags2 stages = 0);
+
+		VulkanRenderBufferResource& add_storage_output(const std::string& name, const BufferInfo& info, const std::string& input = "");
+		VulkanRenderBufferResource& add_transfer_output(const std::string& name, const BufferInfo& info);
+
+		VulkanRenderTextureResource& add_storage_texture_output(const std::string& name, const AttachmentInfo& info, const std::string& input = "");
+		VulkanRenderTextureResource& add_blit_texture_output(const std::string& name, const AttachmentInfo& info, const std::string& input = "");
+
+		VulkanRenderBufferResource& add_vertex_buffer_input(const std::string& name);
+		VulkanRenderBufferResource& add_index_buffer_input(const std::string& name);
+		VulkanRenderBufferResource& add_indirect_buffer_input(const std::string& name);
+
+		void make_color_input_scaled(uint32_t index_);
+		const std::vector<VulkanRenderTextureResource*>& get_color_outputs() const;
+		const std::vector<VulkanRenderTextureResource*>& get_resolve_outputs() const;
+		const std::vector<VulkanRenderTextureResource*>& get_color_inputs() const;
+		const std::vector<VulkanRenderTextureResource*>& get_color_scale_inputs() const;
+		const std::vector<VulkanRenderTextureResource*>& get_storage_texture_outputs() const;
+		const std::vector<VulkanRenderTextureResource*>& get_storage_texture_inputs() const;
+		const std::vector<VulkanRenderTextureResource*>& get_blit_texture_inputs() const;
+		const std::vector<VulkanRenderTextureResource*>& get_blit_texture_outputs() const;
+		const std::vector<VulkanRenderTextureResource*>& get_attachment_inputs() const;
+		const std::vector<VulkanRenderTextureResource*>& get_history_inputs() const;
+		const std::vector<VulkanRenderBufferResource*>& get_storage_inputs() const;
+		const std::vector<VulkanRenderBufferResource*>& get_storage_outputs() const;
+		const std::vector<VulkanRenderBufferResource*>& get_transfer_outputs() const;
+		const std::vector<AccessedTextureResource>& get_generic_texture_inputs() const;
+		const std::vector<AccessedBufferResource>& get_generic_buffer_inputs() const;
+		VulkanRenderTextureResource* get_depth_stencil_input() const;
+		VulkanRenderTextureResource* get_depth_stencil_output() const;
+		uint32_t get_physical_pass_index() const;
+		void set_physical_pass_index(uint32_t index_);
+		bool get_clear_color(uint32_t index_, VkClearColorValue* value = nullptr) const;
+		bool get_clear_depth_stencil(VkClearDepthStencilValue* value = nullptr) const;
+		void build_render_pass(VkCommandBuffer& cmd);
+		void set_build_render_pass(std::function<void(VkCommandBuffer&)> func);
+		void set_get_clear_depth_stencil(std::function<bool(VkClearDepthStencilValue*)> func);
+		void set_get_clear_color(std::function<bool(uint32_t, VkClearColorValue*)> func);
+		const std::string& get_name() const;
 
 	private:
 		VulkanRenderGraph* _graph;
 		uint32_t _indexInGraph;
+		std::optional<uint32_t> _physical_passIndex;
 		RenderGraphQueueFlagBits _queue;
 		const std::string& _name;
+
+		std::function<void(VkCommandBuffer&)> build_render_pass_cb;
+		std::function<bool(VkClearDepthStencilValue*)> get_clear_depth_stencil_cb;
+		std::function<bool(uint32_t, VkClearColorValue*)> get_clear_color_cb;
+
+		std::vector<VulkanRenderTextureResource*> _color_outputsList;
+		std::vector<VulkanRenderTextureResource*> _resolve_outputsList;
+		std::vector<VulkanRenderTextureResource*> _color_inputsList;
+		std::vector<VulkanRenderTextureResource*> _color_scale_inputsList;
+		std::vector<VulkanRenderTextureResource*> _storage_texture_inputsList;
+		std::vector<VulkanRenderTextureResource*> _storage_texture_outputsList;
+		std::vector<VulkanRenderTextureResource*> _blit_texture_inputsList;
+		std::vector<VulkanRenderTextureResource*> _blit_texture_outputsList;
+		std::vector<VulkanRenderTextureResource*> _attachments_inputsList;
+		std::vector<VulkanRenderTextureResource*> _history_inputsList;
+		std::vector<VulkanRenderBufferResource*> _storage_outputsList;
+		std::vector<VulkanRenderBufferResource*> _storage_inputsList;
+		std::vector<VulkanRenderBufferResource*> _transfer_outputsList;
+		std::vector<AccessedTextureResource> _generic_textureList;
+		std::vector<AccessedBufferResource> _generic_bufferList;
+		VulkanRenderTextureResource* _depth_stencil_input = nullptr;
+		VulkanRenderTextureResource* _depth_stencil_output = nullptr;
+
+		std::vector<std::pair<VulkanRenderTextureResource*, VulkanRenderTextureResource*>> _fake_resource_alias;
+
+		VulkanRenderBufferResource& add_generic_buffer_input(const std::string& name,
+			VkPipelineStageFlags2 stages,
+			VkAccessFlags2 access,
+			VkBufferUsageFlags usage);
 	};
 
 	class VulkanRenderGraph
@@ -196,10 +337,120 @@ namespace vk_rgraph {
 		VulkanRenderPass& add_pass(const std::string& name, RenderGraphQueueFlagBits queue);
 		VulkanRenderPass* find_pass(const std::string& name);
 
+		void set_backbuffer_source(const std::string& name);
+		void set_backbuffer_dimensions(const ResourceDimensions& dim);
+		const ResourceDimensions& get_backbuffer_dimensions() const;
+		ResourceDimensions get_resource_dimensions(const VulkanRenderBufferResource& resource) const;
+		ResourceDimensions get_resource_dimensions(const VulkanRenderTextureResource& resource) const;
+
+		void bake();
+		void reset();
+
+		VulkanRenderTextureResource& get_texture_resource(const std::string& name);
+		VulkanRenderBufferResource& get_buffer_resource(const std::string& name);
+
 	private:
 		VulkanEngine* _engine;
 
-		std::vector<std::unique_ptr<VulkanRenderPass>> passes;
-		std::unordered_map<std::string, uint32_t> pass_to_index;
+		std::vector<std::unique_ptr<VulkanRenderPass>> _passesList;
+		std::unordered_map<std::string, uint32_t> _pass_to_indexMap;
+
+		std::vector<std::unique_ptr<VulkanRenderResource>> _resourcesList;
+		std::unordered_map<std::string, uint32_t> _resource_to_indexMap;
+
+		std::vector<uint32_t> _pass_stack;
+
+		std::string _backbuffer_source;
+
+		struct Barrier
+		{
+			uint32_t resource_index;
+			VkImageLayout layout;
+			VkAccessFlags2 access;
+			VkPipelineStageFlags2 stages;
+			bool history;
+		};
+
+		struct Barriers
+		{
+			std::vector<Barrier> invalidate;
+			std::vector<Barrier> flush;
+		};
+
+		std::vector<Barriers> _pass_barriersList;
+
+		void filter_passes(std::vector<uint32_t>& list);
+		void validate_passes();
+		void build_barriers();
+
+		ResourceDimensions _swapchain_dimensions;
+		uint32_t _swapchain_physical_index = std::numeric_limits<uint32_t>::max();
+
+		struct ColorClearRequest
+		{
+			VulkanRenderPass* pass;
+			VkClearColorValue* target;
+			uint32_t index;
+		};
+
+		struct DepthClearRequest
+		{
+			VulkanRenderPass* pass;
+			VkClearDepthStencilValue* target;
+		};
+
+		struct ScaledClearRequests
+		{
+			uint32_t target;
+			uint32_t physical_resource;
+		};
+
+		struct MipmapRequests
+		{
+			uint32_t physical_resource;
+			VkPipelineStageFlags2 stages;
+			VkAccessFlags2 access;
+			VkImageLayout layout;
+		};
+
+		struct PhysicalPass
+		{
+			std::vector<uint32_t> passes;
+			std::vector<uint32_t> discards;
+			std::vector<Barrier> invalidate;
+			std::vector<Barrier> flush;
+			std::vector<Barrier> history;
+			std::vector<std::pair<uint32_t, uint32_t>> alias_transfer;
+
+			//Vulkan::RenderPassInfo render_pass_info;
+			//std::vector<Vulkan::RenderPassInfo::Subpass> subpasses;
+			std::vector<uint32_t> physical_color_attachments;
+			std::optional<uint32_t> physical_depth_stencil_attachment;
+
+			std::vector<ColorClearRequest> color_clear_requests;
+			DepthClearRequest depth_clear_request;
+
+			std::vector<std::vector<ScaledClearRequests>> scaled_clear_requests;
+			std::vector<MipmapRequests> mipmap_requests;
+			uint32_t layers = 1;
+		};
+		std::vector<PhysicalPass> physical_passes;
+		std::vector<bool> _physical_image_has_historyList;
+
+		void build_physical_passes();
+		void build_transients();
+		void build_physical_resources();
+		void build_physical_barriers();
+		void build_render_pass_info();
+
+
+		std::vector<ResourceDimensions> _physical_dimensionsList;
+		std::vector<VkImageView> _physical_attachmentsList;
+		std::vector<AllocatedBuffer> _physical_buffersList;
+		std::vector<Texture> _physical_image_attachmentsList;
+		std::vector<Texture*> _physical_history_image_attachmentsList;
+
+		void setup_physical_buffer(unsigned attachment);
+		void setup_physical_image(unsigned attachment);
 	};
 }
