@@ -133,7 +133,7 @@ void vkutil::MaterialSystem::build_default_templates()
 
 	ShaderEffect* texturedLit = build_effect(engine, "tri_mesh.vert.spv", "triangle.frag.spv");
 
-	ShaderPass* texturedLitPass = build_shader(engine->_renderPass, forwardBuilder, texturedLit);
+	ShaderPass* texturedLitPass = build_shader(engine->_renderPass.get_render_pass(), forwardBuilder, texturedLit);
 
 	EffectTemplate defaultTextured{};
 	defaultTextured.passShaders[MeshpassType::Transparency] = nullptr;

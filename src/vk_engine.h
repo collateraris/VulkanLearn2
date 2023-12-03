@@ -17,6 +17,7 @@
 #include <vk_render_passes.h>
 #include <vk_raytracer_builder.h>
 #include <vk_render_graph.h>
+#include <vk_render_pass.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
 
@@ -143,7 +144,7 @@ public:
 	VkPipeline _bindlessPipeline;
 	VkPipelineLayout _bindlessPipelineLayout;
 
-	VkRenderPass _renderPass;
+	VulkanRenderPass _renderPass;
 
 	VulkanDepthReduceRenderPass _depthReduceRenderPass;
 #if RAYTRACER_ON

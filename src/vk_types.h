@@ -10,6 +10,10 @@
 #include <volk.h>
 #include "vk_mem_alloc.h"
 
+#define VK_ASSERT assert
+
+constexpr unsigned VULKAN_NUM_ATTACHMENTS = 8;
+
 //we will add our main reusable types here
 
 struct AllocatedBuffer {

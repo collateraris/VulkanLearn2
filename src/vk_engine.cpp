@@ -192,7 +192,7 @@ void VulkanEngine::draw()
 
 	//start the main renderpass. 
 	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, _framebuffers[swapchainImageIndex]);
+	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass.get_render_pass(), _windowExtent, _framebuffers[swapchainImageIndex]);
 
 	//connect clear values
 	rpInfo.clearValueCount = 2;
@@ -689,7 +689,7 @@ void VulkanEngine::init_default_renderpass()
 	render_pass_info.dependencyCount = 2;
 	render_pass_info.pDependencies = &dependencies[0];
 
-	create_render_pass(render_pass_info, _renderPass);
+	_renderPass.init(this, render_pass_info);
 }
 
 void VulkanEngine::init_framebuffers()
@@ -699,7 +699,7 @@ void VulkanEngine::init_framebuffers()
 	fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 	fb_info.pNext = nullptr;
 
-	fb_info.renderPass = _renderPass;
+	fb_info.renderPass = _renderPass.get_render_pass();
 	fb_info.attachmentCount = 1;
 	fb_info.width = _windowExtent.width;
 	fb_info.height = _windowExtent.height;
@@ -828,7 +828,7 @@ void VulkanEngine::init_pipelines() {
 	pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = pipelineBuilder.vertexDescription.bindings.data();
 	pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = (uint32_t)pipelineBuilder.vertexDescription.bindings.size();
 #endif
-	VkPipeline meshPipeline = pipelineBuilder.build_graphic_pipeline(_device, _renderPass);
+	VkPipeline meshPipeline = pipelineBuilder.build_graphic_pipeline(_device, _renderPass.get_render_pass());
 #if MESHSHADER_ON
 	_bindlessPipeline = meshPipeline;
 	_bindlessPipelineLayout = meshPipLayout;
@@ -1848,7 +1848,7 @@ void VulkanEngine::init_imgui()
 		return vkGetInstanceProcAddr(*(reinterpret_cast<VkInstance*>(vulkan_instance)), function_name);
 		}, &_instance);
 
-	ImGui_ImplVulkan_Init(&init_info, _renderPass);
+	ImGui_ImplVulkan_Init(&init_info, _renderPass.get_render_pass());
 
 	//execute a gpu command to upload imgui font textures
 	immediate_submit([&](VkCommandBuffer cmd) {
