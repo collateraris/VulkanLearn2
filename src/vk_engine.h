@@ -16,6 +16,7 @@
 #include <vk_textures.h>
 #include <vk_render_passes.h>
 #include <vk_raytracer_builder.h>
+#include <vk_render_graph.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
 
@@ -216,6 +217,7 @@ public:
 	Scene _scene;
 
 	VkLogger _logger;
+	vk_rgraph::VulkanRenderGraph _rgraph;
 
 	//create material and add it to the map
 	Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);

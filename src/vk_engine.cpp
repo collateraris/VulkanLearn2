@@ -52,6 +52,8 @@ void VulkanEngine::init()
 
 	_logger.init("vulkan.log");
 
+	_rgraph.init(this);
+
 	_depthReduceRenderPass.init(this);
 
 	//load the core Vulkan structures

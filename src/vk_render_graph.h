@@ -487,7 +487,7 @@ namespace vk_rgraph {
 			std::vector<MipmapRequests> mipmap_requests;
 			uint32_t layers = 1;
 		};
-		std::vector<PhysicalPass> physical_passes;
+		std::vector<PhysicalPass> _physical_passesList;
 		std::vector<bool> _physical_image_has_historyList;
 
 		void build_physical_passes();

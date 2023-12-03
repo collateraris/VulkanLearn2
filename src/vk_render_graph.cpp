@@ -144,7 +144,16 @@ void vk_rgraph::VulkanRenderGraph::bake()
 
 void vk_rgraph::VulkanRenderGraph::reset()
 {
-
+	_passesList.clear();
+	_resourcesList.clear();
+	_pass_to_indexMap.clear();
+	_resource_to_indexMap.clear();
+	_physical_passesList.clear();
+	_physical_dimensionsList.clear();
+	_physical_attachmentsList.clear();
+	_physical_buffersList.clear();
+	_physical_image_attachmentsList.clear();
+	_physical_history_image_attachmentsList.clear();
 }
 
 void vk_rgraph::VulkanRenderGraph::filter_passes(std::vector<uint32_t>& list)
@@ -674,7 +683,7 @@ const vk_rgraph::ResourceDimensions& vk_rgraph::VulkanRenderGraph::get_backbuffe
 
 void vk_rgraph::VulkanRenderGraph::build_physical_passes()
 {
-	physical_passes.clear();
+	_physical_passesList.clear();
 	PhysicalPass physical_pass;
 
 	const auto find_attachment = [](const std::vector<VulkanRenderTextureResource*>& resource_list, const VulkanRenderTextureResource* resource) -> bool {
@@ -841,13 +850,13 @@ void vk_rgraph::VulkanRenderGraph::build_physical_passes()
 		}
 
 		physical_pass.passes.insert(end(physical_pass.passes), begin(_pass_stack) + index, begin(_pass_stack) + merge_end);
-		physical_passes.push_back(std::move(physical_pass));
+		_physical_passesList.push_back(std::move(physical_pass));
 		index = merge_end;
 	}
 
-	for (auto& phys_pass : physical_passes)
+	for (auto& phys_pass : _physical_passesList)
 	{
-		uint32_t index = uint32_t(&phys_pass - physical_passes.data());
+		uint32_t index = uint32_t(&phys_pass - _physical_passesList.data());
 		for (auto& pass : phys_pass.passes)
 			_passesList[pass]->set_physical_pass_index(index);
 	}
@@ -1273,7 +1282,7 @@ void vk_rgraph::VulkanRenderGraph::build_physical_barriers()
 	std::vector<ResourceState> resource_state;
 	resource_state.reserve(_physical_dimensionsList.size());
 
-	for (auto& physical_pass : physical_passes)
+	for (auto& physical_pass : _physical_passesList)
 	{
 		resource_state.clear();
 		resource_state.resize(_physical_dimensionsList.size());
@@ -1434,7 +1443,7 @@ void vk_rgraph::VulkanRenderGraph::build_physical_barriers()
 
 void vk_rgraph::VulkanRenderGraph::build_render_pass_info()
 {
-	for (auto& physical_pass : physical_passes)
+	for (auto& physical_pass : _physical_passesList)
 	{
 		auto& rp = physical_pass.render_pass_info;
 		physical_pass.subpasses.resize(physical_pass.passes.size());
@@ -1569,7 +1578,7 @@ void vk_rgraph::VulkanRenderGraph::build_render_pass_info()
 					rp.op_flags |=RENDER_PASS_OP_DEPTH_STENCIL_READ_ONLY_BIT |
 						RENDER_PASS_OP_LOAD_DEPTH_STENCIL_BIT;
 
-					auto current_physical_pass = uint32_t(&physical_pass - physical_passes.data());
+					auto current_physical_pass = uint32_t(&physical_pass - _physical_passesList.data());
 
 					const auto check_preserve = [this, current_physical_pass](const VulkanRenderResource& tex) -> bool {
 						for (auto& read_pass : tex.get_read_passes())
