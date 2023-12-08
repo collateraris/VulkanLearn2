@@ -114,7 +114,7 @@ void vk_rgraph::VulkanRenderGraph::bake()
 		if (&dim != &backbuffer_dim)
 			dim.transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 
-	if (vkutils::surface_transform_swaps_xy(backbuffer_dim.transform))
+	if (vkutil::surface_transform_swaps_xy(backbuffer_dim.transform))
 		std::swap(backbuffer_dim.image_extend.width, backbuffer_dim.image_extend.height);
 
 	backbuffer_dim.flags &= ~(ATTACHMENT_INFO_INTERNAL_TRANSIENT_BIT | ATTACHMENT_INFO_SUPPORTS_PREROTATE_BIT);
@@ -130,7 +130,7 @@ void vk_rgraph::VulkanRenderGraph::bake()
 		backbuffer_dim.image_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
 
 		// Don't use pre-transform if we can't alias anyways.
-		if (vkutils::surface_transform_swaps_xy(backbuffer_dim.transform))
+		if (vkutil::surface_transform_swaps_xy(backbuffer_dim.transform))
 			std::swap(backbuffer_dim.image_extend.width, backbuffer_dim.image_extend.height);
 		backbuffer_dim.transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	}
@@ -326,7 +326,7 @@ void vk_rgraph::VulkanRenderGraph::build_barriers()
 			barrier.access |= VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
 			barrier.stages |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 
-			if (vkutils::format_has_depth_or_stencil_aspect(input->get_attachment_info().format))
+			if (vkutil::format_has_depth_or_stencil_aspect(input->get_attachment_info().format))
 			{
 				// Need DEPTH_ATTACHMENT_READ here to satisfy loadOp = LOAD.
 				barrier.access |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
@@ -628,7 +628,7 @@ vk_rgraph::ResourceDimensions vk_rgraph::VulkanRenderGraph::get_resource_dimensi
 		dim.image_extend.width = std::max(uint32_t(std::ceil(info.size_x * _swapchain_dimensions.image_extend.width)), 1u);
 		dim.image_extend.height = std::max(uint32_t(std::ceil(info.size_y * _swapchain_dimensions.image_extend.height)), 1u);
 		dim.image_extend.depth = std::max(uint32_t(std::ceil(info.size_z)), 1u);
-		if (vkutils::surface_transform_swaps_xy(_swapchain_dimensions.transform))
+		if (vkutil::surface_transform_swaps_xy(_swapchain_dimensions.transform))
 			std::swap(dim.image_extend.width, dim.image_extend.height);
 		break;
 
@@ -879,7 +879,7 @@ void vk_rgraph::VulkanRenderGraph::build_transients()
 		if (_physical_history_image_attachmentsList[index])
 			dim.flags &= ~ATTACHMENT_INFO_INTERNAL_TRANSIENT_BIT;
 
-		if (vkutils::format_has_depth_or_stencil_aspect(dim.format))
+		if (vkutil::format_has_depth_or_stencil_aspect(dim.format))
 			dim.flags &= ~ATTACHMENT_INFO_INTERNAL_TRANSIENT_BIT;
 		else
 			dim.flags |= ATTACHMENT_INFO_INTERNAL_TRANSIENT_BIT;

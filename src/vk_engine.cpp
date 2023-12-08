@@ -1085,14 +1085,14 @@ void VulkanEngine::create_rtshader_binding_table()
 	uint32_t handleSize = _rtProperties.shaderGroupHandleSize;
 
 	// The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
-	uint32_t handleSizeAligned = vkutils::align_up(handleSize, _rtProperties.shaderGroupHandleAlignment);
+	uint32_t handleSizeAligned = vkutil::align_up(handleSize, _rtProperties.shaderGroupHandleAlignment);
 
-	_rgenRegion.stride = vkutils::align_up(handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
+	_rgenRegion.stride = vkutil::align_up(handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
 	_rgenRegion.size = _rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
 	_missRegion.stride = handleSizeAligned;
-	_missRegion.size = vkutils::align_up(missCount * handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
+	_missRegion.size = vkutil::align_up(missCount * handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
 	_hitRegion.stride = handleSizeAligned;
-	_hitRegion.size = vkutils::align_up(hitCount * handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
+	_hitRegion.size = vkutil::align_up(hitCount * handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
 
 	// Get the shader group handles
 	uint32_t             dataSize = handleCount * handleSize;
@@ -1180,13 +1180,13 @@ VkQueryPool VulkanEngine::createQueryPool(uint32_t queryCount)
 uint64_t VulkanEngine::padSizeToMinUniformBufferOffsetAlignment(uint64_t originalSize)
 {
 	uint64_t minAlignment = _physDevProp.limits.minUniformBufferOffsetAlignment;
-	return vkutils::padSizeToAlignment(originalSize, minAlignment);
+	return vkutil::padSizeToAlignment(originalSize, minAlignment);
 }
 
 uint64_t VulkanEngine::padSizeToMinStorageBufferOffsetAlignment(uint64_t originalSize)
 {
 	uint64_t minAlignment = _physDevProp.limits.minStorageBufferOffsetAlignment;
-	return vkutils::padSizeToAlignment(originalSize, minAlignment);
+	return vkutil::padSizeToAlignment(originalSize, minAlignment);
 }
 
 FrameData& VulkanEngine::get_current_frame()

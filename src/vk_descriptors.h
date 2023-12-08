@@ -126,7 +126,7 @@ namespace vkutil {
 
 			// Pad the data size to minimum alignment
 			// and move the offset
-			_lastOffset += vkutils::padSizeToAlignment(dataSize, _minAlignment);
+			_lastOffset += vkutil::padSizeToAlignment(dataSize, _minAlignment);
 			return currentOffset;
 		}
 
