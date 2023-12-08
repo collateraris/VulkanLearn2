@@ -30,6 +30,7 @@ struct Texture {
 	AllocatedImage image;
 	VkImageView imageView;
 	VkExtent3D extend;
+	VkImageCreateInfo createInfo;
 };
 
 struct Resources

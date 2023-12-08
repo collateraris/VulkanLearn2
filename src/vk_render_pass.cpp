@@ -100,12 +100,12 @@ bool VulkanRenderPass::has_depth(uint32_t subpass) const
 {
 	VK_ASSERT(subpass < subpasses_info.size());
 	return subpasses_info[subpass].depth_stencil_attachment.attachment != VK_ATTACHMENT_UNUSED &&
-		vk_utils::format_has_depth_aspect(depth_stencil);
+		vkutils::format_has_depth_aspect(depth_stencil);
 }
 
 bool VulkanRenderPass::has_stencil(uint32_t subpass) const
 {
 	VK_ASSERT(subpass < subpasses_info.size());
 	return subpasses_info[subpass].depth_stencil_attachment.attachment != VK_ATTACHMENT_UNUSED &&
-		vk_utils::format_has_stencil_aspect(depth_stencil);
+		vkutils::format_has_stencil_aspect(depth_stencil);
 }
