@@ -3,8 +3,10 @@
 #include <vk_utils.h>
 #include <vk_engine.h>
 
-void VulkanRenderPass::init(VulkanEngine* engine, const VkRenderPassCreateInfo& create_info)
+void VulkanRenderPass::init(VulkanEngine* engine, const VkRenderPassCreateInfo& create_info_)
 {
+	create_info = create_info_;
+
 	setup_subpasses(create_info);
 
 	engine->create_render_pass(create_info, render_pass);
@@ -108,4 +110,49 @@ bool VulkanRenderPass::has_stencil(uint32_t subpass) const
 	VK_ASSERT(subpass < subpasses_info.size());
 	return subpasses_info[subpass].depth_stencil_attachment.attachment != VK_ATTACHMENT_UNUSED &&
 		vkutil::format_has_stencil_aspect(depth_stencil);
+}
+
+const VkRenderPassCreateInfo& VulkanRenderPass::get_create_info() const
+{
+	return create_info;
+}
+
+void RenderPassInfo::compute_dimensions(const RenderPassInfo& info, uint32_t& width, uint32_t& height)
+{
+	width = UINT32_MAX;
+	height = UINT32_MAX;
+
+	for (unsigned i = 0; i < info.num_color_attachments; i++)
+	{
+		VK_ASSERT(info.color_attachments[i]);
+		width = std::min(width, info.color_attachments[i]->extend.width);
+		height = std::min(height, info.color_attachments[i]->extend.height);
+	}
+
+	if (info.depth_stencil)
+	{
+		width = std::min(width, info.depth_stencil->extend.width);
+		height = std::min(height, info.depth_stencil->extend.height);
+	}
+}
+
+void RenderPassInfo::compute_attachment_dimensions(const RenderPassInfo& info, unsigned index, uint32_t& width, uint32_t& height)
+{
+
+}
+
+std::vector<VkImageView> RenderPassInfo::setup_raw_views(const RenderPassInfo& info)
+{
+	std::vector<VkImageView> views{};
+	for (unsigned i = 0; i < info.num_color_attachments; i++)
+	{
+		views.push_back(info.color_attachments[i]->imageView);
+	}
+
+	if (info.depth_stencil)
+	{
+		views.push_back(info.depth_stencil->imageView);
+	}
+
+	return views;
 }

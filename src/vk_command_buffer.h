@@ -3,6 +3,8 @@
 #include <vk_types.h>
 
 class VulkanRenderPass;
+struct RenderPassInfo;
+class VulkanFrameBuffer;
 class VulkanEngine;
 
 class VulkanCommandBuffer
@@ -21,7 +23,6 @@ public:
 
 	void copy_buffer(const AllocatedBuffer& dst, VkDeviceSize dst_offset, const AllocatedBuffer& src, VkDeviceSize src_offset,
 		VkDeviceSize size);
-	void copy_buffer(const AllocatedBuffer& dst, const AllocatedBuffer& src);
 	void copy_buffer(const AllocatedBuffer& dst, const AllocatedBuffer& src, const VkBufferCopy* copies, size_t count);
 
 	void copy_image(const Texture& dst, const Texture& src);
@@ -54,11 +55,19 @@ public:
 		unsigned dst_base_layer = 0, uint32_t src_base_layer = 0, unsigned num_layers = 1,
 		VkFilter filter = VK_FILTER_LINEAR);
 
-
+	void begin_render_pass(const RenderPassInfo& info, VulkanRenderPass* render_pass, VulkanFrameBuffer* framebuffer, VkSubpassContents contents = VK_SUBPASS_CONTENTS_INLINE);
+	void end_render_pass();
 
 private:
-	VkCommandBuffer cmd;
+	VkCommandBuffer _cmd;
 
-	const VulkanRenderPass* actual_render_pass = nullptr;
+	VulkanFrameBuffer* _framebuffer = nullptr;
+	VulkanRenderPass* _actual_render_pass = nullptr;
 
+	std::vector<Texture*> _framebuffer_attachments{};
+
+	VkViewport _viewport = {};
+	VkRect2D _scissor = {};
+
+	void init_viewport_scissor(const RenderPassInfo& info, VulkanFrameBuffer* framebuffer);
 };

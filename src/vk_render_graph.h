@@ -2,6 +2,8 @@
 
 #include <vk_types.h>
 
+#include <vk_render_pass.h>
+
 class VulkanEngine;
 
 namespace vk_rgraph {
@@ -74,59 +76,6 @@ namespace vk_rgraph {
 		{
 			return !(*this == other);
 		}
-	};
-
-	enum RenderPassOp
-	{
-		RENDER_PASS_OP_CLEAR_DEPTH_STENCIL_BIT = 1 << 0,
-		RENDER_PASS_OP_LOAD_DEPTH_STENCIL_BIT = 1 << 1,
-		RENDER_PASS_OP_STORE_DEPTH_STENCIL_BIT = 1 << 2,
-		RENDER_PASS_OP_DEPTH_STENCIL_READ_ONLY_BIT = 1 << 3,
-		RENDER_PASS_OP_ENABLE_TRANSIENT_STORE_BIT = 1 << 4,
-		RENDER_PASS_OP_ENABLE_TRANSIENT_LOAD_BIT = 1 << 5
-	};
-	using RenderPassOpFlags = uint32_t;
-
-	constexpr uint32_t VULKAN_NUM_ATTACHMENTS = 8;
-
-	struct RenderPassInfo
-	{
-		const Texture* color_attachments[VULKAN_NUM_ATTACHMENTS];
-		const Texture* depth_stencil = nullptr;
-		unsigned num_color_attachments = 0;
-		RenderPassOpFlags op_flags = 0;
-		uint32_t clear_attachments = 0;
-		uint32_t load_attachments = 0;
-		uint32_t store_attachments = 0;
-		uint32_t base_layer = 0;
-		uint32_t num_layers = 1;
-
-		// Render area will be clipped to the actual framebuffer.
-		VkRect2D render_area = { { 0, 0 }, { UINT32_MAX, UINT32_MAX } };
-
-		VkClearColorValue clear_color[VULKAN_NUM_ATTACHMENTS] = {};
-		VkClearDepthStencilValue clear_depth_stencil = { 1.0f, 0 };
-
-		enum class DepthStencil
-		{
-			None,
-			ReadOnly,
-			ReadWrite
-		};
-
-		struct Subpass
-		{
-			uint32_t color_attachments[VULKAN_NUM_ATTACHMENTS];
-			uint32_t input_attachments[VULKAN_NUM_ATTACHMENTS];
-			uint32_t resolve_attachments[VULKAN_NUM_ATTACHMENTS];
-			unsigned num_color_attachments = 0;
-			unsigned num_input_attachments = 0;
-			unsigned num_resolve_attachments = 0;
-			DepthStencil depth_stencil_mode = DepthStencil::ReadWrite;
-		};
-		// If 0/nullptr, assume a default subpass.
-		const Subpass* subpasses = nullptr;
-		unsigned num_subpasses = 0;
 	};
 
 	struct ResourceDimensions

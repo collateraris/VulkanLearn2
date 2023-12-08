@@ -12,7 +12,7 @@
 
 #define VK_ASSERT assert
 
-constexpr unsigned VULKAN_NUM_ATTACHMENTS = 8;
+constexpr uint32_t VULKAN_NUM_ATTACHMENTS = 8;
 
 //we will add our main reusable types here
 
