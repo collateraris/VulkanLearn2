@@ -538,8 +538,24 @@ void VulkanEngine::init_swapchain()
 
 	//store swapchain and its related images
 	_swapchain = vkbSwapchain.swapchain;
-	_swapchainImages = vkbSwapchain.get_images().value();
-	_swapchainImageViews = vkbSwapchain.get_image_views().value();
+
+	std::vector<VkImage> swapchainImages = {};
+	std::vector<VkImageView> swapchainImageViews = {};
+
+	swapchainImages = vkbSwapchain.get_images().value();
+	swapchainImageViews = vkbSwapchain.get_image_views().value();
+
+	for (uint32_t i = 0; i < swapchainImages.size(); i++)
+	{
+		Texture swapchainTex;
+		swapchainTex.image._image = swapchainImages[i];
+		swapchainTex.imageView = swapchainImageViews[i];
+		swapchainTex.extend.width = _windowExtent.width;
+		swapchainTex.extend.height = _windowExtent.height;
+		swapchainTex.createInfo.format = vkbSwapchain.image_format;
+
+		_swapchainTextures.push_back(swapchainTex);
+	}
 
 	_swapchainImageFormat = vkbSwapchain.image_format;
 
@@ -688,14 +704,14 @@ void VulkanEngine::init_framebuffers()
 	fb_info.layers = 1;
 
 	//grab how many images we have in the swapchain
-	const uint32_t swapchain_imagecount = _swapchainImages.size();
+	const uint32_t swapchain_imagecount = _swapchainTextures.size();
 	_framebuffers = std::vector<VkFramebuffer>(swapchain_imagecount);
 
 	//create framebuffers for each of the swapchain image views
 	for (int i = 0; i < swapchain_imagecount; i++) {
 
 		VkImageView attachments[2];
-		attachments[0] = _swapchainImageViews[i];
+		attachments[0] = _swapchainTextures[i].imageView;
 		attachments[1] = _depthTex.imageView;
 
 		fb_info.pAttachments = attachments;
@@ -704,7 +720,7 @@ void VulkanEngine::init_framebuffers()
 
 		_mainDeletionQueue.push_function([=]() {
 			vkDestroyFramebuffer(_device, _framebuffers[i], nullptr);
-			vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
+			vkDestroyImageView(_device, _swapchainTextures[i].imageView, nullptr);
 			});
 	}
 }

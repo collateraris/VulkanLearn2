@@ -133,9 +133,8 @@ public:
 
 	// image format expected by the windowing system
 	VkFormat _swapchainImageFormat;
-
-	std::vector<VkImage> _swapchainImages = {};
-	std::vector<VkImageView> _swapchainImageViews = {};
+	
+	std::vector<Texture> _swapchainTextures = {};
 
 	VkQueue _graphicsQueue; //queue we will submit to
 	uint32_t _graphicsQueueFamily; //family of that queue
