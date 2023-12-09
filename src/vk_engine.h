@@ -18,6 +18,8 @@
 #include <vk_raytracer_builder.h>
 #include <vk_render_graph.h>
 #include <vk_render_pass.h>
+#include <vk_command_pool.h>
+#include <vk_command_buffer.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
 
@@ -70,7 +72,7 @@ struct GPUSceneData {
 
 struct UploadContext {
 	VkFence _uploadFence;
-	VkCommandPool _commandPool;
+	VulkanCommandPool _commandPool;
 	VkCommandBuffer _commandBuffer;
 };
 
@@ -78,7 +80,7 @@ struct FrameData {
 	VkSemaphore _presentSemaphore, _renderSemaphore;
 	VkFence _renderFence;
 
-	VkCommandPool _commandPool;
+	VulkanCommandPool _commandPool;
 	VkCommandBuffer _mainCommandBuffer;
 
 	//buffer that holds a single GPUCameraData to use when rendering

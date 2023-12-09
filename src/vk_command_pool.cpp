@@ -28,3 +28,8 @@ VkCommandBuffer VulkanCommandPool::request_command_buffer()
 
 	return cmd;
 }
+
+void VulkanCommandPool::reset()
+{
+	vkResetCommandPool(_engine->_device, _pool, 0);
+}

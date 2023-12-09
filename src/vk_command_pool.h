@@ -13,6 +13,8 @@ public:
 
 	VkCommandBuffer request_command_buffer();
 
+	void reset();
+
 private:
 	VulkanEngine* _engine = nullptr;
 
