@@ -6,6 +6,52 @@
 #include <vk_engine.h>
 #include <vk_utils.h>
 
+void VulkanCommandBuffer::init(VkCommandBuffer cmd)
+{
+	_cmd = cmd;
+}
+
+VkCommandBuffer VulkanCommandBuffer::get_cmd() const
+{
+	return _cmd;
+}
+
+void VulkanCommandBuffer::dispatch(uint32_t groups_x, uint32_t groups_y, uint32_t groups_z, std::function<void(VkCommandBuffer cmd)>&& preDispatch)
+{
+	preDispatch(_cmd);
+
+	vkCmdDispatch(_cmd, groups_x, groups_y, groups_z);
+}
+
+void VulkanCommandBuffer::draw_mesh_tasks_indirect(const AllocatedBuffer& indirectBuffer, VkDeviceSize offset, uint32_t draw_count, uint32_t stride, std::function<void(VkCommandBuffer cmd)>&& preDraw)
+{
+	preDraw(_cmd);
+
+	vkCmdDrawMeshTasksIndirectNV(_cmd, indirectBuffer._buffer, offset, draw_count, stride);
+}
+
+void VulkanCommandBuffer::raytrace(const VkStridedDeviceAddressRegionKHR* pRaygenShaderBindingTable, 
+	const VkStridedDeviceAddressRegionKHR* pMissShaderBindingTable, 
+	const VkStridedDeviceAddressRegionKHR* pHitShaderBindingTable, 
+	const VkStridedDeviceAddressRegionKHR* pCallableShaderBindingTable, 
+	uint32_t width, uint32_t height, uint32_t depth, std::function<void(VkCommandBuffer cmd)>&& preDraw)
+{
+	preDraw(_cmd);
+
+	vkCmdTraceRaysKHR(_cmd, pRaygenShaderBindingTable, 
+		pMissShaderBindingTable, 
+		pHitShaderBindingTable, 
+		pCallableShaderBindingTable,
+		width, height, depth);
+}
+
+void VulkanCommandBuffer::draw_indexed_indirect(const AllocatedBuffer& indirectBuffer, VkDeviceSize offset, uint32_t draw_count, uint32_t stride, std::function<void(VkCommandBuffer cmd)>&& preDraw)
+{
+	preDraw(_cmd);
+
+	vkCmdDrawIndexedIndirect(_cmd, indirectBuffer._buffer, offset, draw_count, stride);
+}
+
 void VulkanCommandBuffer::clear_image(const Texture& image, const VkClearValue& value)
 {
 	VkImageAspectFlags aspect = vkutil::format_to_aspect_mask(image.createInfo.format);

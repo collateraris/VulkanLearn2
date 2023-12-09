@@ -12,6 +12,25 @@ class VulkanCommandBuffer
 public:
 	VulkanCommandBuffer() = default;
 
+	void init(VkCommandBuffer cmd);
+
+	VkCommandBuffer get_cmd() const;
+
+	void dispatch(uint32_t groups_x, uint32_t groups_y, uint32_t groups_z, std::function<void(VkCommandBuffer cmd)>&& preDispatch);
+
+	void draw_mesh_tasks_indirect(const AllocatedBuffer& indirectBuffer, VkDeviceSize offset, uint32_t draw_count, uint32_t stride, std::function<void(VkCommandBuffer cmd)>&& preDraw);
+
+	void raytrace(const VkStridedDeviceAddressRegionKHR* pRaygenShaderBindingTable,
+		const VkStridedDeviceAddressRegionKHR* pMissShaderBindingTable,
+		const VkStridedDeviceAddressRegionKHR* pHitShaderBindingTable,
+		const VkStridedDeviceAddressRegionKHR* pCallableShaderBindingTable,
+		uint32_t                                    width,
+		uint32_t                                    height,
+		uint32_t                                    depth,
+		std::function<void(VkCommandBuffer cmd)>&& preDraw);
+
+	void draw_indexed_indirect(const  AllocatedBuffer& indirectBuffer, VkDeviceSize offset, uint32_t draw_count, uint32_t stride, std::function<void(VkCommandBuffer cmd)>&& preDraw);
+
 	void clear_image(const Texture& image, const VkClearValue& value);
 	void clear_image(const Texture& image, const VkClearValue& value, VkImageAspectFlags aspect);
 	void clear_quad(uint32_t attachment, const VkClearRect& rect, const VkClearValue& value,

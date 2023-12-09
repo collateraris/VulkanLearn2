@@ -43,7 +43,9 @@ add_executable(vulkan_guide
     vk_render_pass.h
     vk_render_pass.cpp
     vk_framebuffer.h
-    vk_framebuffer.cpp)
+    vk_framebuffer.cpp
+    vk_command_pool.h
+    vk_command_pool.cpp)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
