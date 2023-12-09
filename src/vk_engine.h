@@ -73,7 +73,7 @@ struct GPUSceneData {
 struct UploadContext {
 	VkFence _uploadFence;
 	VulkanCommandPool _commandPool;
-	VkCommandBuffer _commandBuffer;
+	VulkanCommandBuffer _commandBuffer;
 };
 
 struct FrameData {
@@ -81,7 +81,7 @@ struct FrameData {
 	VkFence _renderFence;
 
 	VulkanCommandPool _commandPool;
-	VkCommandBuffer _mainCommandBuffer;
+	VulkanCommandBuffer _mainCommandBuffer;
 
 	//buffer that holds a single GPUCameraData to use when rendering
 	AllocatedBuffer cameraBuffer;

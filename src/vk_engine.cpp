@@ -132,10 +132,10 @@ void VulkanEngine::draw()
 	VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, 1000000000, get_current_frame()._presentSemaphore, nullptr, &swapchainImageIndex));
 
 	//now that we are sure that the commands finished executing, we can safely reset the command buffer to begin recording again.
-	VK_CHECK(vkResetCommandBuffer(get_current_frame()._mainCommandBuffer, 0));
+	get_current_frame()._mainCommandBuffer.reset();
 
 	//naming it cmd for shorter writing
-	VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
+	VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer.get_cmd();
 
 	//begin the command buffer recording. We will use this command buffer exactly once, so we want to let Vulkan know that
 	VkCommandBufferBeginInfo cmdBeginInfo = {};
@@ -575,13 +575,13 @@ void VulkanEngine::init_commands()
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
 		_frames[i]._commandPool.init(this, commandPoolInfo);
 
-		_frames[i]._mainCommandBuffer = _frames[i]._commandPool.request_command_buffer();
+		_frames[i]._mainCommandBuffer.init(_frames[i]._commandPool.request_command_buffer());
 	}
 
 	VkCommandPoolCreateInfo uploadCommandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily);
 	
 	_uploadContext._commandPool.init(this, uploadCommandPoolInfo);
-	_uploadContext._commandBuffer = _uploadContext._commandPool.request_command_buffer();
+	_uploadContext._commandBuffer.init(_uploadContext._commandPool.request_command_buffer());
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
@@ -1463,7 +1463,7 @@ void VulkanEngine::load_materials(VkPipeline pipeline, VkPipelineLayout layout)
 
 void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
 {
-	VkCommandBuffer cmd = _uploadContext._commandBuffer;
+	VkCommandBuffer cmd = _uploadContext._commandBuffer.get_cmd();
 
 	//begin the command buffer recording. We will use this command buffer exactly once before resetting, so we tell vulkan that
 	VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);

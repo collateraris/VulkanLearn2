@@ -16,6 +16,11 @@ VkCommandBuffer VulkanCommandBuffer::get_cmd() const
 	return _cmd;
 }
 
+void VulkanCommandBuffer::reset()
+{
+	vkResetCommandBuffer(_cmd, 0);
+}
+
 void VulkanCommandBuffer::dispatch(uint32_t groups_x, uint32_t groups_y, uint32_t groups_z, std::function<void(VkCommandBuffer cmd)>&& preDispatch)
 {
 	preDispatch(_cmd);
