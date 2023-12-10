@@ -9,6 +9,7 @@
 
 #include <volk.h>
 #include "vk_mem_alloc.h"
+#include <taskflow.hpp>
 
 #define VK_ASSERT assert
 
