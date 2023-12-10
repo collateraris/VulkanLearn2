@@ -5,6 +5,7 @@
 #include <vk_render_pass.h>
 
 class VulkanEngine;
+class VulkanCommandBuffer;
 
 namespace vk_rgraph {
 
@@ -348,6 +349,7 @@ namespace vk_rgraph {
 		void bake();
 		void reset();
 
+
 		VulkanRenderTextureResource& get_texture_resource(const std::string& name);
 		VulkanRenderBufferResource& get_buffer_resource(const std::string& name);
 
@@ -465,5 +467,27 @@ namespace vk_rgraph {
 		bool depends_on_pass(uint32_t dst_pass, uint32_t src_pass);
 
 		void reorder_passes(std::vector<uint32_t>& passes);
+
+		struct PassSubmissionState
+		{
+			std::vector<VkBufferMemoryBarrier2> buffer_barriers;
+			std::vector<VkImageMemoryBarrier2> image_barriers;
+
+			std::vector<VkSubpassContents> subpass_contents;
+
+			std::vector<VkSemaphore> wait_semaphores;
+			std::vector<VkPipelineStageFlags2> wait_semaphore_stages;
+
+			bool need_submission_semaphore = false;
+
+			VulkanCommandBuffer* cmd = nullptr;
+
+			bool graphics = false;
+			bool active = false;
+
+			void emit_pre_pass_barriers();
+			void submit();
+		};
+		std::vector<PassSubmissionState> pass_submission_state;
 	};
 }

@@ -2,6 +2,7 @@
 
 #include <vk_utils.h>
 #include <vk_engine.h>
+#include <vk_command_buffer.h>
 
 vk_rgraph::VulkanRenderGraph::VulkanRenderGraph()
 {
@@ -2537,5 +2538,27 @@ bool vk_rgraph::ResourceDimensions::is_buffer_like() const
 {
 	return is_storage_image() || (buffer_info.size != 0) || (flags & ATTACHMENT_INFO_INTERNAL_PROXY_BIT) != 0;
 }
+
+void vk_rgraph::VulkanRenderGraph::PassSubmissionState::emit_pre_pass_barriers()
+{
+	// Submit barriers.
+	if (!image_barriers.empty() || !buffer_barriers.empty())
+	{
+		VkDependencyInfo dep = { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+		dep.bufferMemoryBarrierCount = uint32_t(buffer_barriers.size());
+		dep.pBufferMemoryBarriers = buffer_barriers.data();
+		dep.imageMemoryBarrierCount = uint32_t(image_barriers.size());
+		dep.pImageMemoryBarriers = image_barriers.data();
+		cmd->barrier(dep);
+	}
+}
+
+void vk_rgraph::VulkanRenderGraph::PassSubmissionState::submit()
+{
+	if (!cmd)
+		return;
+}
+
+
 
 
