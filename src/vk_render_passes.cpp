@@ -203,16 +203,10 @@ void VulkanDepthReduceRenderPass::init_render_pass()
 
 void VulkanDepthReduceRenderPass::init_pipelines()
 {
-	ShaderEffect computeEffect;
-	computeEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("depthreduce.comp.spv")), VK_SHADER_STAGE_COMPUTE_BIT);
-	computeEffect.reflect_layout(_engine->_device, nullptr, 0);
-
-	ComputePipelineBuilder computePipelineBuilder;
-	computePipelineBuilder.setShaders(&computeEffect);
 	//hook the push constants layout
-	_drawcmdPipelineLayout = computePipelineBuilder._pipelineLayout;
+	_drawcmdPipelineLayout = _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::PyramidDepthReduce);
 
-	_drawcmdPipeline = computePipelineBuilder.build_compute_pipeline(_engine->_device);
+	_drawcmdPipeline = _engine->_renderPipelineManager.get_pipeline(EPipelineType::PyramidDepthReduce);
 }
 
 void VulkanDepthReduceRenderPass::init_descriptors(const std::vector<DescriptorInfo>& descInfo)

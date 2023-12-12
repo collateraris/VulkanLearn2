@@ -16,6 +16,11 @@
 #include <vk_textures.h>
 #include <vk_render_passes.h>
 #include <vk_raytracer_builder.h>
+#include <vk_render_graph.h>
+#include <vk_render_pass.h>
+#include <vk_command_pool.h>
+#include <vk_command_buffer.h>
+#include <vk_render_pipeline.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
 
@@ -68,16 +73,16 @@ struct GPUSceneData {
 
 struct UploadContext {
 	VkFence _uploadFence;
-	VkCommandPool _commandPool;
-	VkCommandBuffer _commandBuffer;
+	VulkanCommandPool _commandPool;
+	VulkanCommandBuffer _commandBuffer;
 };
 
 struct FrameData {
 	VkSemaphore _presentSemaphore, _renderSemaphore;
 	VkFence _renderFence;
 
-	VkCommandPool _commandPool;
-	VkCommandBuffer _mainCommandBuffer;
+	VulkanCommandPool _commandPool;
+	VulkanCommandBuffer _mainCommandBuffer;
 
 	//buffer that holds a single GPUCameraData to use when rendering
 	AllocatedBuffer cameraBuffer;
@@ -129,20 +134,11 @@ public:
 
 	// image format expected by the windowing system
 	VkFormat _swapchainImageFormat;
-
-	std::vector<VkImage> _swapchainImages = {};
-	std::vector<VkImageView> _swapchainImageViews = {};
+	
+	std::vector<Texture> _swapchainTextures = {};
 
 	VkQueue _graphicsQueue; //queue we will submit to
 	uint32_t _graphicsQueueFamily; //family of that queue
-
-	VkPipeline _drawcmdPipeline;
-	VkPipelineLayout _drawcmdPipelineLayout;
-
-	VkPipeline _bindlessPipeline;
-	VkPipelineLayout _bindlessPipelineLayout;
-
-	VkRenderPass _renderPass;
 
 	VulkanDepthReduceRenderPass _depthReduceRenderPass;
 #if RAYTRACER_ON
@@ -210,12 +206,16 @@ public:
 
 	ShaderCache _shaderCache;
 
+	VulkanRenderPipelineManager _renderPipelineManager;
+	VulkanRenderPassManager _renderPassManager;
+
 	std::unordered_map<std::string, Material> _materials;
 
 	ResourceManager _resManager;
 	Scene _scene;
 
 	VkLogger _logger;
+	vk_rgraph::VulkanRenderGraph _rgraph;
 
 	//create material and add it to the map
 	Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
@@ -309,9 +309,6 @@ private:
 	VkStridedDeviceAddressRegionKHR _missRegion{};
 	VkStridedDeviceAddressRegionKHR _hitRegion{};
 	VkStridedDeviceAddressRegionKHR _callRegion{};
-
-	VkPipelineLayout               _rtPipelineLayout;
-	VkPipeline                     _rtPipeline;
 
 	VkDescriptorSetLayout          _rtDescSetLayout;
 	std::array<VkDescriptorSet,2>  _rtDescSet;

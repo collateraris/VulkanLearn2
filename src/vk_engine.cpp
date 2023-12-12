@@ -52,6 +52,8 @@ void VulkanEngine::init()
 
 	_logger.init("vulkan.log");
 
+	_rgraph.init(this);
+
 	_depthReduceRenderPass.init(this);
 
 	//load the core Vulkan structures
@@ -130,10 +132,10 @@ void VulkanEngine::draw()
 	VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, 1000000000, get_current_frame()._presentSemaphore, nullptr, &swapchainImageIndex));
 
 	//now that we are sure that the commands finished executing, we can safely reset the command buffer to begin recording again.
-	VK_CHECK(vkResetCommandBuffer(get_current_frame()._mainCommandBuffer, 0));
+	get_current_frame()._mainCommandBuffer.reset();
 
 	//naming it cmd for shorter writing
-	VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
+	VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer.get_cmd();
 
 	//begin the command buffer recording. We will use this command buffer exactly once, so we want to let Vulkan know that
 	VkCommandBufferBeginInfo cmdBeginInfo = {};
@@ -190,7 +192,7 @@ void VulkanEngine::draw()
 
 	//start the main renderpass. 
 	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, _framebuffers[swapchainImageIndex]);
+	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPassManager.get_render_pass(ERenderPassType::Default)->get_render_pass(), _windowExtent, _framebuffers[swapchainImageIndex]);
 
 	//connect clear values
 	rpInfo.clearValueCount = 2;
@@ -536,8 +538,24 @@ void VulkanEngine::init_swapchain()
 
 	//store swapchain and its related images
 	_swapchain = vkbSwapchain.swapchain;
-	_swapchainImages = vkbSwapchain.get_images().value();
-	_swapchainImageViews = vkbSwapchain.get_image_views().value();
+
+	std::vector<VkImage> swapchainImages = {};
+	std::vector<VkImageView> swapchainImageViews = {};
+
+	swapchainImages = vkbSwapchain.get_images().value();
+	swapchainImageViews = vkbSwapchain.get_image_views().value();
+
+	for (uint32_t i = 0; i < swapchainImages.size(); i++)
+	{
+		Texture swapchainTex;
+		swapchainTex.image._image = swapchainImages[i];
+		swapchainTex.imageView = swapchainImageViews[i];
+		swapchainTex.extend.width = _windowExtent.width;
+		swapchainTex.extend.height = _windowExtent.height;
+		swapchainTex.createInfo.format = vkbSwapchain.image_format;
+
+		_swapchainTextures.push_back(swapchainTex);
+	}
 
 	_swapchainImageFormat = vkbSwapchain.image_format;
 
@@ -571,33 +589,15 @@ void VulkanEngine::init_commands()
 	VkCommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
+		_frames[i]._commandPool.init(this, commandPoolInfo);
 
-
-		VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &_frames[i]._commandPool));
-
-		//allocate the default command buffer that we will use for rendering
-		VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_frames[i]._commandPool, 1);
-
-		VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_frames[i]._mainCommandBuffer));
-
-		_mainDeletionQueue.push_function([=]() {
-			vkDestroyCommandPool(_device, _frames[i]._commandPool, nullptr);
-			});
+		_frames[i]._mainCommandBuffer.init(_frames[i]._commandPool.request_command_buffer());
 	}
 
 	VkCommandPoolCreateInfo uploadCommandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily);
-	//create pool for upload context
-	VK_CHECK(vkCreateCommandPool(_device, &uploadCommandPoolInfo, nullptr, &_uploadContext._commandPool));
-
-	_mainDeletionQueue.push_function([=]() {
-		vkDestroyCommandPool(_device, _uploadContext._commandPool, nullptr);
-		});
-
-	//allocate the default command buffer that we will use for the instant commands
-	VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_uploadContext._commandPool, 1);
-
-	VkCommandBuffer cmd;
-	VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_uploadContext._commandBuffer));
+	
+	_uploadContext._commandPool.init(this, uploadCommandPoolInfo);
+	_uploadContext._commandBuffer.init(_uploadContext._commandPool.request_command_buffer());
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
@@ -607,87 +607,7 @@ void VulkanEngine::init_commands()
 
 void VulkanEngine::init_default_renderpass()
 {
-	// the renderpass will use this color attachment.
-	VkAttachmentDescription color_attachment = {};
-	//the attachment will have the format needed by the swapchain
-	color_attachment.format = _swapchainImageFormat;
-	//1 sample, we won't be doing MSAA
-	color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	// we Clear when this attachment is loaded
-	color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	// we keep the attachment stored when the renderpass ends
-	color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	//we don't care about stencil
-	color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
-	//we don't know or care about the starting layout of the attachment
-	color_attachment.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-	//after the renderpass ends, the image has to be on a layout ready for display
-	color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-	VkAttachmentReference color_attachment_ref = {};
-	//attachment number will index into the pAttachments array in the parent renderpass itself
-	color_attachment_ref.attachment = 0;
-	color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-
-	VkAttachmentDescription depth_attachment = {};
-	// Depth attachment
-	depth_attachment.flags = 0;
-	depth_attachment.format = _depthFormat;
-	depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-	VkAttachmentReference depth_attachment_ref = {};
-	depth_attachment_ref.attachment = 1;
-	depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-	//we are going to create 1 subpass, which is the minimum you can do
-	VkSubpassDescription subpass = {};
-	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount = 1;
-	subpass.pColorAttachments = &color_attachment_ref;
-	//hook the depth attachment into the subpass
-	subpass.pDepthStencilAttachment = &depth_attachment_ref;
-
-	VkSubpassDependency dependency = {};
-	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependency.dstSubpass = 0;
-	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.srcAccessMask = 0;
-	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-	VkSubpassDependency depth_dependency = {};
-	depth_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	depth_dependency.dstSubpass = 0;
-	depth_dependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-	depth_dependency.srcAccessMask = 0;
-	depth_dependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-	depth_dependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-	//array of 2 attachments, one for the color, and other for depth
-	VkAttachmentDescription attachments[2] = { color_attachment,depth_attachment };
-	VkSubpassDependency dependencies[2] = { dependency, depth_dependency };
-
-	VkRenderPassCreateInfo render_pass_info = {};
-	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	//2 attachments from said array
-	render_pass_info.attachmentCount = 2;
-	render_pass_info.pAttachments = &attachments[0];
-	render_pass_info.subpassCount = 1;
-	render_pass_info.pSubpasses = &subpass;
-	render_pass_info.dependencyCount = 2;
-	render_pass_info.pDependencies = &dependencies[0];
-
-	create_render_pass(render_pass_info, _renderPass);
+	_renderPassManager.init(this);
 }
 
 void VulkanEngine::init_framebuffers()
@@ -697,21 +617,21 @@ void VulkanEngine::init_framebuffers()
 	fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 	fb_info.pNext = nullptr;
 
-	fb_info.renderPass = _renderPass;
+	fb_info.renderPass = _renderPassManager.get_render_pass(ERenderPassType::Default)->get_render_pass();
 	fb_info.attachmentCount = 1;
 	fb_info.width = _windowExtent.width;
 	fb_info.height = _windowExtent.height;
 	fb_info.layers = 1;
 
 	//grab how many images we have in the swapchain
-	const uint32_t swapchain_imagecount = _swapchainImages.size();
+	const uint32_t swapchain_imagecount = _swapchainTextures.size();
 	_framebuffers = std::vector<VkFramebuffer>(swapchain_imagecount);
 
 	//create framebuffers for each of the swapchain image views
 	for (int i = 0; i < swapchain_imagecount; i++) {
 
 		VkImageView attachments[2];
-		attachments[0] = _swapchainImageViews[i];
+		attachments[0] = _swapchainTextures[i].imageView;
 		attachments[1] = _depthTex.imageView;
 
 		fb_info.pAttachments = attachments;
@@ -720,7 +640,7 @@ void VulkanEngine::init_framebuffers()
 
 		_mainDeletionQueue.push_function([=]() {
 			vkDestroyFramebuffer(_device, _framebuffers[i], nullptr);
-			vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
+			vkDestroyImageView(_device, _swapchainTextures[i].imageView, nullptr);
 			});
 	}
 }
@@ -761,97 +681,71 @@ void VulkanEngine::init_sync_structures()
 
 void VulkanEngine::init_pipelines() {
 
-	ShaderEffect defaultEffect;
+	_renderPipelineManager.init(this, &_renderPassManager, &_shaderCache);
+
 #if MESHSHADER_ON
-	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.task.spv")), VK_SHADER_STAGE_TASK_BIT_NV);
-	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.mesh.spv")), VK_SHADER_STAGE_MESH_BIT_NV);
-	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
-#else
-	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
-	defaultEffect.add_stage(_shaderCache.get_shader(shader_path("triangle.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
-#endif
-	defaultEffect.reflect_layout(_device, nullptr, 0);
-	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
-	GraphicPipelineBuilder pipelineBuilder;
+	_renderPipelineManager.init_render_pipeline(this, EPipelineType::Bindless_TaskMeshIndirectForward,
+		[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
+			ShaderEffect defaultEffect;
+			defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.task.spv")), VK_SHADER_STAGE_TASK_BIT_NV);
+			defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.mesh.spv")), VK_SHADER_STAGE_MESH_BIT_NV);
+			defaultEffect.add_stage(_shaderCache.get_shader(shader_path("tri_mesh.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
 
-	pipelineBuilder.setShaders(&defaultEffect);
-#if MESHSHADER_ON
-	VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
-	std::vector<VkDescriptorSetLayout> setLayout = {_bindlessSetLayout, _globalSetLayout };
-	mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
-	mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
+			defaultEffect.reflect_layout(_device, nullptr, 0);
+			//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
+			GraphicPipelineBuilder pipelineBuilder;
 
-	VK_CHECK(vkCreatePipelineLayout(_device, &mesh_pipeline_layout_info, nullptr, &pipelineBuilder._pipelineLayout));
-#endif
-	VkPipelineLayout meshPipLayout = pipelineBuilder._pipelineLayout;
+			pipelineBuilder.setShaders(&defaultEffect);
+			VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
+			std::vector<VkDescriptorSetLayout> setLayout = { _bindlessSetLayout, _globalSetLayout };
+			mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
+			mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
 
-	//vertex input controls how to read vertices from vertex buffers. We arent using it yet
-	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
+			VK_CHECK(vkCreatePipelineLayout(_device, &mesh_pipeline_layout_info, nullptr, &pipelineBuilder._pipelineLayout));
+			VkPipelineLayout meshPipLayout = pipelineBuilder._pipelineLayout;
 
-	//input assembly is the configuration for drawing triangle lists, strips, or individual points.
-	//we are just going to draw triangle list
-	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+			//vertex input controls how to read vertices from vertex buffers. We arent using it yet
+			pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
 
-	//build viewport and scissor from the swapchain extents
-	pipelineBuilder._viewport.x = 0.0f;
-	pipelineBuilder._viewport.y = 0.0f;
-	pipelineBuilder._viewport.width = (float)_windowExtent.width;
-	pipelineBuilder._viewport.height = (float)_windowExtent.height;
-	pipelineBuilder._viewport.minDepth = 0.0f;
-	pipelineBuilder._viewport.maxDepth = 1.0f;
+			//input assembly is the configuration for drawing triangle lists, strips, or individual points.
+			//we are just going to draw triangle list
+			pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 
-	pipelineBuilder._scissor.offset = { 0, 0 };
-	pipelineBuilder._scissor.extent = _windowExtent;
+			//build viewport and scissor from the swapchain extents
+			pipelineBuilder._viewport.x = 0.0f;
+			pipelineBuilder._viewport.y = 0.0f;
+			pipelineBuilder._viewport.width = _windowExtent.width;
+			pipelineBuilder._viewport.height = _windowExtent.height;
+			pipelineBuilder._viewport.minDepth = 0.0f;
+			pipelineBuilder._viewport.maxDepth = 1.0f;
 
-	//configure the rasterizer to draw filled triangles
-	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
+			pipelineBuilder._scissor.offset = { 0, 0 };
+			pipelineBuilder._scissor.extent = _windowExtent;
 
-	//we dont use multisampling, so just run the default one
-	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
+			//configure the rasterizer to draw filled triangles
+			pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
 
-	//a single blend attachment with no blending and writing to RGBA
-	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
+			//we dont use multisampling, so just run the default one
+			pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
 
-	//default depthtesting
-	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
+			//a single blend attachment with no blending and writing to RGBA
+			pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
 
-	//build the mesh triangle pipeline
-#if !MESHSHADER_ON
-	pipelineBuilder.vertexDescription = Vertex::get_vertex_description();
-	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-	//connect the pipeline builder vertex input info to the one we get from Vertex
-	pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = pipelineBuilder.vertexDescription.attributes.data();
-	pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = (uint32_t)pipelineBuilder.vertexDescription.attributes.size();
+			//default depthtesting
+			pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
+		
+			VkPipeline meshPipeline = pipelineBuilder.build_graphic_pipeline(_device,
+				_renderPassManager.get_render_pass(ERenderPassType::Default)->get_render_pass());
 
-	pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = pipelineBuilder.vertexDescription.bindings.data();
-	pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = (uint32_t)pipelineBuilder.vertexDescription.bindings.size();
-#endif
-	VkPipeline meshPipeline = pipelineBuilder.build_graphic_pipeline(_device, _renderPass);
-#if MESHSHADER_ON
-	_bindlessPipeline = meshPipeline;
-	_bindlessPipelineLayout = meshPipLayout;
-#else
-	load_materials(meshPipeline, meshPipLayout);
-#endif
-	_mainDeletionQueue.push_function([=]() {
-		vkDestroyPipeline(_device, meshPipeline, nullptr);
-
-		vkDestroyPipelineLayout(_device, meshPipLayout, nullptr);
+			pipeline = meshPipeline;
+			pipelineLayout = meshPipLayout;
 		});
+#endif
 
-#if MESHSHADER_ON
-	{
-		ShaderEffect computeEffect;
-		computeEffect.add_stage(_shaderCache.get_shader(shader_path("drawcmd.comp.spv")), VK_SHADER_STAGE_COMPUTE_BIT);
-		computeEffect.reflect_layout(_device, nullptr, 0);
-
-		ComputePipelineBuilder computePipelineBuilder;
-		computePipelineBuilder.setShaders(&computeEffect);
-		//hook the push constants layout
-		_drawcmdPipelineLayout = computePipelineBuilder._pipelineLayout;
-
-		_drawcmdPipeline = computePipelineBuilder.build_compute_pipeline(_device);
-	}
+#if !MESHSHADER_ON
+	auto meshPipeline = _renderPipelineManager.get_pipeline(EPipelineType::DrawIndirectForward);
+	auto meshPipLayout = _renderPipelineManager.get_pipelineLayout(EPipelineType::DrawIndirectForward);
+	load_materials(meshPipeline, meshPipLayout);
 #endif
 
 	_depthReduceRenderPass.init_pipelines();
@@ -1012,7 +906,7 @@ void VulkanEngine::create_rtdescriptor_set()
 
 		VkDescriptorImageInfo outImageBufferInfo;
 		outImageBufferInfo.sampler = VK_NULL_HANDLE;
-		outImageBufferInfo.imageView = _swapchainImageViews[i];
+		outImageBufferInfo.imageView = _swapchainTextures[i].imageView;
 		outImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
@@ -1024,55 +918,7 @@ void VulkanEngine::create_rtdescriptor_set()
 
 void VulkanEngine::create_rtpipeline()
 {
-	ShaderEffect defaultEffect;
-	uint32_t rayGenIndex = defaultEffect.add_stage(_shaderCache.get_shader(shader_path("raytrace.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
-	uint32_t rayMissIndex = defaultEffect.add_stage(_shaderCache.get_shader(shader_path("raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
-	uint32_t rayClosestHitIndex = defaultEffect.add_stage(_shaderCache.get_shader(shader_path("raytrace.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
-	defaultEffect.reflect_layout(_device, nullptr, 0);
-
-	RTPipelineBuilder pipelineBuilder;
-
-	pipelineBuilder.setShaders(&defaultEffect);
-
-	// The ray tracing process can shoot rays from the camera, and a shadow ray can be shot from the
-	// hit points of the camera rays, hence a recursion level of 2. This number should be kept as low
-	// as possible for performance reasons. Even recursive ray tracing should be flattened into a loop
-	// in the ray generation to avoid deep recursion.
-	pipelineBuilder._rayPipelineInfo.maxPipelineRayRecursionDepth = 2;  // Ray depth
-
-	// Shader groups
-	std::vector<VkRayTracingShaderGroupCreateInfoKHR> rtShaderGroups;
-	VkRayTracingShaderGroupCreateInfoKHR group{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
-	group.anyHitShader = VK_SHADER_UNUSED_KHR;
-	group.closestHitShader = VK_SHADER_UNUSED_KHR;
-	group.generalShader = VK_SHADER_UNUSED_KHR;
-	group.intersectionShader = VK_SHADER_UNUSED_KHR;
-
-	// Raygen
-	group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-	group.generalShader = rayGenIndex;
-	rtShaderGroups.push_back(group);
-
-	// Miss
-	group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-	group.generalShader = rayMissIndex;
-	rtShaderGroups.push_back(group);
-
-	// closest hit shader
-	group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-	group.generalShader = VK_SHADER_UNUSED_KHR;
-	group.closestHitShader = rayClosestHitIndex;
-	rtShaderGroups.push_back(group);
-
-	pipelineBuilder._rayPipelineInfo.groupCount = static_cast<uint32_t>(rtShaderGroups.size());
-	pipelineBuilder._rayPipelineInfo.pGroups = rtShaderGroups.data();
-
-	_rtPipelineLayout = pipelineBuilder._pipelineLayout;
-
-	_rtPipeline = pipelineBuilder.build_rt_pipeline(_device);
-
 	create_rtshader_binding_table();
-
 }
 
 void VulkanEngine::create_rtshader_binding_table()
@@ -1083,19 +929,19 @@ void VulkanEngine::create_rtshader_binding_table()
 	uint32_t handleSize = _rtProperties.shaderGroupHandleSize;
 
 	// The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
-	uint32_t handleSizeAligned = vk_utils::align_up(handleSize, _rtProperties.shaderGroupHandleAlignment);
+	uint32_t handleSizeAligned = vkutil::align_up(handleSize, _rtProperties.shaderGroupHandleAlignment);
 
-	_rgenRegion.stride = vk_utils::align_up(handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
+	_rgenRegion.stride = vkutil::align_up(handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
 	_rgenRegion.size = _rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
 	_missRegion.stride = handleSizeAligned;
-	_missRegion.size = vk_utils::align_up(missCount * handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
+	_missRegion.size = vkutil::align_up(missCount * handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
 	_hitRegion.stride = handleSizeAligned;
-	_hitRegion.size = vk_utils::align_up(hitCount * handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
+	_hitRegion.size = vkutil::align_up(hitCount * handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
 
 	// Get the shader group handles
 	uint32_t             dataSize = handleCount * handleSize;
 	std::vector<uint8_t> handles(dataSize);
-	auto result = vkGetRayTracingShaderGroupHandlesKHR(_device, _rtPipeline, 0, handleCount, dataSize, handles.data());
+	auto result = vkGetRayTracingShaderGroupHandlesKHR(_device, _renderPipelineManager.get_pipeline(EPipelineType::BaseRaytracer), 0, handleCount, dataSize, handles.data());
 
 	// Allocate a buffer for storing the SBT.
 	VkDeviceSize sbtSize = _rgenRegion.size + _missRegion.size + _hitRegion.size + _callRegion.size;
@@ -1132,8 +978,8 @@ void VulkanEngine::create_rtshader_binding_table()
 
 void VulkanEngine::raytrace(const VkCommandBuffer& cmd)
 {
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _rtPipeline);
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _rtPipelineLayout, 0,
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _renderPipelineManager.get_pipeline(EPipelineType::BaseRaytracer));
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _renderPipelineManager.get_pipelineLayout(EPipelineType::BaseRaytracer), 0,
 		1, &_rtDescSet[get_current_frame_index()], 0, nullptr);
 	vkCmdTraceRaysKHR(cmd, &_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _windowExtent.width, _windowExtent.height, 1);
 }
@@ -1178,13 +1024,13 @@ VkQueryPool VulkanEngine::createQueryPool(uint32_t queryCount)
 uint64_t VulkanEngine::padSizeToMinUniformBufferOffsetAlignment(uint64_t originalSize)
 {
 	uint64_t minAlignment = _physDevProp.limits.minUniformBufferOffsetAlignment;
-	return vk_utils::padSizeToAlignment(originalSize, minAlignment);
+	return vkutil::padSizeToAlignment(originalSize, minAlignment);
 }
 
 uint64_t VulkanEngine::padSizeToMinStorageBufferOffsetAlignment(uint64_t originalSize)
 {
 	uint64_t minAlignment = _physDevProp.limits.minStorageBufferOffsetAlignment;
-	return vk_utils::padSizeToAlignment(originalSize, minAlignment);
+	return vkutil::padSizeToAlignment(originalSize, minAlignment);
 }
 
 FrameData& VulkanEngine::get_current_frame()
@@ -1479,7 +1325,7 @@ void VulkanEngine::load_materials(VkPipeline pipeline, VkPipelineLayout layout)
 
 void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
 {
-	VkCommandBuffer cmd = _uploadContext._commandBuffer;
+	VkCommandBuffer cmd = _uploadContext._commandBuffer.get_cmd();
 
 	//begin the command buffer recording. We will use this command buffer exactly once before resetting, so we tell vulkan that
 	VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -1501,7 +1347,7 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
 	vkResetFences(_device, 1, &_uploadContext._uploadFence);
 
 	// reset the command buffers inside the command pool
-	vkResetCommandPool(_device, _uploadContext._commandPool, 0);
+	_uploadContext._commandPool.reset();
 }
 
 Material* VulkanEngine::create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name)
@@ -1567,9 +1413,9 @@ std::vector<IndirectBatch> VulkanEngine::compact_draws(RenderObject* objects, in
 void VulkanEngine::compute_pass(VkCommandBuffer cmd)
 {
 #if MESHSHADER_ON
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipeline);
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _renderPipelineManager.get_pipeline(EPipelineType::ComputePrepassForTaskMeshIndirect));
 
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _drawcmdPipelineLayout, 0, 1, &get_current_frame().objectDescriptor, 0, nullptr);
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _renderPipelineManager.get_pipelineLayout(EPipelineType::ComputePrepassForTaskMeshIndirect), 0, 1, &get_current_frame().objectDescriptor, 0, nullptr);
 
 	vkCmdDispatch(cmd, uint32_t((_renderables.size() + 31) / 32), 1, 1);
 
@@ -1593,10 +1439,10 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 	size_t frameIndex = _frameNumber % FRAME_OVERLAP;
 #if MESHSHADER_ON
 	//only bind the pipeline if it doesn't match with the already bound one
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _bindlessPipeline);
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderPipelineManager.get_pipeline(EPipelineType::Bindless_TaskMeshIndirectForward));
 
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _bindlessPipelineLayout, 0, 1, &_bindlessSet, 0, nullptr);
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _bindlessPipelineLayout, 1, 1, &get_current_frame().globalDescriptor, 0, nullptr);
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderPipelineManager.get_pipelineLayout(EPipelineType::Bindless_TaskMeshIndirectForward), 0, 1, &_bindlessSet, 0, nullptr);
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _renderPipelineManager.get_pipelineLayout(EPipelineType::Bindless_TaskMeshIndirectForward), 1, 1, &get_current_frame().globalDescriptor, 0, nullptr);
 
 	VkDeviceSize indirect_offset = 0 * sizeof(VkDrawMeshTasksIndirectCommandNV);
 	uint32_t draw_stride = sizeof(VkDrawMeshTasksIndirectCommandNV);
@@ -1846,7 +1692,7 @@ void VulkanEngine::init_imgui()
 		return vkGetInstanceProcAddr(*(reinterpret_cast<VkInstance*>(vulkan_instance)), function_name);
 		}, &_instance);
 
-	ImGui_ImplVulkan_Init(&init_info, _renderPass);
+	ImGui_ImplVulkan_Init(&init_info, _renderPassManager.get_render_pass(ERenderPassType::Default)->get_render_pass());
 
 	//execute a gpu command to upload imgui font textures
 	immediate_submit([&](VkCommandBuffer cmd) {

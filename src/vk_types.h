@@ -9,6 +9,11 @@
 
 #include <volk.h>
 #include "vk_mem_alloc.h"
+#include <taskflow.hpp>
+
+#define VK_ASSERT assert
+
+constexpr uint32_t VULKAN_NUM_ATTACHMENTS = 8;
 
 //we will add our main reusable types here
 
@@ -26,6 +31,7 @@ struct Texture {
 	AllocatedImage image;
 	VkImageView imageView;
 	VkExtent3D extend;
+	VkImageCreateInfo createInfo;
 };
 
 struct Resources
@@ -71,6 +77,7 @@ struct Stats
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <set>
 #include <vector>
 #include <assert.h>
@@ -86,6 +93,7 @@ struct Stats
 #include <format>
 #include <algorithm>
 #include <type_traits>
+#include <optional>
 
 #ifdef __GNUC__
 #define PACKED_STRUCT __attribute__((packed,aligned(1)))

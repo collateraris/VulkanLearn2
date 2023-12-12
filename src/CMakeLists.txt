@@ -32,10 +32,22 @@ add_executable(vulkan_guide
     vk_logger.cpp
     vk_render_passes.h
     vk_render_passes.cpp
+    vk_render_graph.h
+    vk_render_graph.cpp
     vk_raytracer_builder.h
     vk_raytracer_builder.cpp
     vk_utils.h
-    vk_utils.cpp)
+    vk_utils.cpp
+    vk_command_buffer.h
+    vk_command_buffer.cpp
+    vk_render_pass.h
+    vk_render_pass.cpp
+    vk_framebuffer.h
+    vk_framebuffer.cpp
+    vk_command_pool.h
+    vk_command_pool.cpp
+    vk_render_pipeline.h
+    vk_render_pipeline.cpp)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
@@ -43,6 +55,6 @@ set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGE
 target_include_directories(vulkan_guide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(vulkan_guide vkbootstrap vma glm tinyobjloader imgui stb_image assimp spirv_reflect)
 
-target_link_libraries(vulkan_guide sdl2 volk volk_headers meshoptimizer plog) 
+target_link_libraries(vulkan_guide sdl2 volk volk_headers meshoptimizer plog taskflow) 
 
 add_dependencies(vulkan_guide Shaders)

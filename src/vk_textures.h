@@ -11,6 +11,8 @@ namespace vkutil {
 	uint32_t getImageMipLevels(uint32_t width, uint32_t height);
 
 	uint32_t previousPow2(uint32_t v);
+
+	VkImageAspectFlags format_to_aspect_mask(VkFormat format);
 }
 
 class VulkanTextureBuilder
