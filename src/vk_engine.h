@@ -20,6 +20,7 @@
 #include <vk_render_pass.h>
 #include <vk_command_pool.h>
 #include <vk_command_buffer.h>
+#include <vk_render_pipeline.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
 
@@ -139,14 +140,6 @@ public:
 	VkQueue _graphicsQueue; //queue we will submit to
 	uint32_t _graphicsQueueFamily; //family of that queue
 
-	VkPipeline _drawcmdPipeline;
-	VkPipelineLayout _drawcmdPipelineLayout;
-
-	VkPipeline _bindlessPipeline;
-	VkPipelineLayout _bindlessPipelineLayout;
-
-	VulkanRenderPass _renderPass;
-
 	VulkanDepthReduceRenderPass _depthReduceRenderPass;
 #if RAYTRACER_ON
 	VulkanRaytracerBuilder _rtBuilder;
@@ -212,6 +205,9 @@ public:
 	PlayerCamera _camera;
 
 	ShaderCache _shaderCache;
+
+	VulkanRenderPipelineManager _renderPipelineManager;
+	VulkanRenderPassManager _renderPassManager;
 
 	std::unordered_map<std::string, Material> _materials;
 
@@ -313,9 +309,6 @@ private:
 	VkStridedDeviceAddressRegionKHR _missRegion{};
 	VkStridedDeviceAddressRegionKHR _hitRegion{};
 	VkStridedDeviceAddressRegionKHR _callRegion{};
-
-	VkPipelineLayout               _rtPipelineLayout;
-	VkPipeline                     _rtPipeline;
 
 	VkDescriptorSetLayout          _rtDescSetLayout;
 	std::array<VkDescriptorSet,2>  _rtDescSet;

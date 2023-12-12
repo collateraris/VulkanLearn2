@@ -348,7 +348,7 @@ namespace vk_rgraph {
 
 		void bake();
 		void reset();
-
+		void enqueue_render_passes(tf::Taskflow& taskflow);
 
 		VulkanRenderTextureResource& get_texture_resource(const std::string& name);
 		VulkanRenderBufferResource& get_buffer_resource(const std::string& name);
@@ -488,6 +488,8 @@ namespace vk_rgraph {
 			void emit_pre_pass_barriers();
 			void submit();
 		};
-		std::vector<PassSubmissionState> pass_submission_state;
+		std::vector<PassSubmissionState> _pass_submission_stateList;
+
+		void enqueue_render_pass(PhysicalPass& physical_pass, PassSubmissionState& state, tf::Taskflow& taskflow);
 	};
 }

@@ -4,6 +4,13 @@
 
 class VulkanEngine;
 
+enum class ERenderPassType
+{
+	NoInit = 0,
+	Default = 1,
+	Max,
+};
+
 enum RenderPassOp
 {
 	RENDER_PASS_OP_CLEAR_DEPTH_STENCIL_BIT = 1 << 0,
@@ -101,4 +108,14 @@ private:
 	VkRenderPassCreateInfo create_info;
 
 	void setup_subpasses(const VkRenderPassCreateInfo& create_info);
+};
+
+class VulkanRenderPassManager
+{
+public:
+	void init(VulkanEngine* _engine);
+
+	VulkanRenderPass* get_render_pass(ERenderPassType type) const;
+private:
+	std::vector<std::unique_ptr<VulkanRenderPass>> _renderPassesList;
 };

@@ -157,6 +157,15 @@ void vk_rgraph::VulkanRenderGraph::reset()
 	_physical_history_image_attachmentsList.clear();
 }
 
+void vk_rgraph::VulkanRenderGraph::enqueue_render_passes(tf::Taskflow& taskflow)
+{
+	_pass_submission_stateList.clear();
+	size_t count = _physical_passesList.size();
+	_pass_submission_stateList.resize(count);
+
+
+}
+
 void vk_rgraph::VulkanRenderGraph::filter_passes(std::vector<uint32_t>& list)
 {
 	std::unordered_set<uint32_t> seen;
@@ -1861,6 +1870,11 @@ void vk_rgraph::VulkanRenderGraph::reorder_passes(std::vector<uint32_t>& flatten
 
 		schedule(best_candidate);
 	}
+}
+
+void vk_rgraph::VulkanRenderGraph::enqueue_render_pass(PhysicalPass& physical_pass, PassSubmissionState& state, tf::Taskflow& taskflow)
+{
+
 }
 
 void vk_rgraph::VulkanRenderGraph::setup_physical_buffer(uint32_t attachment)
