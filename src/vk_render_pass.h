@@ -71,9 +71,9 @@ class VulkanRenderPass
 public:
 	struct SubpassInfo
 	{
-		VkAttachmentReference color_attachments[VULKAN_NUM_ATTACHMENTS];
+		std::array<VkAttachmentReference, VULKAN_NUM_ATTACHMENTS> color_attachments;
 		uint32_t num_color_attachments;
-		VkAttachmentReference input_attachments[VULKAN_NUM_ATTACHMENTS];
+		std::array<VkAttachmentReference, VULKAN_NUM_ATTACHMENTS> input_attachments;
 		uint32_t num_input_attachments;
 		VkAttachmentReference depth_stencil_attachment;
 
@@ -84,6 +84,7 @@ public:
 	~VulkanRenderPass() = default;
 
 	void init(VulkanEngine* engine, const VkRenderPassCreateInfo& create_info);
+	void init(VulkanEngine* engine, const RenderPassInfo& create_info);
 
 	uint32_t get_num_subpasses() const;
 	VkRenderPass get_render_pass() const;
@@ -101,7 +102,7 @@ private:
 	VulkanEngine* _engine;
 	VkRenderPass render_pass = VK_NULL_HANDLE;
 
-	VkFormat color_attachments[VULKAN_NUM_ATTACHMENTS] = {};
+	std::array<VkFormat, VULKAN_NUM_ATTACHMENTS> color_attachments = {};
 	VkFormat depth_stencil = VK_FORMAT_UNDEFINED;
 	std::vector<SubpassInfo> subpasses_info;
 

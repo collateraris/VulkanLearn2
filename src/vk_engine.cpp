@@ -138,100 +138,91 @@ void VulkanEngine::draw()
 	VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer.get_cmd();
 
 	//begin the command buffer recording. We will use this command buffer exactly once, so we want to let Vulkan know that
-	VkCommandBufferBeginInfo cmdBeginInfo = {};
-	cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	cmdBeginInfo.pNext = nullptr;
-
-	cmdBeginInfo.pInheritanceInfo = nullptr;
-	cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
+	get_current_frame()._mainCommandBuffer.record(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, [&]() 
 	{
-		//camera view
-		glm::mat4 view = _camera.get_view_matrix();
-		//camera projection
-		glm::mat4 projection = _camera.get_projection_matrix();
+		{
+			//camera view
+			glm::mat4 view = _camera.get_view_matrix();
+			//camera projection
+			glm::mat4 projection = _camera.get_projection_matrix();
 
-		//fill a GPU camera data struct
-		GPUCameraData camData;
-		camData.proj = projection;
-		camData.view = view;
-		camData.viewproj = projection * view;
-		camData.znear = _camera.nearDistance;
-		camData.pyramidWidth = _depthReduceRenderPass.get_depthPyramidTex().extend.width;
-		camData.pyramidHeight = _depthReduceRenderPass.get_depthPyramidTex().extend.height;
+			//fill a GPU camera data struct
+			GPUCameraData camData;
+			camData.proj = projection;
+			camData.view = view;
+			camData.viewproj = projection * view;
+			camData.znear = _camera.nearDistance;
+			camData.pyramidWidth = _depthReduceRenderPass.get_depthPyramidTex().extend.width;
+			camData.pyramidHeight = _depthReduceRenderPass.get_depthPyramidTex().extend.height;
 
-		PerFrameData frustumData;
-		std::array<glm::vec4, 6> frustum = _camera.calcFrustumPlanes();
-		for (int i = 0; i < frustum.size(); ++i)
-			camData.frustumPlanes[i] = frustumData.frustumPlanes[i] = frustum[i];
+			PerFrameData frustumData;
+			std::array<glm::vec4, 6> frustum = _camera.calcFrustumPlanes();
+			for (int i = 0; i < frustum.size(); ++i)
+				camData.frustumPlanes[i] = frustumData.frustumPlanes[i] = frustum[i];
 
-		map_buffer(_allocator, get_current_frame().cameraBuffer._allocation, [&](void*& data) {
-			memcpy(data, &camData, sizeof(GPUCameraData));
-			});
-	}
+			map_buffer(_allocator, get_current_frame().cameraBuffer._allocation, [&](void*& data) {
+				memcpy(data, &camData, sizeof(GPUCameraData));
+				});
+		}
 
-	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+		vkCmdResetQueryPool(cmd, get_current_frame().queryPool, 0, 128);
+		vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 0);
 
-	vkCmdResetQueryPool(cmd, get_current_frame().queryPool, 0, 128);
-	vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 0);
+		compute_pass(cmd); 
 
-	compute_pass(cmd);
+	#if RAYTRACER_ON
+		raytrace(cmd);
+	#endif
 
-#if RAYTRACER_ON
-	raytrace(cmd);
-#endif
+		//make a clear-color from frame number. This will flash with a 120*pi frame period.
+		VkClearValue clearValue;
+		float flash = abs(sin(_frameNumber / 120.f));
+		clearValue.color = { { 0.0f, 0.0f, flash, 1.0f } };
 
-	//make a clear-color from frame number. This will flash with a 120*pi frame period.
-	VkClearValue clearValue;
-	float flash = abs(sin(_frameNumber / 120.f));
-	clearValue.color = { { 0.0f, 0.0f, flash, 1.0f } };
+		//clear depth at 1
+		VkClearValue depthClear;
+		depthClear.depthStencil.depth = 1.f;
 
-	//clear depth at 1
-	VkClearValue depthClear;
-	depthClear.depthStencil.depth = 1.f;
+		//start the main renderpass. 
+		//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
+		VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPassManager.get_render_pass(ERenderPassType::Default)->get_render_pass(), _windowExtent, _framebuffers[swapchainImageIndex]);
 
-	//start the main renderpass. 
-	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPassManager.get_render_pass(ERenderPassType::Default)->get_render_pass(), _windowExtent, _framebuffers[swapchainImageIndex]);
+		//connect clear values
+		rpInfo.clearValueCount = 2;
 
-	//connect clear values
-	rpInfo.clearValueCount = 2;
+		VkClearValue clearValues[] = { clearValue, depthClear };
 
-	VkClearValue clearValues[] = { clearValue, depthClear };
+		rpInfo.pClearValues = &clearValues[0];
 
-	rpInfo.pClearValues = &clearValues[0];
+		vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+		VkViewport viewport;
+		viewport.x = 0.0f;
+		viewport.y = 0.0f;
+		viewport.width = (float)_windowExtent.width;
+		viewport.height = (float)_windowExtent.height;
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
 
-	VkViewport viewport;
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = (float)_windowExtent.width;
-	viewport.height = (float)_windowExtent.height;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
+		VkRect2D scissor;
+		scissor.offset = { 0, 0 };
+		scissor.extent = _windowExtent;
 
-	VkRect2D scissor;
-	scissor.offset = { 0, 0 };
-	scissor.extent = _windowExtent;
+		vkCmdSetViewport(cmd, 0, 1, &viewport);
+		vkCmdSetScissor(cmd, 0, 1, &scissor);
+		vkCmdSetDepthBias(cmd, 0, 0, 0);
 
-	vkCmdSetViewport(cmd, 0, 1, &viewport);
-	vkCmdSetScissor(cmd, 0, 1, &scissor);
-	vkCmdSetDepthBias(cmd, 0, 0, 0);
+		draw_objects(cmd, _renderables.data(), _renderables.size());
 
-	draw_objects(cmd, _renderables.data(), _renderables.size());
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
-	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+		//finalize the render pass
+		vkCmdEndRenderPass(cmd);
 
-	//finalize the render pass
-	vkCmdEndRenderPass(cmd);
+		_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });
 
-	_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });
-
-	vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 1);
-	//finalize the command buffer (we can no longer add commands, but it can now be executed)
-	VK_CHECK(vkEndCommandBuffer(cmd));
-
+		vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 1);
+	});
 	//prepare the submission to the queue.
 	//we want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
 	//we will signal the _renderSemaphore, to signal that rendering has finished
@@ -553,6 +544,9 @@ void VulkanEngine::init_swapchain()
 		swapchainTex.extend.width = _windowExtent.width;
 		swapchainTex.extend.height = _windowExtent.height;
 		swapchainTex.createInfo.format = vkbSwapchain.image_format;
+		swapchainTex.bIsSwapChainImage = true;
+		swapchainTex.createInfo.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		swapchainTex.createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 
 		_swapchainTextures.push_back(swapchainTex);
 	}
@@ -608,6 +602,25 @@ void VulkanEngine::init_commands()
 void VulkanEngine::init_default_renderpass()
 {
 	_renderPassManager.init(this);
+
+	RenderPassInfo default_rp;
+	default_rp.op_flags = RENDER_PASS_OP_CLEAR_DEPTH_STENCIL_BIT;
+	default_rp.clear_attachments = 1 << 0;
+	default_rp.store_attachments = 1 << 0;
+	default_rp.num_color_attachments = 1;
+	default_rp.color_attachments[0] = &_swapchainTextures[0];
+	default_rp.depth_stencil = &_depthTex;
+
+	RenderPassInfo::Subpass subpass = {};
+	subpass.num_color_attachments = 1;
+	subpass.depth_stencil_mode = RenderPassInfo::DepthStencil::ReadWrite;
+	subpass.color_attachments[0] = 0;
+	subpass.resolve_attachments[0] = 1;
+
+	default_rp.num_subpasses = 1;
+	default_rp.subpasses = &subpass;
+
+	_renderPassManager.get_render_pass(ERenderPassType::Default)->init(this, default_rp);
 }
 
 void VulkanEngine::init_framebuffers()

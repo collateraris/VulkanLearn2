@@ -312,6 +312,33 @@ void VulkanCommandBuffer::end_render_pass()
 	_actual_render_pass = nullptr;
 }
 
+void VulkanCommandBuffer::record(VkCommandBufferUsageFlagBits flags, std::function<void()>&& func)
+{
+	begin(flags);
+
+	func();
+
+	end();
+}
+
+void VulkanCommandBuffer::begin(VkCommandBufferUsageFlagBits flags)
+{
+	VkCommandBufferBeginInfo cmdBeginInfo = {};
+	cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	cmdBeginInfo.pNext = nullptr;
+
+	cmdBeginInfo.pInheritanceInfo = nullptr;
+	cmdBeginInfo.flags = flags;
+
+	vkBeginCommandBuffer(_cmd, &cmdBeginInfo);
+}
+
+void VulkanCommandBuffer::end()
+{
+	//finalize the command buffer (we can no longer add commands, but it can now be executed)
+	vkEndCommandBuffer(_cmd);
+}
+
 void VulkanCommandBuffer::init_viewport_scissor(const RenderPassInfo& info,VulkanFrameBuffer* framebuffer)
 {
 	VkRect2D rect = info.render_area;

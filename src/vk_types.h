@@ -32,6 +32,7 @@ struct Texture {
 	VkImageView imageView;
 	VkExtent3D extend;
 	VkImageCreateInfo createInfo;
+	bool bIsSwapChainImage = false;
 };
 
 struct Resources
@@ -130,3 +131,23 @@ struct SceneConfig
 
 template <class T>
 concept Integral = std::is_integral<T>::value;
+
+static inline uint32_t trailing_zeroes(uint32_t x)
+{
+	unsigned long result;
+	if (_BitScanForward(&result, x))
+		return result;
+	else
+		return 32;
+}
+
+template <typename T>
+inline void for_each_bit(uint32_t value, const T& func)
+{
+	while (value)
+	{
+		uint32_t bit = trailing_zeroes(value);
+		func(bit);
+		value &= ~(1u << bit);
+	}
+}

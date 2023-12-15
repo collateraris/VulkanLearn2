@@ -79,6 +79,7 @@ public:
 	void begin_render_pass(const RenderPassInfo& info, VulkanRenderPass* render_pass, VulkanFrameBuffer* framebuffer, VkSubpassContents contents = VK_SUBPASS_CONTENTS_INLINE);
 	void end_render_pass();
 
+	void record(VkCommandBufferUsageFlagBits flags, std::function<void()>&& func);
 private:
 	VkCommandBuffer _cmd;
 
@@ -91,4 +92,7 @@ private:
 	VkRect2D _scissor = {};
 
 	void init_viewport_scissor(const RenderPassInfo& info, VulkanFrameBuffer* framebuffer);
+
+	void begin(VkCommandBufferUsageFlagBits flags);
+	void end();
 };

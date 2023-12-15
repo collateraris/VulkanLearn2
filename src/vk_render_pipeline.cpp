@@ -43,7 +43,7 @@ void VulkanRenderPipelineManager::init(VulkanEngine* engine, VulkanRenderPassMan
 
 	//EPipelineType::Bindless_TaskMeshIndirectForward
 	{
-#ifdef MESHSHADER_ON
+#if MESHSHADER_ON
 		//_pipelinesList[static_cast<uint32_t>(EPipelineType::Bindless_TaskMeshIndirectForward)]
 		//	.init(EPipelineType::Bindless_TaskMeshIndirectForward,
 		//		[=](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
@@ -101,7 +101,7 @@ void VulkanRenderPipelineManager::init(VulkanEngine* engine, VulkanRenderPassMan
 
 	//EPipelineType::DrawIndirectForward
 	{
-#ifndef MESHSHADER_ON
+#if !MESHSHADER_ON
 		_pipelinesList[static_cast<uint32_t>(EPipelineType::DrawIndirectForward)]
 			.init(engine, EPipelineType::DrawIndirectForward,
 				[=](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
@@ -203,7 +203,7 @@ void VulkanRenderPipelineManager::init(VulkanEngine* engine, VulkanRenderPassMan
 
 	//EPipelineType::BaseRaytracer
 	{
-#ifdef RAYTRACER_ON
+#if RAYTRACER_ON
 		_pipelinesList[static_cast<uint32_t>(EPipelineType::BaseRaytracer)]
 			.init(engine, EPipelineType::BaseRaytracer,
 				[=](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
