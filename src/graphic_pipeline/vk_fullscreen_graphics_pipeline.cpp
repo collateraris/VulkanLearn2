@@ -79,15 +79,26 @@ void VulkanFullScreenGraphicsPipeline::init(VulkanEngine* engine)
 
 void VulkanFullScreenGraphicsPipeline::init_description_set(const Texture& inputTex)
 {
+	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
+
+	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
+
+	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
+
+	samplerInfo.pNext = &createInfoReduction;
+
+	VkSampler sampler;
+	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
+
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
 		VkDescriptorImageInfo outImageBufferInfo;
-		outImageBufferInfo.sampler = VK_NULL_HANDLE;
+		outImageBufferInfo.sampler = sampler;
 		outImageBufferInfo.imageView = inputTex.imageView;
 		outImageBufferInfo.imageLayout = inputTex.createInfo.initialLayout;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_image(0, &outImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT)
+			.bind_image(0, &outImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 			.build(_descSet[i], _descSetLayout);
 	}
 }
