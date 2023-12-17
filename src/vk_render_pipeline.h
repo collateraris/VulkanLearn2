@@ -14,6 +14,7 @@ enum class EPipelineType : uint32_t
 	PyramidDepthReduce = 3,
 	ComputePrepassForTaskMeshIndirect = 4,
 	BaseRaytracer = 5,
+	FullScreen = 6,
 	Max,
 };
 

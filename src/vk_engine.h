@@ -22,6 +22,8 @@
 #include <vk_command_buffer.h>
 #include <vk_render_pipeline.h>
 #include <vk_framebuffer.h>
+#include <graphic_pipeline/vk_raytrace_graphic_pipeline.h>
+#include <graphic_pipeline/vk_fullscreen_graphics_pipeline.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
 
@@ -142,10 +144,12 @@ public:
 	uint32_t _graphicsQueueFamily; //family of that queue
 
 	VulkanDepthReduceRenderPass _depthReduceRenderPass;
-#if RAYTRACER_ON
-	VulkanRaytracerBuilder _rtBuilder;
-#endif
 	std::vector<VkFramebuffer> _framebuffers;
+
+#if RAYTRACER_ON
+	VulkanRaytracingGraphicsPipeline _rtGraphicsPipeline;
+	VulkanFullScreenGraphicsPipeline _fullscreenGraphicsPipeline;
+#endif
 
 	//frame storage
 	FrameData _frames[FRAME_OVERLAP];
@@ -301,28 +305,4 @@ private:
 	void init_imgui();
 
 	std::vector<IndirectBatch> compact_draws(RenderObject* first, int count);
-#if RAYTRACER_ON
-
-	VkPhysicalDeviceRayTracingPipelinePropertiesKHR _rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
-
-	AllocatedBuffer                 _rtSBTBuffer;
-
-	VkStridedDeviceAddressRegionKHR _rgenRegion{};
-	VkStridedDeviceAddressRegionKHR _missRegion{};
-	VkStridedDeviceAddressRegionKHR _hitRegion{};
-	VkStridedDeviceAddressRegionKHR _callRegion{};
-
-	VkDescriptorSetLayout          _rtDescSetLayout;
-	std::array<VkDescriptorSet,2>  _rtDescSet;
-
-	void create_blas();
-	void create_tlas();
-
-	void raytrace(const VkCommandBuffer& cmd);
-	void create_rtdescriptor_set();
-	void create_rtpipeline();
-	void create_rtshader_binding_table();
-
-	VulkanRaytracerBuilder::BlasInput create_blas_input(Mesh& mesh);
-#endif
 };

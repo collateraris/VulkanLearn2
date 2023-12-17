@@ -285,7 +285,7 @@ void VulkanCommandBuffer::begin_render_pass(const RenderPassInfo& info, VulkanRe
 
 	uint32_t num_clear_values = _framebuffer_attachments_size;
 	std::vector<VkClearValue> clear_values;
-	clear_values.resize(info.num_color_attachments);
+	clear_values.resize(info.num_color_attachments + num_depth_stencil);
 	for (uint32_t i = 0; i < info.num_color_attachments; i++)
 		clear_values[i].color = info.clear_color[i];
 

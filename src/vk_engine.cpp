@@ -73,7 +73,6 @@ void VulkanEngine::init()
 	init_sync_structures();
 
 	init_descriptors();
-
 #if !MESHSHADER_ON
 	init_pipelines();
 #endif
@@ -87,6 +86,15 @@ void VulkanEngine::init()
 	init_scene();
 #if MESHSHADER_ON
 	init_pipelines();
+#endif
+
+#if RAYTRACER_ON
+	_rtGraphicsPipeline.init(this);
+	_rtGraphicsPipeline.create_blas(_resManager.meshList);
+	_rtGraphicsPipeline.create_tlas(_renderables);
+
+	_fullscreenGraphicsPipeline.init(this);
+	_fullscreenGraphicsPipeline.init_description_set(_rtGraphicsPipeline.get_output());
 #endif
 
 	_camera = {};
@@ -167,13 +175,14 @@ void VulkanEngine::draw()
 
 		vkCmdResetQueryPool(cmd, get_current_frame().queryPool, 0, 128);
 		vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 0);
-
+#if RAYTRACER_ON
+		_rtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+#endif
 		//compute_pass(cmd); 
 
 		//make a clear-color from frame number. This will flash with a 120*pi frame period.
 		VkClearValue clearValue;
-		float flash = abs(sin(_frameNumber / 120.f));
-		clearValue.color = { { 0.0f, 0.0f, flash, 1.0f } };
+		clearValue.color = { { 0.0f, 0.0f, 0.f, 1.0f } };
 
 		//clear depth at 1
 		VkClearValue depthClear;
@@ -207,13 +216,10 @@ void VulkanEngine::draw()
 		vkCmdSetViewport(cmd, 0, 1, &viewport);
 		vkCmdSetScissor(cmd, 0, 1, &scissor);
 		vkCmdSetDepthBias(cmd, 0, 0, 0);
-
-		//draw_objects(cmd, _renderables.data(), _renderables.size());
-
 #if RAYTRACER_ON
-		raytrace(cmd);
+		_fullscreenGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif
-
+		//draw_objects(cmd, _renderables.data(), _renderables.size());
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
 		//finalize the render pass
@@ -463,11 +469,6 @@ void VulkanEngine::init_vulkan()
 	_chosenPhysicalDeviceGPU = physicalDevice.physical_device;
 
 	vkGetPhysicalDeviceProperties(_chosenPhysicalDeviceGPU, &_physDevProp);
-#if RAYTRACER_ON
-	VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
-	prop2.pNext = &_rtProperties;
-	vkGetPhysicalDeviceProperties2(_chosenPhysicalDeviceGPU, &prop2);
-#endif
 
 	// use vkbootstrap to get a Graphics queue
 	_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
@@ -521,7 +522,7 @@ void VulkanEngine::init_swapchain()
 		.use_default_format_selection()
 		//use vsync present mode
 		.set_image_usage_flags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
-		| VK_IMAGE_USAGE_STORAGE_BIT)
+		| VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)
 		.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR)
 		.set_desired_extent(_windowExtent.width, _windowExtent.height)
 		.build()
@@ -763,10 +764,6 @@ void VulkanEngine::init_pipelines() {
 #endif
 
 	_depthReduceRenderPass.init_pipelines();
-
-#if RAYTRACER_ON
-	create_rtpipeline();
-#endif
 }
 
 void VulkanEngine::load_meshes()
@@ -782,9 +779,6 @@ void VulkanEngine::load_meshes()
 #endif // MESHSHADER_ON
 		upload_mesh(*mesh);
 	}
-#if RAYTRACER_ON
-	create_blas();
-#endif
 }
 
 void VulkanEngine::upload_mesh(Mesh& mesh)
@@ -819,185 +813,7 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 		}
 #endif
 
-#if RAYTRACER_ON
-		VkBufferUsageFlags flag = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-		VkBufferUsageFlags rayTracingFlags =  // used also for building acceleration structures
-			flag | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-		{
-			size_t bufferSize = mesh._vertices.size() * sizeof(Vertex);
-
-			mesh._vertexBufferRT = create_buffer_n_copy_data(bufferSize, mesh._vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | rayTracingFlags);
-		}
-		{
-			size_t bufferSize = mesh._indices.size() * sizeof(mesh._indices[0]);
-
-			mesh._indicesBufferRT = create_buffer_n_copy_data(bufferSize, mesh._indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rayTracingFlags);
-		}
-#endif
 }
-#if RAYTRACER_ON
-void VulkanEngine::create_blas()
-{
-	std::vector<VulkanRaytracerBuilder::BlasInput> allBlas;
-	allBlas.reserve(_resManager.meshList.size());
-	for (auto& mesh : _resManager.meshList)
-	{	
-		allBlas.emplace_back(create_blas_input(*mesh));
-	}
-
-	_rtBuilder.build_blas(*this, allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
-}
-
-void VulkanEngine::create_tlas()
-{
-	std::vector<VkAccelerationStructureInstanceKHR> tlas;
-	tlas.reserve(_renderables.size());
-	for (const auto& inst : _renderables)
-	{
-		VkAccelerationStructureInstanceKHR rayInst{};
-		VkTransformMatrixKHR out_matrix;
-		memcpy(&out_matrix, &inst.transformMatrix, sizeof(VkTransformMatrixKHR));
-		rayInst.transform = out_matrix;  // Position of the instance
-		rayInst.instanceCustomIndex = inst.meshIndex; // gl_InstanceCustomIndexEXT
-		rayInst.accelerationStructureReference = _rtBuilder.get_blas_device_address(_device, inst.meshIndex);
-		rayInst.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-		rayInst.mask = 0xFF;       //  Only be hit if rayMask & instance.mask != 0
-		rayInst.instanceShaderBindingTableRecordOffset = 0;  // We will use the same hit group for all objects
-		tlas.emplace_back(rayInst);
-	}
-	_rtBuilder.build_tlas(*this, tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
-}
-
-VulkanRaytracerBuilder::BlasInput VulkanEngine::create_blas_input(Mesh& mesh)
-{
-	// BLAS builder requires raw device addresses.
-	VkDeviceAddress vertexAddress = get_buffer_device_address(mesh._vertexBufferRT._buffer);
-	VkDeviceAddress indexAddress = get_buffer_device_address(mesh._indicesBufferRT._buffer);
-
-	uint32_t maxPrimitiveCount = mesh._indices.size() / 3;
-
-	// Describe buffer.
-	VkAccelerationStructureGeometryTrianglesDataKHR triangles{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR };
-	triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;  // vec3 vertex position data.
-	triangles.vertexData.deviceAddress = vertexAddress;
-	triangles.vertexStride = sizeof(Vertex);
-	// Describe index data (32-bit unsigned int)
-	triangles.indexType = VK_INDEX_TYPE_UINT32;
-	triangles.indexData.deviceAddress = indexAddress;
-	// Indicate identity transform by setting transformData to null device pointer.
-	//triangles.transformData = {};
-	triangles.maxVertex = mesh._vertices.size() - 1;
-
-	// Identify the above data as containing opaque triangles.
-	VkAccelerationStructureGeometryKHR asGeom{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
-	asGeom.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-	asGeom.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-	asGeom.geometry.triangles = triangles;
-
-	// The entire array will be used to build the BLAS.
-	VkAccelerationStructureBuildRangeInfoKHR offset;
-	offset.firstVertex = 0;
-	offset.primitiveCount = maxPrimitiveCount;
-	offset.primitiveOffset = 0;
-	offset.transformOffset = 0;
-
-	// Our blas is made from only one geometry, but could be made of many geometries
-	VulkanRaytracerBuilder::BlasInput input;
-	input.asGeometry.emplace_back(asGeom);
-	input.asBuildOffsetInfo.emplace_back(offset);
-
-	return input;
-}
-
-void VulkanEngine::create_rtdescriptor_set()
-{
-	for (int i = 0; i < FRAME_OVERLAP; i++)
-	{
-		VkAccelerationStructureKHR                   tlas = _rtBuilder.get_acceleration_structure();
-		VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
-		descASInfo.accelerationStructureCount = 1;
-		descASInfo.pAccelerationStructures = &tlas;
-
-		VkDescriptorImageInfo outImageBufferInfo;
-		outImageBufferInfo.sampler = VK_NULL_HANDLE;
-		outImageBufferInfo.imageView = _swapchainTextures[i].imageView;
-		outImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
-			.bind_rt_as(0, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.bind_image(1, &outImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.build(_rtDescSet[i], _rtDescSetLayout);
-	}
-}
-
-void VulkanEngine::create_rtpipeline()
-{
-	create_rtshader_binding_table();
-}
-
-void VulkanEngine::create_rtshader_binding_table()
-{
-	uint32_t missCount{ 1 };
-	uint32_t hitCount{ 1 };
-	auto     handleCount = 1 + missCount + hitCount;
-	uint32_t handleSize = _rtProperties.shaderGroupHandleSize;
-
-	// The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
-	uint32_t handleSizeAligned = vkutil::align_up(handleSize, _rtProperties.shaderGroupHandleAlignment);
-
-	_rgenRegion.stride = vkutil::align_up(handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
-	_rgenRegion.size = _rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
-	_missRegion.stride = handleSizeAligned;
-	_missRegion.size = vkutil::align_up(missCount * handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
-	_hitRegion.stride = handleSizeAligned;
-	_hitRegion.size = vkutil::align_up(hitCount * handleSizeAligned, _rtProperties.shaderGroupBaseAlignment);
-
-	// Get the shader group handles
-	uint32_t             dataSize = handleCount * handleSize;
-	std::vector<uint8_t> handles(dataSize);
-	auto result = vkGetRayTracingShaderGroupHandlesKHR(_device, _renderPipelineManager.get_pipeline(EPipelineType::BaseRaytracer), 0, handleCount, dataSize, handles.data());
-
-	// Allocate a buffer for storing the SBT.
-	VkDeviceSize sbtSize = _rgenRegion.size + _missRegion.size + _hitRegion.size + _callRegion.size;
-	_rtSBTBuffer = create_staging_buffer(sbtSize,
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-		| VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR);
-
-	// Find the SBT addresses of each group
-	VkBufferDeviceAddressInfo info{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, _rtSBTBuffer._buffer };
-	VkDeviceAddress           sbtAddress = vkGetBufferDeviceAddress(_device, &info);
-	_rgenRegion.deviceAddress = sbtAddress;
-	_missRegion.deviceAddress = sbtAddress + _rgenRegion.size;
-	_hitRegion.deviceAddress = sbtAddress + _rgenRegion.size + _missRegion.size;
-
-	// Helper to retrieve the handle data
-	auto getHandle = [&](int i) { return handles.data() + i * handleSize; };
-
-	map_buffer(_allocator, _rtSBTBuffer._allocation, [&](void*& data) {
-		uint8_t* pSBTBuffer = reinterpret_cast<uint8_t*>(data);
-		uint8_t* pData = pSBTBuffer;
-		uint32_t handleIdx{ 0 };
-		// Raygen
-		memcpy(pData, getHandle(handleIdx++), handleSize);
-		// Miss
-		pData = pSBTBuffer + _rgenRegion.size;
-		memcpy(pData, getHandle(handleIdx++), handleSize);
-		// Hit
-		pData = pSBTBuffer + _rgenRegion.size + _missRegion.size;
-		memcpy(pData, getHandle(handleIdx++), handleSize);
-
-	});
-
-}
-
-void VulkanEngine::raytrace(const VkCommandBuffer& cmd)
-{
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _renderPipelineManager.get_pipeline(EPipelineType::BaseRaytracer));
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _renderPipelineManager.get_pipelineLayout(EPipelineType::BaseRaytracer), 0,
-		1, &_rtDescSet[get_current_frame_index()], 0, nullptr);
-	vkCmdTraceRaysKHR(cmd, &_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _windowExtent.width, _windowExtent.height, 1);
-}
-#endif
 
 void VulkanEngine::load_images()
 {
@@ -1520,11 +1336,6 @@ void VulkanEngine::init_scene()
 		for (const auto& [matIndex, mapVector] : matMap)
 			for (const auto& map : mapVector)
 				_renderables.push_back(map);
-
-#if RAYTRACER_ON
-	create_tlas();
-	create_rtdescriptor_set();
-#endif
 
 	_indirectBatchRO = compact_draws(_renderables.data(), _renderables.size());
 #if !MESHSHADER_ON

@@ -10,7 +10,6 @@ enum class EFramebufferType : uint32_t
 {
 	NoInit = 0,
 	DefaultSwapchain = 1,
-	RaytraceScreen = 2,
 	Max,
 };
 

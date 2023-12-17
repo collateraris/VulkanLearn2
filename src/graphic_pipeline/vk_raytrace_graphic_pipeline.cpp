@@ -1,5 +1,7 @@
 #include "vk_raytrace_graphic_pipeline.h"
 
+#if RAYTRACER_ON
+
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
 #include <vk_command_buffer.h>
@@ -12,6 +14,12 @@ void VulkanRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 {
 	_engine = engine;
 
+	{
+		VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+		prop2.pNext = &_rtProperties;
+		vkGetPhysicalDeviceProperties2(_engine->_chosenPhysicalDeviceGPU, &prop2);
+	}
+
 	_imageExtent = {
 		_engine->_windowExtent.width,
 		_engine->_windowExtent.height,
@@ -22,7 +30,7 @@ void VulkanRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
 		_colorTexture = texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _imageExtent)
+			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, _imageExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
@@ -37,31 +45,6 @@ void VulkanRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
 			.create_texture();
-	}
-
-	{
-		_rp_info;
-		_rp_info.op_flags = RENDER_PASS_OP_CLEAR_DEPTH_STENCIL_BIT;
-		_rp_info.clear_attachments = 1 << 0;
-		_rp_info.store_attachments = 1 << 0;
-		_rp_info.num_color_attachments = 1;
-		_rp_info.color_attachments[0] = &_colorTexture;
-		_rp_info.depth_stencil = &_depthTexture;
-
-		_subpass = {};
-		_subpass.num_color_attachments = 1;
-		_subpass.depth_stencil_mode = RenderPassInfo::DepthStencil::ReadWrite;
-		_subpass.color_attachments[0] = 0;
-		_subpass.resolve_attachments[0] = 1;
-
-		_rp_info.num_subpasses = 1;
-		_rp_info.subpasses = &_subpass;
-
-		_engine->_renderPassManager.get_render_pass(ERenderPassType::RaytraceScreen)->init(_engine, _rp_info);
-
-		_engine->_framebufferManager.get_framebuffer(EFramebufferType::RaytraceScreen)->init(_engine, 
-			_engine->_renderPassManager.get_render_pass(ERenderPassType::RaytraceScreen),
-			_rp_info);
 	}
 
 	{
@@ -176,6 +159,20 @@ void VulkanRaytracingGraphicsPipeline::create_blas(const std::vector<std::unique
 	allBlas.reserve(meshList.size());
 	for (auto& mesh : meshList)
 	{
+		VkBufferUsageFlags flag = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		VkBufferUsageFlags rayTracingFlags =  // used also for building acceleration structures
+			flag | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+		{
+			size_t bufferSize = mesh->_vertices.size() * sizeof(Vertex);
+
+			mesh->_vertexBufferRT = _engine->create_buffer_n_copy_data(bufferSize, mesh->_vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | rayTracingFlags);
+		}
+		{
+			size_t bufferSize = mesh->_indices.size() * sizeof(mesh->_indices[0]);
+
+			mesh->_indicesBufferRT = _engine->create_buffer_n_copy_data(bufferSize, mesh->_indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rayTracingFlags);
+		}
+
 		allBlas.emplace_back(create_blas_input(*mesh));
 	}
 
@@ -222,19 +219,17 @@ void VulkanRaytracingGraphicsPipeline::create_tlas(const std::vector<RenderObjec
 
 void VulkanRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
-	cmd->begin_render_pass(_rp_info,
-		_engine->_renderPassManager.get_render_pass(ERenderPassType::RaytraceScreen),
-		_engine->_framebufferManager.get_framebuffer(EFramebufferType::RaytraceScreen),
-		VK_SUBPASS_CONTENTS_INLINE);
-
 	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
 		[&](VkCommandBuffer cmd){
 			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::BaseRaytracer));
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::BaseRaytracer), 0,
 				1, &_rtDescSet[current_frame_index], 0, nullptr);
 		});
+}
 
-	cmd->end_render_pass();
+const Texture& VulkanRaytracingGraphicsPipeline::get_output() const
+{
+	return _colorTexture;
 }
 
 VulkanRaytracerBuilder::BlasInput VulkanRaytracingGraphicsPipeline::create_blas_input(Mesh& mesh)
@@ -277,3 +272,5 @@ VulkanRaytracerBuilder::BlasInput VulkanRaytracingGraphicsPipeline::create_blas_
 
 	return input;
 }
+
+#endif

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <vk_types.h>
+
+#if RAYTRACER_ON
 #include <vk_raytracer_builder.h>
 #include <vk_render_pass.h>
 #include <vk_mesh.h>
@@ -18,6 +20,8 @@ public:
 	void create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList);
 	void create_tlas(const std::vector<RenderObject>& renderables);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
+
+	const Texture& get_output() const;
 
 private:
 
@@ -48,4 +52,6 @@ private:
 	RenderPassInfo _rp_info = {};
 	RenderPassInfo::Subpass _subpass = {};
 };
+
+#endif
 

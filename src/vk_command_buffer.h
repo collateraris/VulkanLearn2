@@ -72,8 +72,8 @@ public:
 	void blit_image(const Texture& dst,
 		const Texture& src,
 		const VkOffset3D& dst_offset0, const VkOffset3D& dst_extent,
-		const VkOffset3D& src_offset0, const VkOffset3D& src_extent, unsigned dst_level, unsigned src_level,
-		unsigned dst_base_layer = 0, uint32_t src_base_layer = 0, unsigned num_layers = 1,
+		const VkOffset3D& src_offset0, const VkOffset3D& src_extent, uint32_t dst_level, uint32_t src_level,
+		uint32_t dst_base_layer = 0, uint32_t src_base_layer = 0, uint32_t num_layers = 1,
 		VkFilter filter = VK_FILTER_LINEAR);
 
 	void begin_render_pass(const RenderPassInfo& info, VulkanRenderPass* render_pass, VulkanFrameBuffer* framebuffer, VkSubpassContents contents = VK_SUBPASS_CONTENTS_INLINE);
