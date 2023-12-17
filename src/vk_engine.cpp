@@ -168,11 +168,7 @@ void VulkanEngine::draw()
 		vkCmdResetQueryPool(cmd, get_current_frame().queryPool, 0, 128);
 		vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 0);
 
-		compute_pass(cmd); 
-
-	#if RAYTRACER_ON
-		raytrace(cmd);
-	#endif
+		//compute_pass(cmd); 
 
 		//make a clear-color from frame number. This will flash with a 120*pi frame period.
 		VkClearValue clearValue;
@@ -212,14 +208,18 @@ void VulkanEngine::draw()
 		vkCmdSetScissor(cmd, 0, 1, &scissor);
 		vkCmdSetDepthBias(cmd, 0, 0, 0);
 
-		draw_objects(cmd, _renderables.data(), _renderables.size());
+		//draw_objects(cmd, _renderables.data(), _renderables.size());
+
+#if RAYTRACER_ON
+		raytrace(cmd);
+#endif
 
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
 		//finalize the render pass
 		vkCmdEndRenderPass(cmd);
 
-		_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });
+		//_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });
 
 		vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 1);
 	});
@@ -625,6 +625,7 @@ void VulkanEngine::init_default_renderpass()
 
 void VulkanEngine::init_framebuffers()
 {
+	_framebufferManager.init(this);
 	//create the framebuffers for the swapchain images. This will connect the render-pass to the images for rendering
 	VkFramebufferCreateInfo fb_info = {};
 	fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;

@@ -21,6 +21,7 @@
 #include <vk_command_pool.h>
 #include <vk_command_buffer.h>
 #include <vk_render_pipeline.h>
+#include <vk_framebuffer.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
 
@@ -208,6 +209,7 @@ public:
 
 	VulkanRenderPipelineManager _renderPipelineManager;
 	VulkanRenderPassManager _renderPassManager;
+	VulkanFrameBufferManager _framebufferManager;
 
 	std::unordered_map<std::string, Material> _materials;
 

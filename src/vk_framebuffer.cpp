@@ -21,3 +21,18 @@ void VulkanFrameBuffer::init(VulkanEngine* engine, VulkanRenderPass* render_pass
 
 	vkCreateFramebuffer(engine->_device, &fb_info, nullptr, &_framebuffer);
 }
+
+void VulkanFrameBufferManager::init(VulkanEngine* _engine)
+{
+	_framebuffersList.clear();
+	_framebuffersList.resize(static_cast<uint32_t>(EFramebufferType::Max));
+	for (auto& rp : _framebuffersList)
+	{
+		rp = std::make_unique<VulkanFrameBuffer>();
+	}
+}
+
+VulkanFrameBuffer* VulkanFrameBufferManager::get_framebuffer(EFramebufferType type) const
+{
+	return _framebuffersList[static_cast<uint32_t>(type)].get();
+}

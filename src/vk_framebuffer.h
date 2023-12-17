@@ -6,6 +6,14 @@ class VulkanEngine;
 class VulkanRenderPass;
 struct RenderPassInfo;
 
+enum class EFramebufferType : uint32_t
+{
+	NoInit = 0,
+	DefaultSwapchain = 1,
+	RaytraceScreen = 2,
+	Max,
+};
+
 class VulkanFrameBuffer
 {
 public:
@@ -35,10 +43,20 @@ public:
 
 private:
 
-	VulkanRenderPass* _render_pass;
+	VulkanRenderPass* _render_pass = nullptr;
 
 	VkFramebuffer _framebuffer = VK_NULL_HANDLE;
 
 	uint32_t _width = 0;
 	uint32_t _height = 0;
+};
+
+class VulkanFrameBufferManager
+{
+public:
+	void init(VulkanEngine* _engine);
+
+	VulkanFrameBuffer* get_framebuffer(EFramebufferType type) const;
+private:
+	std::vector<std::unique_ptr<VulkanFrameBuffer>> _framebuffersList;
 };

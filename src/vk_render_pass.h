@@ -8,6 +8,7 @@ enum class ERenderPassType
 {
 	NoInit = 0,
 	Default = 1,
+	RaytraceScreen = 2,
 	Max,
 };
 

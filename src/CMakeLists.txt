@@ -47,7 +47,9 @@ add_executable(vulkan_guide
     vk_command_pool.h
     vk_command_pool.cpp
     vk_render_pipeline.h
-    vk_render_pipeline.cpp)
+    vk_render_pipeline.cpp
+    graphic_pipeline/vk_raytrace_graphic_pipeline.h
+    graphic_pipeline/vk_raytrace_graphic_pipeline.cpp)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
