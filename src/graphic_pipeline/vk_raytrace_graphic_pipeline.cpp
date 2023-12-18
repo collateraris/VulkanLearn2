@@ -198,8 +198,10 @@ void VulkanRaytracingGraphicsPipeline::create_tlas(const std::vector<RenderObjec
 	}
 	_rtBuilder.build_tlas(*_engine, tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 
-	for (int i = 0; i < FRAME_OVERLAP; i++)
+	for (int i = 0; i < FRAME_OVERLAP; i++) 
 	{
+		// set 0
+
 		VkAccelerationStructureKHR                   tlas = _rtBuilder.get_acceleration_structure();
 		VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
 		descASInfo.accelerationStructureCount = 1;
@@ -214,7 +216,28 @@ void VulkanRaytracingGraphicsPipeline::create_tlas(const std::vector<RenderObjec
 			.bind_rt_as(0, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.bind_image(1, &outImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.build(_rtDescSet[i], _rtDescSetLayout);
+
+		//set 1
+
+		_globalUniformsBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanRaytracingGraphicsPipeline::GlobalUniforms), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+		VkDescriptorBufferInfo globalUniformsInfo;
+		globalUniformsInfo.buffer = _globalUniformsBuffer[i]._buffer;
+		globalUniformsInfo.offset = 0;
+		globalUniformsInfo.range = sizeof(VulkanRaytracingGraphicsPipeline::GlobalUniforms);
+
+		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.build(_globalUniformsDescSet[i], _globalUniformsDescSetLayout);
 	}
+}
+
+void VulkanRaytracingGraphicsPipeline::copy_global_uniform_data(VulkanRaytracingGraphicsPipeline::GlobalUniforms& globalData, int current_frame_index)
+{
+
+	_engine->map_buffer(_engine->_allocator, _globalUniformsBuffer[current_frame_index]._allocation, [&](void*& data) {
+		memcpy(data, &globalData, sizeof(VulkanRaytracingGraphicsPipeline::GlobalUniforms));
+		});
 }
 
 void VulkanRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
@@ -224,6 +247,8 @@ void VulkanRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int curren
 			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::BaseRaytracer));
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::BaseRaytracer), 0,
 				1, &_rtDescSet[current_frame_index], 0, nullptr);
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::BaseRaytracer), 1,
+				1, &_globalUniformsDescSet[current_frame_index], 0, nullptr);
 		});
 }
 

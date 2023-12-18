@@ -171,6 +171,14 @@ void VulkanEngine::draw()
 			map_buffer(_allocator, get_current_frame().cameraBuffer._allocation, [&](void*& data) {
 				memcpy(data, &camData, sizeof(GPUCameraData));
 				});
+#if RAYTRACER_ON
+			VulkanRaytracingGraphicsPipeline::GlobalUniforms globalData;
+			globalData.viewProj = projection * view;
+			globalData.projInverse = glm::inverse(projection);
+			globalData.viewInverse = glm::inverse(view);
+			_rtGraphicsPipeline.copy_global_uniform_data(globalData, get_current_frame_index());
+#endif
+
 		}
 
 		vkCmdResetQueryPool(cmd, get_current_frame().queryPool, 0, 128);

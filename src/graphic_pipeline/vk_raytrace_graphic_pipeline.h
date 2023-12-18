@@ -15,10 +15,17 @@ class RenderObject;
 class VulkanRaytracingGraphicsPipeline
 {
 public:
+	struct alignas(16) GlobalUniforms
+	{
+		glm::mat4 viewProj;     // Camera view * projection
+		glm::mat4 viewInverse;  // Camera inverse view matrix
+		glm::mat4 projInverse;  // Camera inverse projection matrix
+	};
 	VulkanRaytracingGraphicsPipeline() = default;
 	void init(VulkanEngine* engine);
 	void create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList);
 	void create_tlas(const std::vector<RenderObject>& renderables);
+	void copy_global_uniform_data(VulkanRaytracingGraphicsPipeline::GlobalUniforms& camData, int current_frame_index);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
 	const Texture& get_output() const;
@@ -46,6 +53,11 @@ private:
 
 	VkDescriptorSetLayout          _rtDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _rtDescSet;
+
+	std::array<AllocatedBuffer,2> _globalUniformsBuffer;
+
+	VkDescriptorSetLayout          _globalUniformsDescSetLayout;
+	std::array<VkDescriptorSet, 2>  _globalUniformsDescSet;
 
 	VulkanRaytracerBuilder _rtBuilder;
 
