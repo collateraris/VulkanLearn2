@@ -101,7 +101,7 @@ void VulkanRenderPipelineManager::init(VulkanEngine* engine, VulkanRenderPassMan
 
 	//EPipelineType::DrawIndirectForward
 	{
-#if !MESHSHADER_ON
+#if INDIRECT_DRAW_ON
 		_pipelinesList[static_cast<uint32_t>(EPipelineType::DrawIndirectForward)]
 			.init(engine, EPipelineType::DrawIndirectForward,
 				[=](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
