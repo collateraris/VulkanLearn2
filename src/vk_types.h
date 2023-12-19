@@ -21,6 +21,7 @@ constexpr uint32_t VULKAN_NUM_ATTACHMENTS = 8;
 struct AllocatedBuffer {
     VkBuffer _buffer;
     VmaAllocation _allocation;
+	uint32_t _size;
 };
 
 struct AllocatedImage {

@@ -11,3 +11,19 @@ struct hitPayload
 {
   vec3 hitValue;
 };
+
+struct ObjectData
+{
+  uint meshIndex;
+	uint diffuseTexIndex;
+	uint pad1;
+  uint pad2;
+};
+
+struct Vertex {
+
+	vec3 position;
+	vec3 normal;
+	vec2 uv;
+  uint pad;
+};

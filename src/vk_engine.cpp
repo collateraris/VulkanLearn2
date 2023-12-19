@@ -92,6 +92,7 @@ void VulkanEngine::init()
 	_rtGraphicsPipeline.init(this);
 	_rtGraphicsPipeline.create_blas(_resManager.meshList);
 	_rtGraphicsPipeline.create_tlas(_renderables);
+	_rtGraphicsPipeline.init_bindless(_resManager.meshList, _resManager.textureList);
 
 	_fullscreenGraphicsPipeline.init(this);
 	_fullscreenGraphicsPipeline.init_description_set(_rtGraphicsPipeline.get_output());
@@ -977,6 +978,8 @@ AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags
 		&newBuffer._allocation,
 		nullptr));
 
+	newBuffer._size = newBuffer._allocation->GetSize();
+
 	return newBuffer;
 }
 
@@ -1381,7 +1384,7 @@ void VulkanEngine::init_scene()
 		}
 		});
 
-#if MESHSHADER_ON
+#if MESHSHADER_ON || RAYTRACER_ON
 	init_bindless_scene();
 #elif INDIRECT_DRAW_ON
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);

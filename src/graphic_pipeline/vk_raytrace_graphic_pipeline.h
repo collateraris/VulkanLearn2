@@ -14,6 +14,13 @@ class RenderObject;
 
 class VulkanRaytracingGraphicsPipeline
 {
+	struct alignas(16) ObjectData
+	{
+		uint32_t meshIndex;
+		uint32_t diffuseTexIndex;
+		uint32_t pad1;
+		uint32_t pad2;
+	};
 public:
 	struct alignas(16) GlobalUniforms
 	{
@@ -25,6 +32,7 @@ public:
 	void init(VulkanEngine* engine);
 	void create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList);
 	void create_tlas(const std::vector<RenderObject>& renderables);
+	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList);
 	void copy_global_uniform_data(VulkanRaytracingGraphicsPipeline::GlobalUniforms& camData, int current_frame_index);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
@@ -55,9 +63,13 @@ private:
 	std::array<VkDescriptorSet, 2>  _rtDescSet;
 
 	std::array<AllocatedBuffer,2> _globalUniformsBuffer;
+	AllocatedBuffer _objectBuffer;
 
 	VkDescriptorSetLayout          _globalUniformsDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _globalUniformsDescSet;
+
+	VkDescriptorSet _bindlessSet;
+	VkDescriptorSetLayout _bindlessSetLayout;
 
 	VulkanRaytracerBuilder _rtBuilder;
 
