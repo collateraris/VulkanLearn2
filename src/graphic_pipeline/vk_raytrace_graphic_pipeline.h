@@ -30,15 +30,16 @@ public:
 	};
 	VulkanRaytracingGraphicsPipeline() = default;
 	void init(VulkanEngine* engine);
-	void create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList);
-	void create_tlas(const std::vector<RenderObject>& renderables);
-	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList);
 	void copy_global_uniform_data(VulkanRaytracingGraphicsPipeline::GlobalUniforms& camData, int current_frame_index);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
 	const Texture& get_output() const;
 
 private:
+
+	void create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList);
+	void create_tlas(const std::vector<RenderObject>& renderables);
+	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList);
 
 	VulkanRaytracerBuilder::BlasInput create_blas_input(Mesh& mesh);
 

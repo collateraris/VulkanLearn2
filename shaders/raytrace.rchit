@@ -7,36 +7,35 @@
 
 layout(location = 0) rayPayloadInEXT hitPayload prd;
 
-layout(set = 1, std140, binding = 1) readonly buffer ObjectBuffer{
+hitAttributeEXT vec2 baryCoord;
+
+layout(set = 1, binding = 1) readonly buffer ObjectBuffer{
 
 	ObjectData objects[];
 } objectBuffer;
 
-layout (set = 0, binding = 0) readonly buffer _vertices
+layout (set = 0, std140, binding = 0) readonly buffer _vertices
 {
 	Vertex vertices[];
 } Vertices[];
 
-layout (set = 0, binding = 1) readonly buffer _indices
-{
-	uint indices[];
-} Indices[];
-
-layout(set = 0, binding = 2) uniform sampler2D tex0[];
+layout(set = 0, binding = 1) uniform sampler2D tex0[];
 
 void main()
 {
-  ObjectData objData = objectBuffer.objects[gl_InstanceCustomIndexEXT];
+  ObjectData objData = objectBuffer.objects[gl_InstanceID];
   
-  uint ind0 = Indices[objData.meshIndex].indices[gl_PrimitiveID * 3 + 0];
-  uint ind1 = Indices[objData.meshIndex].indices[gl_PrimitiveID * 3 + 1];
-  uint ind2 = Indices[objData.meshIndex].indices[gl_PrimitiveID * 3 + 2];
 
-  Vertex v0 = Vertices[objData.meshIndex].vertices[ind0];
-  Vertex v1 = Vertices[objData.meshIndex].vertices[ind1];
-  Vertex v2 = Vertices[objData.meshIndex].vertices[ind2];
+  Vertex v0 = Vertices[objData.meshIndex].vertices[gl_PrimitiveID * 3 + 0];
+  Vertex v1 = Vertices[objData.meshIndex].vertices[gl_PrimitiveID * 3 + 1];
+  Vertex v2 = Vertices[objData.meshIndex].vertices[gl_PrimitiveID * 3 + 2];
 
+  const vec3 barycentrics = vec3(1.0 - baryCoord.x - baryCoord.y, baryCoord.x, baryCoord.y);
 
+   vec2 texCoord =
+        v0.normalYZ_texCoordUV.zw * barycentrics.x + v1.normalYZ_texCoordUV.zw * barycentrics.y + v2.normalYZ_texCoordUV.zw * barycentrics.z;
 
-  prd.hitValue = vec3(0., 1., 0.0);
+  vec3 diffuse = texture(tex0[objData.diffuseTexIndex], texCoord).xyz;
+
+  prd.hitValue = diffuse;
 }

@@ -121,7 +121,7 @@ Mesh& Mesh::calcAddInfo()
 
 	for (const Vertex& vert : _vertices)
 	{
-		_center += vert.position;
+		_center += glm::vec3(vert.positionXYZ_normalX);
 	}
 
 	_center /= _vertices.size();
@@ -129,7 +129,7 @@ Mesh& Mesh::calcAddInfo()
 	_radius = 0;
 	for (const Vertex& vert : _vertices)
 	{
-		_radius = std::max(_radius, glm::distance(_center, vert.position));
+		_radius = std::max(_radius, glm::distance(_center, glm::vec3(vert.positionXYZ_normalX)));
 	}
 
 	return *this;
@@ -151,21 +151,21 @@ VertexInputDescription Vertex::get_vertex_description()
 	positionAttribute.binding = 0;
 	positionAttribute.location = 0;
 	positionAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
-	positionAttribute.offset = offsetof(Vertex, position);
+	positionAttribute.offset = 0;
 
 	//Normal will be stored at Location 1
 	VkVertexInputAttributeDescription normalAttribute = {};
 	normalAttribute.binding = 0;
 	normalAttribute.location = 1;
 	normalAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
-	normalAttribute.offset = offsetof(Vertex, normal);
+	normalAttribute.offset = 4 * 3;
 
 	//UV will be stored at Location 2
 	VkVertexInputAttributeDescription uvAttribute = {};
 	uvAttribute.binding = 0;
 	uvAttribute.location = 2;
 	uvAttribute.format = VK_FORMAT_R32G32_SFLOAT;
-	uvAttribute.offset = offsetof(Vertex, uv);
+	uvAttribute.offset = 4 * 3;
 
 	description.attributes.push_back(positionAttribute);
 	description.attributes.push_back(normalAttribute);

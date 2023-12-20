@@ -22,8 +22,6 @@ struct ObjectData
 
 struct Vertex {
 
-	vec3 position;
-	vec3 normal;
-	vec2 uv;
-  uint pad;
+	vec4 positionXYZ_normalX;
+	vec4 normalYZ_texCoordUV;
 };

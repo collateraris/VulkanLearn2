@@ -121,9 +121,8 @@ void collectAIMesh(const aiMesh* amesh, const SceneConfig& config, ResourceManag
 		const aiVector3D t = hasTexCoords ? amesh->mTextureCoords[0][i] : aiVector3D();
 
 		Vertex meshData;
-		meshData.position = glm::vec3(v.x * config.scaleFactor, v.y * config.scaleFactor, v.z * config.scaleFactor);
-		meshData.normal = glm::vec3(n.x, n.y, n.z);
-		meshData.uv = glm::vec2(t.x, 1. - t.y);
+		meshData.positionXYZ_normalX = glm::vec4(v.x * config.scaleFactor, v.y * config.scaleFactor, v.z * config.scaleFactor, n.x);
+		meshData.normalYZ_texCoordUV = glm::vec4(n.y, n.z, t.x, 1. - t.y);
 
 		newMesh->_vertices.push_back(meshData);
 	}

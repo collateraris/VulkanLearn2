@@ -90,9 +90,6 @@ void VulkanEngine::init()
 
 #if RAYTRACER_ON
 	_rtGraphicsPipeline.init(this);
-	_rtGraphicsPipeline.create_blas(_resManager.meshList);
-	_rtGraphicsPipeline.create_tlas(_renderables);
-	_rtGraphicsPipeline.init_bindless(_resManager.meshList, _resManager.textureList);
 
 	_fullscreenGraphicsPipeline.init(this);
 	_fullscreenGraphicsPipeline.init_description_set(_rtGraphicsPipeline.get_output());
@@ -1344,13 +1341,13 @@ void VulkanEngine::init_scene()
 		renderablesMap[map.meshIndex][map.matDescIndex].push_back(map);
 	}
 
+	_renderables.clear();
 	for (const auto& [meshIndex, matMap]: renderablesMap)
 		for (const auto& [matIndex, mapVector] : matMap)
 			for (const auto& map : mapVector)
 				_renderables.push_back(map);
-
-	_indirectBatchRO = compact_draws(_renderables.data(), _renderables.size());
 #if INDIRECT_DRAW_ON
+	_indirectBatchRO = compact_draws(_renderables.data(), _renderables.size());
 	map_buffer(_allocator, _indirectBuffer._allocation, [&](void*& data) {
 		VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)data;
 		//encode the draw data of each object into the indirect draw buffer
@@ -1366,7 +1363,7 @@ void VulkanEngine::init_scene()
 		});
 #endif
 
-
+#if MESHSHADER_ON || INDIRECT_DRAW_ON
 	map_buffer(_allocator, _objectBuffer._allocation, [&](void*& data) {
 		GPUObjectData* objectSSBO = (GPUObjectData*)data;
 
@@ -1383,6 +1380,7 @@ void VulkanEngine::init_scene()
 #endif
 		}
 		});
+#endif
 
 #if MESHSHADER_ON || RAYTRACER_ON
 	init_bindless_scene();

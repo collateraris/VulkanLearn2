@@ -13,10 +13,8 @@ struct VertexInputDescription {
 
 struct Vertex {
 
-	glm::vec3 position;
-	glm::vec3 normal;
-	glm::vec2 uv;
-	uint32_t pad;
+	glm::vec4 positionXYZ_normalX;
+	glm::vec4 normalYZ_texCoordUV;
 
 	static VertexInputDescription get_vertex_description();
 };
