@@ -9,17 +9,17 @@ layout(location = 0) rayPayloadInEXT hitPayload prd;
 
 hitAttributeEXT vec2 baryCoord;
 
-layout(set = 1, binding = 1) readonly buffer ObjectBuffer{
-
-	ObjectData objects[];
-} objectBuffer;
-
 layout (set = 0, std140, binding = 0) readonly buffer _vertices
 {
 	Vertex vertices[];
 } Vertices[];
 
 layout(set = 0, binding = 1) uniform sampler2D tex0[];
+
+layout(set = 1, binding = 1) readonly buffer ObjectBuffer{
+
+	ObjectData objects[];
+} objectBuffer;
 
 void main()
 {

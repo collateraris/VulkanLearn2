@@ -15,6 +15,7 @@ enum class EPipelineType : uint32_t
 	ComputePrepassForTaskMeshIndirect = 4,
 	BaseRaytracer = 5,
 	FullScreen = 6,
+	VbufferGenerate = 7,
 	Max,
 };
 

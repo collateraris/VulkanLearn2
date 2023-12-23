@@ -2,7 +2,7 @@
 #include <meshoptimizer.h>
 #include <iostream>
 
-#if MESHSHADER_ON
+#if MESHSHADER_ON || VBUFFER_ON
 
 Mesh& Mesh::remapVertexToVertexMS()
 {
@@ -10,17 +10,17 @@ Mesh& Mesh::remapVertexToVertexMS()
 	for (const Vertex& vert: _vertices)
 	{
 		Vertex_MS vertMS;
-		vertMS.vx = vert.position.x;
-		vertMS.vy = vert.position.y;
-		vertMS.vz = vert.position.z;
+		vertMS.vx = vert.positionXYZ_normalX.x;
+		vertMS.vy = vert.positionXYZ_normalX.y;
+		vertMS.vz = vert.positionXYZ_normalX.z;
 
-		vertMS.nx = uint8_t(vert.normal.x * 127.f + 127.f);
-		vertMS.ny = uint8_t(vert.normal.y * 127.f + 127.f);
-		vertMS.nz = uint8_t(vert.normal.z * 127.f + 127.f);
+		vertMS.nx = uint8_t(vert.positionXYZ_normalX.w * 127.f + 127.f);
+		vertMS.ny = uint8_t(vert.normalYZ_texCoordUV.x * 127.f + 127.f);
+		vertMS.nz = uint8_t(vert.normalYZ_texCoordUV.y * 127.f + 127.f);
 		vertMS.nw = 0;
 
-		vertMS.tu = meshopt_quantizeHalf(vert.uv.x);
-		vertMS.tv = meshopt_quantizeHalf(vert.uv.y);
+		vertMS.tu = meshopt_quantizeHalf(vert.normalYZ_texCoordUV.z);
+		vertMS.tv = meshopt_quantizeHalf(vert.normalYZ_texCoordUV.w);
 
 		_verticesMS.emplace_back(vertMS);
 	}
@@ -58,7 +58,7 @@ void Mesh::buildMeshlets()
 
 		for (unsigned int i = 0; i < meshlet.triangle_count * 3; ++i)
 			meshletdata.push_back(meshlet_triangles[meshlet.triangle_offset + i]);
-
+#if !VBUFFER_ON
 		glm::vec3 center = glm::vec3(0);
 		float radius = 0;
 
@@ -91,13 +91,13 @@ void Mesh::buildMeshlets()
 			glm::vec3 position = glm::vec3(vert.vx, vert.vy, vert.vz);
 			radius = std::max(radius, glm::distance(center, position));
 		}
-
+#endif
 
 		Meshlet m = {};
 		m.dataOffset = uint32_t(dataOffset);
 		m.triangleCount = meshlet.triangle_count;
 		m.vertexCount = meshlet.vertex_count;
-
+#if !VBUFFER_ON
 		m.center_radius[0] = center.x;
 		m.center_radius[1] = center.y;
 		m.center_radius[2] = center.z;
@@ -110,8 +110,20 @@ void Mesh::buildMeshlets()
 		m.aabb_max[0] = aabb_max_x;
 		m.aabb_max[1] = aabb_max_y;
 		m.aabb_max[2] = aabb_max_z;
-
+#endif
 		_meshlets.push_back(m);
+	}
+}
+#endif
+#if VBUFFER_ON
+void Mesh::remapVertexMSToVertexVisB()
+{
+	_verticesVisB.clear();
+	for (const Vertex_MS& vert : _verticesMS)
+	{
+		Vertex_VisB v;
+		v.position = glm::vec4(vert.vx, vert.vy, vert.vz, 1.);
+		_verticesVisB.push_back(v);
 	}
 }
 #endif

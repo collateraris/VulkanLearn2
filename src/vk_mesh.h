@@ -26,6 +26,11 @@ struct Vertex_MS
 	uint16_t tu, tv;
 };
 
+struct Vertex_VisB
+{
+	glm::vec4 position;
+};
+
 struct alignas(16) Meshlet
 {
 	uint32_t dataOffset; // dataOffset..dataOffset+vertexCount-1 stores vertex indices, we store indices packed in 4b units after that
@@ -49,13 +54,16 @@ struct Mesh {
 	std::vector<Vertex> _vertices;
 	std::vector<uint32_t> _indices;
 	std::vector<Vertex_MS> _verticesMS;
-#if MESHSHADER_ON
+#if VBUFFER_ON
+	std::vector<Vertex_VisB> _verticesVisB;
+#endif
+#if MESHSHADER_ON || VBUFFER_ON
 	std::vector<Meshlet> _meshlets;
 	VkDescriptorSet meshletsSet{VK_NULL_HANDLE };
 	std::vector<uint32_t> meshletdata;
 #endif
 	AllocatedBuffer _vertexBuffer;
-#if MESHSHADER_ON
+#if MESHSHADER_ON || VBUFFER_ON
 	AllocatedBuffer _meshletsBuffer;
 	AllocatedBuffer _meshletdataBuffer;
 #else
@@ -68,9 +76,12 @@ struct Mesh {
 	glm::vec3 _center = glm::vec3(0);
 	float _radius = 0;
 
-#if MESHSHADER_ON
+#if MESHSHADER_ON || VBUFFER_ON
 	Mesh& remapVertexToVertexMS();
 	void buildMeshlets();
+#endif
+#if VBUFFER_ON
+	void remapVertexMSToVertexVisB();
 #endif
 	Mesh& calcAddInfo();
 };
