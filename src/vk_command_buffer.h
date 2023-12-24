@@ -18,6 +18,8 @@ public:
 
 	void reset();
 
+	void draw_quad(std::function<void(VkCommandBuffer cmd)>&& preDraw);
+
 	void dispatch(uint32_t groups_x, uint32_t groups_y, uint32_t groups_z, std::function<void(VkCommandBuffer cmd)>&& preDispatch);
 
 	void draw_mesh_tasks_indirect(const AllocatedBuffer& indirectBuffer, VkDeviceSize offset, uint32_t draw_count, uint32_t stride, std::function<void(VkCommandBuffer cmd)>&& preDraw);

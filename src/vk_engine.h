@@ -25,6 +25,7 @@
 #include <graphic_pipeline/vk_raytrace_graphic_pipeline.h>
 #include <graphic_pipeline/vk_fullscreen_graphics_pipeline.h>
 #include <graphic_pipeline/vbuffer_graphics_pipeline.h>
+#include <graphic_pipeline/vk_vbuffer_shading_graphics_pipeline.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
 
@@ -150,6 +151,11 @@ public:
 #if RAYTRACER_ON
 	VulkanRaytracingGraphicsPipeline _rtGraphicsPipeline;
 	VulkanFullScreenGraphicsPipeline _fullscreenGraphicsPipeline;
+#endif
+
+#if VBUFFER_ON
+	VulkanVbufferGraphicsPipeline _visBufGenerateGraphicsPipeline;
+	VulkanVbufferShadingGraphicsPipeline _visBufShadingGraphicsPipeline;
 #endif
 
 	//frame storage

@@ -45,7 +45,7 @@ in taskNV block
 // Custom vertex output block
 layout (location = 0) out PerVertexData
 {
-  flat uint meshIndex;
+  flat uint drawID;
 } v_out[];   // [max_vertices]
 
 void main()
@@ -76,7 +76,7 @@ void main()
 		position = vec3(modelMatrix * vec4(position, 1.0f));
 
 		gl_MeshVerticesNV[i].gl_Position = cameraData.viewProj * vec4(position, 1.0f);
-		v_out[i].meshIndex = meshIndex;
+		v_out[i].drawID = gl_DrawID;
 	}
 
     for (uint i = ti; i < indexCount; i += 32)

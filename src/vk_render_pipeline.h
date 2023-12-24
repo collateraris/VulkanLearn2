@@ -16,6 +16,7 @@ enum class EPipelineType : uint32_t
 	BaseRaytracer = 5,
 	FullScreen = 6,
 	VbufferGenerate = 7,
+	VBufferShading = 8,
 	Max,
 };
 

@@ -21,6 +21,13 @@ void VulkanCommandBuffer::reset()
 	vkResetCommandBuffer(_cmd, 0);
 }
 
+void VulkanCommandBuffer::draw_quad(std::function<void(VkCommandBuffer cmd)>&& preDraw)
+{
+	preDraw(_cmd);
+
+	vkCmdDraw(_cmd, 3, 1, 0, 0);
+}
+
 void VulkanCommandBuffer::dispatch(uint32_t groups_x, uint32_t groups_y, uint32_t groups_z, std::function<void(VkCommandBuffer cmd)>&& preDispatch)
 {
 	preDispatch(_cmd);

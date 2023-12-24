@@ -53,7 +53,9 @@ add_executable(vulkan_guide
     graphic_pipeline/vk_fullscreen_graphics_pipeline.h
     graphic_pipeline/vk_fullscreen_graphics_pipeline.cpp
     graphic_pipeline/vbuffer_graphics_pipeline.h
-    graphic_pipeline/vbuffer_graphics_pipeline.cpp)
+    graphic_pipeline/vbuffer_graphics_pipeline.cpp
+    graphic_pipeline/vk_vbuffer_shading_graphics_pipeline.h
+    graphic_pipeline/vk_vbuffer_shading_graphics_pipeline.cpp)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")

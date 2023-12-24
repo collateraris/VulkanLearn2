@@ -105,10 +105,11 @@ void VulkanFullScreenGraphicsPipeline::init_description_set(const Texture& input
 
 void VulkanFullScreenGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
-	vkCmdBindPipeline(cmd->get_cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::FullScreen));
-	vkCmdBindDescriptorSets(cmd->get_cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::FullScreen), 0,
-		1, &_descSet[current_frame_index], 0, nullptr);
-	vkCmdDraw(cmd->get_cmd(), 3, 1, 0, 0);
+	cmd->draw_quad([&](VkCommandBuffer cmd) {
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::FullScreen));
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::FullScreen), 0,
+			1, &_descSet[current_frame_index], 0, nullptr);
+	});
 }
 
 

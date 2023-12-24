@@ -73,6 +73,9 @@ struct Mesh {
 	AllocatedBuffer _vertexBufferRT;
 	AllocatedBuffer _indicesBufferRT;
 #endif
+#if VBUFFER_ON
+	AllocatedBuffer _vertexBufferVisB;
+#endif
 	glm::vec3 _center = glm::vec3(0);
 	float _radius = 0;
 
