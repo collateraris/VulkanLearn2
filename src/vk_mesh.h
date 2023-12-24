@@ -57,16 +57,17 @@ struct Mesh {
 #if VBUFFER_ON
 	std::vector<Vertex_VisB> _verticesVisB;
 #endif
-#if MESHSHADER_ON || VBUFFER_ON
+#if MESHSHADER_ON
 	std::vector<Meshlet> _meshlets;
 	VkDescriptorSet meshletsSet{VK_NULL_HANDLE };
 	std::vector<uint32_t> meshletdata;
 #endif
 	AllocatedBuffer _vertexBuffer;
-#if MESHSHADER_ON || VBUFFER_ON
+#if MESHSHADER_ON
 	AllocatedBuffer _meshletsBuffer;
 	AllocatedBuffer _meshletdataBuffer;
-#else
+#endif
+#if INDIRECT_DRAW_ON || VBUFFER_ON
 	AllocatedBuffer _indicesBuffer;
 #endif
 #if RAYTRACER_ON
@@ -79,12 +80,12 @@ struct Mesh {
 	glm::vec3 _center = glm::vec3(0);
 	float _radius = 0;
 
-#if MESHSHADER_ON || VBUFFER_ON
+#if MESHSHADER_ON
 	Mesh& remapVertexToVertexMS();
 	void buildMeshlets();
 #endif
 #if VBUFFER_ON
-	void remapVertexMSToVertexVisB();
+	void remapVertexToVertexVisB();
 #endif
 	Mesh& calcAddInfo();
 };

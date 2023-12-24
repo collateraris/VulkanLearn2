@@ -24,7 +24,7 @@ layout(set = 1, binding = 1) readonly buffer ObjectBuffer{
 	SObjectData objects[];
 } objectBuffer;
 
-layout(set = 2, binding = 0) uniform sampler2D vbufferTex;
+layout(set = 2, binding = 0) uniform usampler2D vbufferTex;
 
 // Engel's barycentric coord partial derivs function. Follows equation from [Schied][Dachsbacher]
 // Computes the partial derivatives of point's barycentric coordinates from the projected screen space vertices

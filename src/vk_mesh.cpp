@@ -2,7 +2,7 @@
 #include <meshoptimizer.h>
 #include <iostream>
 
-#if MESHSHADER_ON || VBUFFER_ON
+#if MESHSHADER_ON
 
 Mesh& Mesh::remapVertexToVertexMS()
 {
@@ -116,13 +116,13 @@ void Mesh::buildMeshlets()
 }
 #endif
 #if VBUFFER_ON
-void Mesh::remapVertexMSToVertexVisB()
+void Mesh::remapVertexToVertexVisB()
 {
 	_verticesVisB.clear();
-	for (const Vertex_MS& vert : _verticesMS)
+	for (const Vertex& vert : _vertices)
 	{
 		Vertex_VisB v;
-		v.position = glm::vec4(vert.vx, vert.vy, vert.vz, 1.);
+		v.position = glm::vec4(vert.positionXYZ_normalX.x, vert.positionXYZ_normalX.y, vert.positionXYZ_normalX.z, 1.);
 		_verticesVisB.push_back(v);
 	}
 }

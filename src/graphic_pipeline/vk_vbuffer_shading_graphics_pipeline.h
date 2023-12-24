@@ -27,12 +27,12 @@ public:
 		glm::mat4 viewProj;     // Camera view * projection
 	};
 
-	void init(VulkanEngine* engine);
-	void init_description_set(const Texture& vbuffer);
+	void init(VulkanEngine* engine, const Texture& vbuffer);
 	void copy_global_uniform_data(VulkanVbufferShadingGraphicsPipeline::SGlobalCamera& camData, int current_frame_index);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
 private:
+	void init_description_set(const Texture& vbuffer);
 	void init_scene_buffer(const std::vector<RenderObject>& renderables, const std::vector<std::unique_ptr<Mesh>>& meshList);
 	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList);
 

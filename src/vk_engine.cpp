@@ -84,7 +84,7 @@ void VulkanEngine::init()
 	load_meshes();
 
 	init_scene();
-#if MESHSHADER_ON || RAYTRACER_ON
+#if MESHSHADER_ON || RAYTRACER_ON || VBUFFER_ON
 	init_pipelines();
 #endif
 
@@ -93,6 +93,13 @@ void VulkanEngine::init()
 
 	_fullscreenGraphicsPipeline.init(this);
 	_fullscreenGraphicsPipeline.init_description_set(_rtGraphicsPipeline.get_output());
+#endif
+
+#if VBUFFER_ON
+
+	_visBufGenerateGraphicsPipeline.init(this);
+
+	_visBufShadingGraphicsPipeline.init(this, _visBufGenerateGraphicsPipeline.get_vbuffer_output());
 #endif
 
 	_camera = {};
@@ -176,6 +183,17 @@ void VulkanEngine::draw()
 			globalData.viewInverse = glm::inverse(view);
 			_rtGraphicsPipeline.copy_global_uniform_data(globalData, get_current_frame_index());
 #endif
+#if VBUFFER_ON
+			{
+				VulkanVbufferGraphicsPipeline::SGlobalCamera globalCameraData;
+				globalCameraData.viewProj = projection * view;
+				_visBufGenerateGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
+
+				VulkanVbufferShadingGraphicsPipeline::SGlobalCamera globalCameraData1;
+				globalCameraData1.viewProj = projection * view;
+				_visBufShadingGraphicsPipeline.copy_global_uniform_data(globalCameraData1, get_current_frame_index());
+			}
+#endif
 
 		}
 
@@ -224,6 +242,19 @@ void VulkanEngine::draw()
 		vkCmdSetDepthBias(cmd, 0, 0, 0);
 #if RAYTRACER_ON
 		_fullscreenGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+#endif
+#if VBUFFER_ON
+		_visBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+
+		//std::array<VkImageMemoryBarrier, 1> visBufBarriers =
+		//{
+		//	vkinit::image_barrier(_visBufGenerateGraphicsPipeline.get_vbuffer_output().image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL),
+		//};
+
+		//vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, visBufBarriers.size(), visBufBarriers.data());
+
+		_visBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+		//get_current_frame()._mainCommandBuffer.clear_image(_visBufGenerateGraphicsPipeline.get_vbuffer_output(), clearValue);
 #endif
 		//draw_objects(cmd, _renderables.data(), _renderables.size());
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
@@ -1346,8 +1377,8 @@ void VulkanEngine::init_scene()
 		for (const auto& [matIndex, mapVector] : matMap)
 			for (const auto& map : mapVector)
 				_renderables.push_back(map);
-#if INDIRECT_DRAW_ON
 	_indirectBatchRO = compact_draws(_renderables.data(), _renderables.size());
+#if INDIRECT_DRAW_ON
 	map_buffer(_allocator, _indirectBuffer._allocation, [&](void*& data) {
 		VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)data;
 		//encode the draw data of each object into the indirect draw buffer

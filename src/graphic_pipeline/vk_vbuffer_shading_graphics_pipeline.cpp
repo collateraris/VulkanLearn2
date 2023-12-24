@@ -10,12 +10,18 @@
 #include <vk_shaders.h>
 #include <vk_initializers.h>
 
-void VulkanVbufferShadingGraphicsPipeline::init(VulkanEngine* engine)
+void VulkanVbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const Texture& vbuffer)
 {
 	_engine = engine;
 
 	{
-		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::FullScreen,
+		init_description_set(vbuffer);
+		init_scene_buffer(_engine->_renderables, _engine->_resManager.meshList);
+		init_bindless(_engine->_resManager.meshList, _engine->_resManager.textureList);
+	}
+
+	{
+		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::VBufferShading,
 			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
 				ShaderEffect defaultEffect;
 				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("fullscreen.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
@@ -170,6 +176,7 @@ void VulkanVbufferShadingGraphicsPipeline::init_scene_buffer(const std::vector<R
 		for (int i = 0; i < renderables.size(); i++)
 		{
 			const RenderObject& object = renderables[i];
+			objectSSBO[i].model = object.transformMatrix;
 			objectSSBO[i].meshIndex = object.meshIndex;
 			objectSSBO[i].diffuseTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->diffuseTextureIndex;
 		}
@@ -214,8 +221,8 @@ void VulkanVbufferShadingGraphicsPipeline::init_bindless(const std::vector<std::
 	}
 
 	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
-		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, vertexBufferInfoList.size())
-		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, imageInfoList.size())
+		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, vertexBufferInfoList.size())
+		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, imageInfoList.size())
 		.build_bindless(_bindlessSet, _bindlessSetLayout);
 }
 

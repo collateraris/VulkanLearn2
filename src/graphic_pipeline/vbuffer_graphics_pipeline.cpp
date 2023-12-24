@@ -43,15 +43,13 @@ void VulkanVbufferGraphicsPipeline::init(VulkanEngine* engine)
 
 	{
 		init_scene_buffer(_engine->_renderables, _engine->_resManager.meshList);
-		init_bindless(_engine->_resManager.meshList);
 	}
 
 	{
-		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::Bindless_TaskMeshIndirectForward,
+		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::VbufferGenerate,
 			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
 				ShaderEffect defaultEffect;
-				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("vbuffer_generate.task.spv")), VK_SHADER_STAGE_TASK_BIT_EXT);
-				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("vbuffer_generate.mesh.spv")), VK_SHADER_STAGE_MESH_BIT_EXT);
+				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("vbuffer_generate.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
 				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("vbuffer_generate.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
 
 				defaultEffect.reflect_layout(_engine->_device, nullptr, 0);
@@ -60,7 +58,7 @@ void VulkanVbufferGraphicsPipeline::init(VulkanEngine* engine)
 
 				pipelineBuilder.setShaders(&defaultEffect);
 				VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
-				std::vector<VkDescriptorSetLayout> setLayout = { _bindlessSetLayout, _globalDescSetLayout, _vbufferDescSetLayout };
+				std::vector<VkDescriptorSetLayout> setLayout = { _globalDescSetLayout, _vbufferDescSetLayout };
 				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
 				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
 
@@ -97,6 +95,15 @@ void VulkanVbufferGraphicsPipeline::init(VulkanEngine* engine)
 				//default depthtesting
 				pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
 
+				pipelineBuilder.vertexDescription = Vertex::get_vertex_description();
+				pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
+				//connect the pipeline builder vertex input info to the one we get from Vertex
+				pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = pipelineBuilder.vertexDescription.attributes.data();
+				pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = (uint32_t)pipelineBuilder.vertexDescription.attributes.size();
+
+				pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = pipelineBuilder.vertexDescription.bindings.data();
+				pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = (uint32_t)pipelineBuilder.vertexDescription.bindings.size();
+
 				VkPipeline meshPipeline = pipelineBuilder.build_graphic_pipeline(_engine->_device,
 					_engine->_renderPassManager.get_render_pass(ERenderPassType::Default)->get_render_pass());
 
@@ -115,17 +122,32 @@ void VulkanVbufferGraphicsPipeline::copy_global_uniform_data(VulkanVbufferGraphi
 
 void VulkanVbufferGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
-	VkDeviceSize indirect_offset = 0 * sizeof(VkDrawMeshTasksIndirectCommandNV);
-	uint32_t draw_stride = sizeof(VkDrawMeshTasksIndirectCommandNV);
 
-	cmd->draw_mesh_tasks_indirect(_indirectBuffer, indirect_offset, _objectsSize, draw_stride,
-		[&](VkCommandBuffer cmd) {
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::VbufferGenerate));
+	vkCmdBindPipeline(cmd->get_cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::VbufferGenerate));
 
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::VbufferGenerate), 0, 1, &_bindlessSet, 0, nullptr);
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::VbufferGenerate), 1, 1, &_globalDescSet[current_frame_index], 0, nullptr);
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::VbufferGenerate), 2, 1, &_vbufferDescSet[current_frame_index], 0, nullptr);
-	});
+	vkCmdBindDescriptorSets(cmd->get_cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::VbufferGenerate), 0, 1, &_globalDescSet[current_frame_index], 0, nullptr);
+
+	vkCmdBindDescriptorSets(cmd->get_cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::VbufferGenerate), 1, 1, &_vbufferDescSet[current_frame_index], 0, nullptr);
+	
+	Mesh* lastMesh = nullptr;
+
+	for (IndirectBatch& object : _engine->_indirectBatchRO)
+	{
+		//only bind the mesh if its a different one from last bind
+		if (object.mesh != lastMesh) {
+			//bind the mesh vertex buffer with offset 0
+			VkDeviceSize offset = 0;
+			vkCmdBindVertexBuffers(cmd->get_cmd(), 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
+			vkCmdBindIndexBuffer(cmd->get_cmd(), object.mesh->_indicesBuffer._buffer, offset, VK_INDEX_TYPE_UINT32);
+			lastMesh = object.mesh;
+		}
+
+		VkDeviceSize indirect_offset = object.first * sizeof(VkDrawIndexedIndirectCommand);
+		uint32_t draw_stride = sizeof(VkDrawIndexedIndirectCommand);
+
+		//execute the draw command buffer on each section as defined by the array of draws
+		vkCmdDrawIndexedIndirect(cmd->get_cmd(), _indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
+	}
 }
 
 const Texture& VulkanVbufferGraphicsPipeline::get_vbuffer_output() const
@@ -137,25 +159,15 @@ void VulkanVbufferGraphicsPipeline::init_scene_buffer(const std::vector<RenderOb
 {
 	for (auto& mesh : meshList)
 	{
-		mesh->remapVertexToVertexMS()
-			.buildMeshlets();
-		mesh->remapVertexMSToVertexVisB();
-
 		{
-			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_verticesVisB.size() * sizeof(Vertex_VisB));
+			size_t bufferSize = mesh->_vertices.size() * sizeof(Vertex);
 
-			mesh->_vertexBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->_verticesVisB.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+			mesh->_vertexBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->_vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 		}
 		{
-			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_meshlets.size() * sizeof(Meshlet));
+			size_t bufferSize = mesh->_indices.size() * sizeof(mesh->_indices[0]);
 
-			mesh->_meshletsBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->_meshlets.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		}
-
-		{
-			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->meshletdata.size() * sizeof(uint32_t));
-
-			mesh->_meshletdataBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->meshletdata.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+			mesh->_indicesBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->_indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 		}
 	}
 
@@ -186,8 +198,8 @@ void VulkanVbufferGraphicsPipeline::init_scene_buffer(const std::vector<RenderOb
 		objectBufferInfo.range = _objectBuffer._size;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT)
-			.bind_buffer(1, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT)
+			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+			.bind_buffer(1, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
 			.build(_globalDescSet[i], _globalDescSetLayout);
 	}
 
@@ -197,66 +209,25 @@ void VulkanVbufferGraphicsPipeline::init_scene_buffer(const std::vector<RenderOb
 		for (int i = 0; i < renderables.size(); i++)
 		{
 			const RenderObject& object = renderables[i];
-			objectSSBO[i].meshIndex = object.meshIndex;
-			objectSSBO[i].meshletCount = object.mesh->_meshlets.size();
+			objectSSBO[i].model = object.transformMatrix;
 		}
 		});
 
-	_indirectBuffer = _engine->create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawMeshTasksIndirectCommandNV), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+	_indirectBuffer = _engine->create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
 
 	_engine->map_buffer(_engine->_allocator, _indirectBuffer._allocation, [&](void*& data) {
-			VkDrawMeshTasksIndirectCommandNV* drawCommands = (VkDrawMeshTasksIndirectCommandNV*)data;
-			//encode the draw data of each object into the indirect draw buffer
-			for (int i = 0; i < renderables.size(); i++)
-			{
-				const RenderObject& object = renderables[i];
-				drawCommands[i].taskCount = (object.mesh->_meshlets.size() + 31 ) / 32;
-				drawCommands[i].firstTask = 0;
-			}
+		VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)data;
+		//encode the draw data of each object into the indirect draw buffer
+		for (int i = 0; i < _engine->_renderables.size(); i++)
+		{
+			RenderObject& object = _engine->_renderables[i];
+			drawCommands[i].indexCount = object.mesh->_indices.size();
+			drawCommands[i].instanceCount = 1;
+			drawCommands[i].vertexOffset = 0;
+			drawCommands[i].firstIndex = 0;
+			drawCommands[i].firstInstance = i; //used to access object matrix in the shader
+		}
 		});
-}
-
-void VulkanVbufferGraphicsPipeline::init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList)
-{
-	const uint32_t meshletsVerticesBinding = 0;
-	const uint32_t meshletsBinding = 1;
-	const uint32_t meshletsDataBinding = 2;
-
-	//BIND MESHDATA
-	std::vector<VkDescriptorBufferInfo> vertexBufferInfoList{};
-	vertexBufferInfoList.resize(meshList.size());
-
-	std::vector<VkDescriptorBufferInfo> meshletBufferInfoList{};
-	meshletBufferInfoList.resize(meshList.size());
-
-	std::vector<VkDescriptorBufferInfo> meshletdataBufferInfoList{};
-	meshletdataBufferInfoList.resize(meshList.size());
-
-	for (uint32_t meshArrayIndex = 0; meshArrayIndex < meshList.size(); meshArrayIndex++)
-	{
-		Mesh* mesh = meshList[meshArrayIndex].get();
-
-		VkDescriptorBufferInfo& vertexBufferInfo = vertexBufferInfoList[meshArrayIndex];
-		vertexBufferInfo.buffer = mesh->_vertexBuffer._buffer;
-		vertexBufferInfo.offset = 0;
-		vertexBufferInfo.range = mesh->_vertexBuffer._size;
-
-		VkDescriptorBufferInfo& meshletBufferInfo = meshletBufferInfoList[meshArrayIndex];
-		meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;
-		meshletBufferInfo.offset = 0;
-		meshletBufferInfo.range = mesh->_meshletsBuffer._size;
-
-		VkDescriptorBufferInfo& meshletdataBufferInfo = meshletdataBufferInfoList[meshArrayIndex];
-		meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
-		meshletdataBufferInfo.offset = 0;
-		meshletdataBufferInfo.range = mesh->_meshletdataBuffer._size;
-	}
-
-	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
-		.bind_buffer(meshletsVerticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, vertexBufferInfoList.size())
-		.bind_buffer(meshletsBinding, meshletBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshletBufferInfoList.size())
-		.bind_buffer(meshletsDataBinding, meshletdataBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshletdataBufferInfoList.size())
-		.build_bindless(_bindlessSet, _bindlessSetLayout);
 }
 
 #endif

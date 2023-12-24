@@ -15,10 +15,6 @@ class VulkanVbufferGraphicsPipeline
 	struct alignas(16) ObjectData
 	{
 		glm::mat4 model;
-		uint32_t meshletCount;
-		uint32_t meshIndex;
-		uint32_t pad1;
-		uint32_t pad2;
 	};
 public:
 
@@ -37,7 +33,6 @@ public:
 private:
 
 	void init_scene_buffer(const std::vector<RenderObject>& renderables, const std::vector<std::unique_ptr<Mesh>>& meshList);
-	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList);
 
 	VulkanEngine* _engine = nullptr;
 
@@ -55,9 +50,6 @@ private:
 
 	VkDescriptorSetLayout          _globalDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _globalDescSet;
-
-	VkDescriptorSet _bindlessSet;
-	VkDescriptorSetLayout _bindlessSetLayout;
 
 	VkDescriptorSetLayout          _vbufferDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _vbufferDescSet;

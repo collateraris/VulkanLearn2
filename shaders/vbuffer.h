@@ -23,8 +23,4 @@ struct SMeshlet
 struct SObjectData
 {
 	mat4 model;
-	uint meshletCount;
-   	uint meshIndex;
-	uint pad1;
-    uint pad2;
 };
