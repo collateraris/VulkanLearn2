@@ -156,6 +156,7 @@ public:
 #if VBUFFER_ON
 	VulkanVbufferGraphicsPipeline _visBufGenerateGraphicsPipeline;
 	VulkanVbufferShadingGraphicsPipeline _visBufShadingGraphicsPipeline;
+	VkFramebuffer _visBufFramebuffer;
 #endif
 
 	//frame storage

@@ -100,6 +100,26 @@ void VulkanEngine::init()
 	_visBufGenerateGraphicsPipeline.init(this);
 
 	_visBufShadingGraphicsPipeline.init(this, _visBufGenerateGraphicsPipeline.get_vbuffer_output());
+
+	{
+			VkFramebufferCreateInfo fb_info = {};
+			fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			fb_info.pNext = nullptr;
+
+			fb_info.renderPass = _renderPassManager.get_render_pass(ERenderPassType::VisBufferGenerate)->get_render_pass();
+			fb_info.attachmentCount = 1;
+			fb_info.width = _windowExtent.width;
+			fb_info.height = _windowExtent.height;
+			fb_info.layers = 1;
+
+			VkImageView attachments[2];
+			attachments[0] = _visBufGenerateGraphicsPipeline.get_vbuffer_output().imageView;
+			attachments[1] = _visBufGenerateGraphicsPipeline.get_depth_output().imageView;
+
+			fb_info.pAttachments = attachments;
+			fb_info.attachmentCount = 2;
+			VK_CHECK(vkCreateFramebuffer(_device, &fb_info, nullptr, &_visBufFramebuffer));
+	}
 #endif
 
 	_camera = {};
@@ -212,55 +232,105 @@ void VulkanEngine::draw()
 		VkClearValue depthClear;
 		depthClear.depthStencil.depth = 1.f;
 
-		//start the main renderpass. 
-		//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-		VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPassManager.get_render_pass(ERenderPassType::Default)->get_render_pass(), _windowExtent, _framebuffers[swapchainImageIndex]);
+#if VBUFFER_ON
+		{
 
-		//connect clear values
-		rpInfo.clearValueCount = 2;
+			//start the main renderpass. 
+			//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
+			VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPassManager.get_render_pass(ERenderPassType::VisBufferGenerate)->get_render_pass(), _windowExtent, _visBufFramebuffer);
 
-		VkClearValue clearValues[] = { clearValue, depthClear };
+			//connect clear values
+			rpInfo.clearValueCount = 2;
 
-		rpInfo.pClearValues = &clearValues[0];
+			VkClearValue clearValues[] = { clearValue, depthClear };
 
-		vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+			rpInfo.pClearValues = &clearValues[0];
 
-		VkViewport viewport;
-		viewport.x = 0.0f;
-		viewport.y = 0.0f;
-		viewport.width = (float)_windowExtent.width;
-		viewport.height = (float)_windowExtent.height;
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
+			vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		VkRect2D scissor;
-		scissor.offset = { 0, 0 };
-		scissor.extent = _windowExtent;
+			VkViewport viewport;
+			viewport.x = 0.0f;
+			viewport.y = 0.0f;
+			viewport.width = (float)_windowExtent.width;
+			viewport.height = (float)_windowExtent.height;
+			viewport.minDepth = 0.0f;
+			viewport.maxDepth = 1.0f;
 
-		vkCmdSetViewport(cmd, 0, 1, &viewport);
-		vkCmdSetScissor(cmd, 0, 1, &scissor);
-		vkCmdSetDepthBias(cmd, 0, 0, 0);
+			VkRect2D scissor;
+			scissor.offset = { 0, 0 };
+			scissor.extent = _windowExtent;
+
+			vkCmdSetViewport(cmd, 0, 1, &viewport);
+			vkCmdSetScissor(cmd, 0, 1, &scissor);
+			vkCmdSetDepthBias(cmd, 0, 0, 0);
+#if VBUFFER_ON
+			_visBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+#endif
+
+			//finalize the render pass
+			vkCmdEndRenderPass(cmd);
+		}
+
+		{
+			std::array<VkImageMemoryBarrier, 1> visBufBarriers =
+			{
+				vkinit::image_barrier(_visBufGenerateGraphicsPipeline.get_vbuffer_output().image._image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+			};
+
+			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, visBufBarriers.size(), visBufBarriers.data());
+		}
+#endif
+		{
+
+			//start the main renderpass. 
+			//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
+			VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPassManager.get_render_pass(ERenderPassType::Default)->get_render_pass(), _windowExtent, _framebuffers[swapchainImageIndex]);
+
+			//connect clear values
+			rpInfo.clearValueCount = 2;
+
+			VkClearValue clearValues[] = { clearValue, depthClear };
+
+			rpInfo.pClearValues = &clearValues[0];
+
+			vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+			VkViewport viewport;
+			viewport.x = 0.0f;
+			viewport.y = 0.0f;
+			viewport.width = (float)_windowExtent.width;
+			viewport.height = (float)_windowExtent.height;
+			viewport.minDepth = 0.0f;
+			viewport.maxDepth = 1.0f;
+
+			VkRect2D scissor;
+			scissor.offset = { 0, 0 };
+			scissor.extent = _windowExtent;
+
+			vkCmdSetViewport(cmd, 0, 1, &viewport);
+			vkCmdSetScissor(cmd, 0, 1, &scissor);
+			vkCmdSetDepthBias(cmd, 0, 0, 0);
 #if RAYTRACER_ON
-		_fullscreenGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+			_fullscreenGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif
 #if VBUFFER_ON
-		_visBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-
-		//std::array<VkImageMemoryBarrier, 1> visBufBarriers =
-		//{
-		//	vkinit::image_barrier(_visBufGenerateGraphicsPipeline.get_vbuffer_output().image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL),
-		//};
-
-		//vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, visBufBarriers.size(), visBufBarriers.data());
-
-		_visBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-		//get_current_frame()._mainCommandBuffer.clear_image(_visBufGenerateGraphicsPipeline.get_vbuffer_output(), clearValue);
+			_visBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif
 		//draw_objects(cmd, _renderables.data(), _renderables.size());
-		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+			ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
-		//finalize the render pass
-		vkCmdEndRenderPass(cmd);
+			//finalize the render pass
+			vkCmdEndRenderPass(cmd);
+		}
+
+		{
+			std::array<VkImageMemoryBarrier, 1> visBufBarriers =
+			{
+				vkinit::image_barrier(_visBufGenerateGraphicsPipeline.get_vbuffer_output().image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+			};
+
+			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, 0, 0, 0, visBufBarriers.size(), visBufBarriers.data());
+		}
 
 		//_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });
 
@@ -429,7 +499,7 @@ void VulkanEngine::init_vulkan()
 		VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
 		VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
 		VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,
-#if MESHSHADER_ON || VBUFFER_ON
+#if MESHSHADER_ON
 		VK_NV_MESH_SHADER_EXTENSION_NAME,
 #endif
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,

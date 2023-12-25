@@ -29,6 +29,7 @@ public:
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
 	const Texture& get_vbuffer_output() const;
+	const Texture& get_depth_output() const;
 
 private:
 
@@ -50,9 +51,6 @@ private:
 
 	VkDescriptorSetLayout          _globalDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _globalDescSet;
-
-	VkDescriptorSetLayout          _vbufferDescSetLayout;
-	std::array<VkDescriptorSet, 2>  _vbufferDescSet;
 };
 
 #endif

@@ -52,9 +52,16 @@ vec2 Interpolate2DAttributes(mat3x2 attributes, vec3 dbDx, vec3 dbDy, vec2 d)
 
 void main()
 {
-	vec2 drawID_PrimitiveID = texture(vbufferTex,texCoord).rg;
-    uint drawID = uint(drawID_PrimitiveID.x);
-    uint primitiveID = uint(drawID_PrimitiveID.y);
+    uvec2 visRaw = texture(vbufferTex,texCoord).rg;
+
+    if (visRaw == uvec2(0.0))
+    {
+        outFragColor = vec4(0.5f, 0.0f, 0.5f, 1.0f);
+        return;
+    }
+	
+    uint drawID = uint(visRaw.r) - 1;
+    uint primitiveID = uint(visRaw.g) - 1;
 
     SObjectData objData = objectBuffer.objects[drawID];
 

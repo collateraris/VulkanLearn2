@@ -25,7 +25,7 @@ void VulkanVbufferGraphicsPipeline::init(VulkanEngine* engine)
 		texBuilder.init(_engine);
 		_vbufferTex = texBuilder.start()
 			.make_img_info(_vbufferFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _vbufferExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL; })
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_vbufferFormat, VK_IMAGE_ASPECT_COLOR_BIT)
 			.create_texture();
@@ -35,10 +35,31 @@ void VulkanVbufferGraphicsPipeline::init(VulkanEngine* engine)
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
 		_depthTexture = texBuilder.start()
-			.make_img_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, _vbufferExtent)
+			.make_img_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, _vbufferExtent)
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
 			.create_texture();
+	}
+
+	{
+		RenderPassInfo default_rp;
+		default_rp.op_flags = RENDER_PASS_OP_CLEAR_DEPTH_STENCIL_BIT;
+		default_rp.clear_attachments = 1 << 0;
+		default_rp.store_attachments = 1 << 0;
+		default_rp.num_color_attachments = 1;
+		default_rp.color_attachments[0] = &_vbufferTex;
+		default_rp.depth_stencil = &_depthTexture;
+
+		RenderPassInfo::Subpass subpass = {};
+		subpass.num_color_attachments = 1;
+		subpass.depth_stencil_mode = RenderPassInfo::DepthStencil::ReadWrite;
+		subpass.color_attachments[0] = 0;
+		subpass.resolve_attachments[0] = 1;
+
+		default_rp.num_subpasses = 1;
+		default_rp.subpasses = &subpass;
+
+		_engine->_renderPassManager.get_render_pass(ERenderPassType::VisBufferGenerate)->init(_engine, default_rp);
 	}
 
 	{
@@ -58,7 +79,7 @@ void VulkanVbufferGraphicsPipeline::init(VulkanEngine* engine)
 
 				pipelineBuilder.setShaders(&defaultEffect);
 				VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
-				std::vector<VkDescriptorSetLayout> setLayout = { _globalDescSetLayout, _vbufferDescSetLayout };
+				std::vector<VkDescriptorSetLayout> setLayout = { _globalDescSetLayout };
 				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
 				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
 
@@ -105,7 +126,7 @@ void VulkanVbufferGraphicsPipeline::init(VulkanEngine* engine)
 				pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = (uint32_t)pipelineBuilder.vertexDescription.bindings.size();
 
 				VkPipeline meshPipeline = pipelineBuilder.build_graphic_pipeline(_engine->_device,
-					_engine->_renderPassManager.get_render_pass(ERenderPassType::Default)->get_render_pass());
+					_engine->_renderPassManager.get_render_pass(ERenderPassType::VisBufferGenerate)->get_render_pass());
 
 				pipeline = meshPipeline;
 				pipelineLayout = meshPipLayout;
@@ -126,8 +147,6 @@ void VulkanVbufferGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_f
 	vkCmdBindPipeline(cmd->get_cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::VbufferGenerate));
 
 	vkCmdBindDescriptorSets(cmd->get_cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::VbufferGenerate), 0, 1, &_globalDescSet[current_frame_index], 0, nullptr);
-
-	vkCmdBindDescriptorSets(cmd->get_cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::VbufferGenerate), 1, 1, &_vbufferDescSet[current_frame_index], 0, nullptr);
 	
 	Mesh* lastMesh = nullptr;
 
@@ -155,6 +174,11 @@ const Texture& VulkanVbufferGraphicsPipeline::get_vbuffer_output() const
 	return _vbufferTex;
 }
 
+const Texture& VulkanVbufferGraphicsPipeline::get_depth_output() const
+{
+	return _depthTexture;
+}
+
 void VulkanVbufferGraphicsPipeline::init_scene_buffer(const std::vector<RenderObject>& renderables, const std::vector<std::unique_ptr<Mesh>>& meshList)
 {
 	for (auto& mesh : meshList)
@@ -176,15 +200,6 @@ void VulkanVbufferGraphicsPipeline::init_scene_buffer(const std::vector<RenderOb
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
-		VkDescriptorImageInfo outImageBufferInfo;
-		outImageBufferInfo.sampler = VK_NULL_HANDLE;
-		outImageBufferInfo.imageView = _vbufferTex.imageView;
-		outImageBufferInfo.imageLayout = _vbufferTex.createInfo.initialLayout;
-
-		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_image(0, &outImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT)
-			.build(_vbufferDescSet[i], _vbufferDescSetLayout);
-
 		_globalCameraBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanVbufferGraphicsPipeline::SGlobalCamera), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 		VkDescriptorBufferInfo globalUniformsInfo;
