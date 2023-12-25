@@ -322,7 +322,7 @@ void VulkanEngine::draw()
 			//finalize the render pass
 			vkCmdEndRenderPass(cmd);
 		}
-
+#if VBUFFER_ON
 		{
 			std::array<VkImageMemoryBarrier, 1> visBufBarriers =
 			{
@@ -331,7 +331,7 @@ void VulkanEngine::draw()
 
 			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, 0, 0, 0, visBufBarriers.size(), visBufBarriers.data());
 		}
-
+#endif
 		//_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });
 
 		vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 1);

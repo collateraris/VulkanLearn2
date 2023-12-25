@@ -71,7 +71,7 @@ void VulkanVbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const Text
 				pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
 
 				//default depthtesting
-				pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
+				pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(false, false, VK_COMPARE_OP_ALWAYS);
 
 				pipelineBuilder.vertexDescription = Vertex::get_vertex_description();
 				pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
