@@ -20,7 +20,6 @@ struct SMeshlet
 	uint dataOffset;
 	uint8_t triangleCount;
 	uint8_t vertexCount;
-	float16_t pad;
 };
 
 struct SObjectData

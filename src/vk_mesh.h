@@ -31,19 +31,11 @@ struct Vertex_VisB
 	glm::vec4 position;
 };
 
-struct alignas(16) Meshlet
+struct Meshlet
 {
 	uint32_t dataOffset; // dataOffset..dataOffset+vertexCount-1 stores vertex indices, we store indices packed in 4b units after that
 	uint8_t triangleCount;
 	uint8_t vertexCount;
-	#if GBUFFER_ON
-	uint16_t pad;
-	#endif
-	#if !GBUFFER_ON
-	float  center_radius[4];
-	float  aabb_min[3];
-	float  aabb_max[3];
-	#endif
 };
 
 struct alignas(16) GPUObjectData {
