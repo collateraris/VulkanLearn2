@@ -233,8 +233,8 @@ void VulkanGbufferGenerateGraphicsPipeline::init_render_pass()
 {
 	RenderPassInfo default_rp;
 	default_rp.op_flags = RENDER_PASS_OP_CLEAR_DEPTH_STENCIL_BIT;
-	default_rp.clear_attachments = BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4) | BIT(5);
-	default_rp.store_attachments = BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4) | BIT(5);
+	default_rp.clear_attachments = BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4);
+	default_rp.store_attachments = BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4);
 	default_rp.num_color_attachments = 4;
 	default_rp.color_attachments[0] = &_wposTex;
 	default_rp.color_attachments[1] = &_normalTex;

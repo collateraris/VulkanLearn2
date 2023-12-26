@@ -45,7 +45,9 @@ in taskNV block
 // Custom vertex output block
 layout (location = 0) out PerVertexData
 {
-  vec3 wpos;  
+  vec3 wpos;
+  vec3 normal;
+  vec2 uv;    
   flat uint drawID;
 } v_out[];   // [max_vertices]
 
@@ -55,6 +57,7 @@ void main()
 	uint ti = gl_LocalInvocationID.x;
 
 	mat4 modelMatrix = objectBuffer.objects[gl_DrawID].model;
+	mat3 normalMatrix = transpose(inverse(mat3(modelMatrix)));
 	uint meshletIndex = objectBuffer.objects[gl_DrawID].meshIndex;
 	SMeshlet currMeshlet = Meshlet[meshletIndex].meshlets[mi];
 
@@ -78,9 +81,15 @@ void main()
 
 		position = vec3(modelMatrix * vec4(position, 1.0f));
 
+		vec3 normal = vec3(int(vert.nx), int(vert.ny), int(vert.nz)) / 127.0 - 1.0;
+		normal = normalMatrix * normal;
+		vec2 texcoord = vec2(vert.tu, vert.tv);
+
 		gl_MeshVerticesNV[i].gl_Position = cameraData.viewProj * vec4(position, 1.0f);
 		v_out[i].wpos = position;
-        v_out[i].drawID = gl_DrawID;
+		v_out[i].normal = normal;
+		v_out[i].uv = texcoord;
+        v_out[i].drawID = uint(gl_DrawID);
 	}
 
     for (uint i = ti; i < indexCount; i += 32)

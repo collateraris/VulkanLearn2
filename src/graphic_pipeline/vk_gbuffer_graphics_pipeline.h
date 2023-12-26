@@ -49,10 +49,10 @@ private:
 
 	VkExtent3D _texExtent;
 	Texture _wposTex;
-	VkFormat      _wposFormat{ VK_FORMAT_R32G32B32_SFLOAT };
+	VkFormat      _wposFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
 
 	Texture _normalTex;
-	VkFormat      _normalFormat{ VK_FORMAT_R32G32B32_SFLOAT };
+	VkFormat      _normalFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
 
 	Texture _uvTex;
 	VkFormat      _uvFormat{ VK_FORMAT_R32G32_SFLOAT };
