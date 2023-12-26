@@ -27,6 +27,7 @@
 #include <graphic_pipeline/vbuffer_graphics_pipeline.h>
 #include <graphic_pipeline/vk_vbuffer_shading_graphics_pipeline.h>
 #include <graphic_pipeline/vk_gbuffer_graphics_pipeline.h>
+#include <graphic_pipeline/vk_gbuffer_shading_graphics_pipeline.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
 
@@ -162,7 +163,7 @@ public:
 
 #if GBUFFER_ON
 	VulkanGbufferGenerateGraphicsPipeline _gBufGenerateGraphicsPipeline;
-	VulkanFullScreenGraphicsPipeline _fullscreenGraphicsPipeline;
+	VulkanGbufferShadingGraphicsPipeline _gBufShadingGraphicsPipeline;
 #endif
 
 	//frame storage

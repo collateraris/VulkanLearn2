@@ -59,6 +59,14 @@ struct AccelerationStruct
 	AllocatedBuffer               buffer;
 };
 
+enum class EGbufferTex : uint8_t
+{
+	WPOS = 0,
+	NORM = 1,
+	UV = 2,
+	OBJ_ID = 3,
+};
+
 
 enum class MeshpassType : uint8_t {
 	None = 0,

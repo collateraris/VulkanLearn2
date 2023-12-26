@@ -141,29 +141,60 @@ void VulkanGbufferGenerateGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int c
 	vkCmdEndRenderPass(cmd->get_cmd());
 }
 
+void VulkanGbufferGenerateGraphicsPipeline::barrier_for_gbuffer_shading(VulkanCommandBuffer* cmd)
+{
+	std::array<VkImageMemoryBarrier, 4> gBufBarriers =
+	{
+		vkinit::image_barrier(get_wpos_output().image._image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		vkinit::image_barrier(get_normal_output().image._image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		vkinit::image_barrier(get_uv_output().image._image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		vkinit::image_barrier(get_objID_output().image._image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+	};
+
+	vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, gBufBarriers.size(), gBufBarriers.data());
+}
+
+void VulkanGbufferGenerateGraphicsPipeline::barrier_for_gbuffer_generate(VulkanCommandBuffer* cmd)
+{
+	std::array<VkImageMemoryBarrier, 4> gBufBarriers =
+	{
+		vkinit::image_barrier(get_wpos_output().image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		vkinit::image_barrier(get_normal_output().image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		vkinit::image_barrier(get_uv_output().image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		vkinit::image_barrier(get_objID_output().image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+	};
+
+	vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, 0, 0, 0, gBufBarriers.size(), gBufBarriers.data());
+}
+
 const Texture& VulkanGbufferGenerateGraphicsPipeline::get_wpos_output() const
 {
-	return _wposTex;
+	return _gbuffer[int(EGbufferTex::WPOS)];
 }
 
 const Texture& VulkanGbufferGenerateGraphicsPipeline::get_normal_output() const
 {
-	return _normalTex;
+	return _gbuffer[int(EGbufferTex::NORM)];
 }
 
 const Texture& VulkanGbufferGenerateGraphicsPipeline::get_uv_output() const
 {
-	return _uvTex;
+	return _gbuffer[int(EGbufferTex::UV)];
 }
 
 const Texture& VulkanGbufferGenerateGraphicsPipeline::get_objID_output() const
 {
-	return _objIDTex;
+	return _gbuffer[int(EGbufferTex::OBJ_ID)];
 }
 
 const Texture& VulkanGbufferGenerateGraphicsPipeline::get_depth_output() const
 {
 	return _depthTexture;
+}
+
+const std::array<Texture, 4> VulkanGbufferGenerateGraphicsPipeline::get_gbuffer() const
+{
+	return _gbuffer;
 }
 
 void VulkanGbufferGenerateGraphicsPipeline::init_gbuffer_tex()
@@ -177,7 +208,7 @@ void VulkanGbufferGenerateGraphicsPipeline::init_gbuffer_tex()
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_wposTex = texBuilder.start()
+		_gbuffer[int(EGbufferTex::WPOS)] = texBuilder.start()
 			.make_img_info(_wposFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _texExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
@@ -188,7 +219,7 @@ void VulkanGbufferGenerateGraphicsPipeline::init_gbuffer_tex()
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_normalTex = texBuilder.start()
+		_gbuffer[int(EGbufferTex::NORM)] = texBuilder.start()
 			.make_img_info(_normalFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _texExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
@@ -199,7 +230,7 @@ void VulkanGbufferGenerateGraphicsPipeline::init_gbuffer_tex()
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_uvTex = texBuilder.start()
+		_gbuffer[int(EGbufferTex::UV)] = texBuilder.start()
 			.make_img_info(_uvFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _texExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
@@ -210,7 +241,7 @@ void VulkanGbufferGenerateGraphicsPipeline::init_gbuffer_tex()
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_objIDTex = texBuilder.start()
+		_gbuffer[int(EGbufferTex::OBJ_ID)] = texBuilder.start()
 			.make_img_info(_objIDFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _texExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
@@ -236,10 +267,10 @@ void VulkanGbufferGenerateGraphicsPipeline::init_render_pass()
 	default_rp.clear_attachments = BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4);
 	default_rp.store_attachments = BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4);
 	default_rp.num_color_attachments = 4;
-	default_rp.color_attachments[0] = &_wposTex;
-	default_rp.color_attachments[1] = &_normalTex;
-	default_rp.color_attachments[2] = &_uvTex;
-	default_rp.color_attachments[3] = &_objIDTex;
+	default_rp.color_attachments[0] = &_gbuffer[int(EGbufferTex::WPOS)];
+	default_rp.color_attachments[1] = &_gbuffer[int(EGbufferTex::NORM)];
+	default_rp.color_attachments[2] = &_gbuffer[int(EGbufferTex::UV)];
+	default_rp.color_attachments[3] = &_gbuffer[int(EGbufferTex::OBJ_ID)];
 	default_rp.depth_stencil = &_depthTexture;
 
 	RenderPassInfo::Subpass subpass = {};

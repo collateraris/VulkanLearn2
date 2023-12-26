@@ -32,11 +32,15 @@ public:
 	void copy_global_uniform_data(VulkanGbufferGenerateGraphicsPipeline::SGlobalCamera& camData, int current_frame_index);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
+	void barrier_for_gbuffer_shading(VulkanCommandBuffer* cmd);
+	void barrier_for_gbuffer_generate(VulkanCommandBuffer* cmd);
+
 	const Texture& get_wpos_output() const;
 	const Texture& get_normal_output() const;
 	const Texture& get_uv_output() const;
 	const Texture& get_objID_output() const;
 	const Texture& get_depth_output() const;
+	const std::array<Texture, 4> get_gbuffer() const;
 
 private:
 
@@ -48,16 +52,12 @@ private:
 	VulkanEngine* _engine = nullptr;
 
 	VkExtent3D _texExtent;
-	Texture _wposTex;
+
+	std::array<Texture, 4> _gbuffer;
+
 	VkFormat      _wposFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
-
-	Texture _normalTex;
 	VkFormat      _normalFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
-
-	Texture _uvTex;
 	VkFormat      _uvFormat{ VK_FORMAT_R32G32_SFLOAT };
-
-	Texture _objIDTex;
 	VkFormat      _objIDFormat{ VK_FORMAT_R32_UINT };
 
 	Texture _depthTexture;

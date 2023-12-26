@@ -124,8 +124,7 @@ void VulkanEngine::init()
 
 #if GBUFFER_ON
 	_gBufGenerateGraphicsPipeline.init(this);
-	_fullscreenGraphicsPipeline.init(this);
-	_fullscreenGraphicsPipeline.init_description_set(_gBufGenerateGraphicsPipeline.get_wpos_output());
+	_gBufShadingGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer());
 #endif
 
 	_camera = {};
@@ -180,6 +179,9 @@ void VulkanEngine::draw()
 	get_current_frame()._mainCommandBuffer.record(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, [&]() 
 	{
 		{
+			vkCmdResetQueryPool(cmd, get_current_frame().queryPool, 0, 128);
+			vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 0);
+
 			//camera view
 			glm::mat4 view = _camera.get_view_matrix();
 			//camera projection
@@ -226,12 +228,16 @@ void VulkanEngine::draw()
 				globalCameraData.viewProj = projection * view;
 				_gBufGenerateGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
 			}
+
+			{
+				VulkanGbufferShadingGraphicsPipeline::SGlobalCamera globalCameraData;
+				globalCameraData.viewProj = projection * view;
+				_gBufShadingGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
+			}
 #endif
 
 		}
 
-		vkCmdResetQueryPool(cmd, get_current_frame().queryPool, 0, 128);
-		vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 0);
 #if RAYTRACER_ON
 		_rtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif
@@ -247,14 +253,7 @@ void VulkanEngine::draw()
 
 #if GBUFFER_ON
 		_gBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-		{
-			std::array<VkImageMemoryBarrier, 1> gBufBarriers =
-			{
-				vkinit::image_barrier(_gBufGenerateGraphicsPipeline.get_wpos_output().image._image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-			};
-
-			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, gBufBarriers.size(), gBufBarriers.data());
-		}
+		_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_shading(&get_current_frame()._mainCommandBuffer);
 #endif
 
 #if VBUFFER_ON
@@ -336,7 +335,7 @@ void VulkanEngine::draw()
 			vkCmdSetScissor(cmd, 0, 1, &scissor);
 			vkCmdSetDepthBias(cmd, 0, 0, 0);
 #if GBUFFER_ON
-			_fullscreenGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+			_gBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif			
 #if RAYTRACER_ON
 			_fullscreenGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
@@ -363,12 +362,7 @@ void VulkanEngine::draw()
 
 #if GBUFFER_ON
 		{
-			std::array<VkImageMemoryBarrier, 1> gBufBarriers =
-			{
-				vkinit::image_barrier(_gBufGenerateGraphicsPipeline.get_wpos_output().image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-			};
-
-			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, 0, 0, 0, gBufBarriers.size(), gBufBarriers.data());
+			_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_generate(&get_current_frame()._mainCommandBuffer);
 		}
 #endif
 		//_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });
