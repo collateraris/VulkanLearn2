@@ -14,7 +14,8 @@ public:
 	VkViewport _viewport;
 	VkRect2D _scissor;
 	VkPipelineRasterizationStateCreateInfo _rasterizer;
-	VkPipelineColorBlendAttachmentState _colorBlendAttachment;
+	uint32_t attachment_count = 1;
+	std::vector<VkPipelineColorBlendAttachmentState> _colorBlendAttachment = {};
 	VkPipelineMultisampleStateCreateInfo _multisampling;
 	VkPipelineLayout _pipelineLayout;
 	VkPipelineDepthStencilStateCreateInfo _depthStencil;

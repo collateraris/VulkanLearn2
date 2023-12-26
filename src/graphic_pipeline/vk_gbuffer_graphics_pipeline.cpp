@@ -64,8 +64,25 @@ void VulkanGbufferGenerateGraphicsPipeline::init(VulkanEngine* engine)
 				//we dont use multisampling, so just run the default one
 				pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
 
+				pipelineBuilder.attachment_count = 4;
 				//a single blend attachment with no blending and writing to RGBA
-				pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
+				//
+				// for WPOS
+				pipelineBuilder._colorBlendAttachment.push_back(vkinit::color_blend_attachment_state());
+				// for NORM
+				pipelineBuilder._colorBlendAttachment.push_back(vkinit::color_blend_attachment_state());
+				// for UV
+				{
+					auto colorBlend = vkinit::color_blend_attachment_state();
+					colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT;
+					pipelineBuilder._colorBlendAttachment.push_back(vkinit::color_blend_attachment_state());
+				}
+				// for OBJ_ID
+				{
+					auto colorBlend = vkinit::color_blend_attachment_state();
+					colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
+					pipelineBuilder._colorBlendAttachment.push_back(vkinit::color_blend_attachment_state());
+				}
 
 				//default depthtesting
 				pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);

@@ -79,7 +79,6 @@ void VulkanRenderPass::init(VulkanEngine* engine, const RenderPassInfo& info)
 		color_attachments[i] = info.color_attachments[i]->createInfo.format;
 		Texture& image = *info.color_attachments[i];
 		auto& attachment = attachments[i];
-		attachment = { VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2_KHR };
 		attachment.format = color_attachments[i];
 		attachment.samples = image.createInfo.samples;
 		attachment.loadOp = color_load_op(i);
@@ -108,7 +107,6 @@ void VulkanRenderPass::init(VulkanEngine* engine, const RenderPassInfo& info)
 	{
 		Texture& image = *info.depth_stencil;
 		auto& attachment = attachments[info.num_color_attachments];
-		attachment = { VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2_KHR };
 		attachment.format = depth_stencil;
 		attachment.samples = image.createInfo.samples;
 		attachment.loadOp = ds_load_op;
@@ -147,7 +145,6 @@ void VulkanRenderPass::init(VulkanEngine* engine, const RenderPassInfo& info)
 		VkAttachmentReference& depth = depthReserve[i];
 
 		VkSubpassDescription& subpass = subpasses[i];
-		subpass = { VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2_KHR };
 		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpass.colorAttachmentCount = subpassInfo[i].num_color_attachments;
 		subpass.pColorAttachments = colors.data();

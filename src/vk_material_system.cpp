@@ -24,8 +24,8 @@ VkPipeline GraphicPipelineBuilder::build_graphic_pipeline(VkDevice device, VkRen
 
 	colorBlending.logicOpEnable = VK_FALSE;
 	colorBlending.logicOp = VK_LOGIC_OP_COPY;
-	colorBlending.attachmentCount = 1;
-	colorBlending.pAttachments = &_colorBlendAttachment;
+	colorBlending.attachmentCount = attachment_count;
+	colorBlending.pAttachments = _colorBlendAttachment.data();
 
 	//build the actual pipeline
 	//we now use all of the info structs we have been writing into into this one to create the pipeline
@@ -255,7 +255,7 @@ void vkutil::MaterialSystem::fill_builders()
 
 	forwardBuilder._multisampling = vkinit::multisampling_state_create_info();
 
-	forwardBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
+	forwardBuilder._colorBlendAttachment.push_back(vkinit::color_blend_attachment_state());
 
 	//default depthtesting
 	forwardBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_GREATER_OR_EQUAL);

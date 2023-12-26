@@ -68,7 +68,7 @@ void VulkanVbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const Text
 				pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
 
 				//a single blend attachment with no blending and writing to RGBA
-				pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
+				pipelineBuilder._colorBlendAttachment.push_back(vkinit::color_blend_attachment_state());
 
 				//default depthtesting
 				pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(false, false, VK_COMPARE_OP_ALWAYS);

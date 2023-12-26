@@ -55,10 +55,10 @@ private:
 
 	std::array<Texture, 4> _gbuffer;
 
-	VkFormat      _wposFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
-	VkFormat      _normalFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
-	VkFormat      _uvFormat{ VK_FORMAT_R32G32_SFLOAT };
-	VkFormat      _objIDFormat{ VK_FORMAT_R32_UINT };
+	VkFormat      _wposFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
+	VkFormat      _normalFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
+	VkFormat      _uvFormat{ VK_FORMAT_R16G16_SFLOAT };
+	VkFormat      _objIDFormat{ VK_FORMAT_R16_UINT };
 
 	Texture _depthTexture;
 	VkFormat      _depthFormat{ VK_FORMAT_D32_SFLOAT };

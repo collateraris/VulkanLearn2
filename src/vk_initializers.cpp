@@ -100,6 +100,9 @@ VkPipelineMultisampleStateCreateInfo vkinit::multisampling_state_create_info()
 	return info;
 }
 
+// Blend attachment states required for all color attachments
+// This is important, as color write mask will otherwise be 0x0 and you
+// won't see anything rendered to the attachment
 VkPipelineColorBlendAttachmentState vkinit::color_blend_attachment_state() 
 {
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
