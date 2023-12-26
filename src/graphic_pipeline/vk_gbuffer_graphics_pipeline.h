@@ -58,7 +58,7 @@ private:
 	VkFormat      _wposFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
 	VkFormat      _normalFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
 	VkFormat      _uvFormat{ VK_FORMAT_R16G16_SFLOAT };
-	VkFormat      _objIDFormat{ VK_FORMAT_R16_UINT };
+	VkFormat      _objIDFormat{ VK_FORMAT_R32_SFLOAT };
 
 	Texture _depthTexture;
 	VkFormat      _depthFormat{ VK_FORMAT_D32_SFLOAT };

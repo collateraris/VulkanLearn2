@@ -26,11 +26,19 @@ layout(set = 1, binding = 1) readonly buffer ObjectBuffer{
 layout(set = 2, binding = 0) uniform sampler2D wposTex;
 layout(set = 2, binding = 1) uniform sampler2D normalTex;
 layout(set = 2, binding = 2) uniform sampler2D uvTex;
-layout(set = 2, binding = 3) uniform usampler2D objIDTex;
+layout(set = 2, binding = 3) uniform sampler2D objIDTex;
 
 void main()
 {
-	uint objID = texture(objIDTex, texCoord).r;
+    float objIDf = texture(objIDTex, texCoord).r;
+    
+    if (objIDf < 0.)
+    {
+        outFragColor = vec4(1., 0., 1., 1.);
+        return;
+    }
+
+	uint objID = uint(objIDf);
     uint diffuseID = objectBuffer.objects[objID].diffuseTexIndex;
     vec2 gbufferTexCoord = texture(uvTex, texCoord).rg;
     vec3 diffuse = texture(texSet[diffuseID], gbufferTexCoord).rgb;

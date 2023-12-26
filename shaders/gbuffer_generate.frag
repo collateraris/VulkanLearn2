@@ -13,7 +13,7 @@ layout (location = 0) in PerVertexData
 layout (location = 0) out vec4 outPos;
 layout (location = 1) out vec4 outNormal;
 layout (location = 2) out vec2 outUV;
-layout (location = 3) out uint outObjID;
+layout (location = 3) out float outObjID;
 
 layout(early_fragment_tests) in;
 void main()
@@ -21,5 +21,5 @@ void main()
 	  outPos = vec4(fragIn.wpos, 1.);
     outNormal = vec4(fragIn.normal, 1.);
     outUV = fragIn.uv;
-    outObjID = fragIn.drawID;
+    outObjID = float(fragIn.drawID);
 }

@@ -111,33 +111,44 @@ void VulkanGbufferShadingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int cu
 
 void VulkanGbufferShadingGraphicsPipeline::init_description_set(const std::array<Texture, 4>& gbuffer)
 {
+	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
+
+	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
+
+	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
+
+	samplerInfo.pNext = &createInfoReduction;
+
+	VkSampler sampler;
+	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
+
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
 		VkDescriptorImageInfo wposImageBufferInfo;
-		wposImageBufferInfo.sampler = VK_NULL_HANDLE;
+		wposImageBufferInfo.sampler = sampler;
 		wposImageBufferInfo.imageView = gbuffer[int(EGbufferTex::WPOS)].imageView;
 		wposImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo normalImageBufferInfo;
-		normalImageBufferInfo.sampler = VK_NULL_HANDLE;
+		normalImageBufferInfo.sampler = sampler;
 		normalImageBufferInfo.imageView = gbuffer[int(EGbufferTex::NORM)].imageView;
 		normalImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo uvImageBufferInfo;
-		uvImageBufferInfo.sampler = VK_NULL_HANDLE;
+		uvImageBufferInfo.sampler = sampler;
 		uvImageBufferInfo.imageView = gbuffer[int(EGbufferTex::UV)].imageView;
 		uvImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo objIDImageBufferInfo;
-		objIDImageBufferInfo.sampler = VK_NULL_HANDLE;
+		objIDImageBufferInfo.sampler = sampler;
 		objIDImageBufferInfo.imageView = gbuffer[int(EGbufferTex::OBJ_ID)].imageView;
 		objIDImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_image(0, &wposImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT)
-			.bind_image(1, &normalImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT)
-			.bind_image(2, &uvImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT)
-			.bind_image(3, &objIDImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT)
+			.bind_image(0, &wposImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+			.bind_image(1, &normalImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+			.bind_image(2, &uvImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+			.bind_image(3, &objIDImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 			.build(_gBufDescSet[i], _gBufDescSetLayout);
 	}
 }
@@ -161,8 +172,8 @@ void VulkanGbufferShadingGraphicsPipeline::init_scene_buffer(const std::vector<R
 		objectBufferInfo.range = _objectBuffer._size;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT)
-			.bind_buffer(1, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT)
+			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+			.bind_buffer(1, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
 			.build(_globalDescSet[i], _globalDescSetLayout);
 	}
 
@@ -174,6 +185,7 @@ void VulkanGbufferShadingGraphicsPipeline::init_scene_buffer(const std::vector<R
 			const RenderObject& object = renderables[i];
 			objectSSBO[i].model = object.transformMatrix;
 			objectSSBO[i].meshIndex = object.meshIndex;
+			objectSSBO[i].diffuseTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->diffuseTextureIndex;
 		}
 		});
 }

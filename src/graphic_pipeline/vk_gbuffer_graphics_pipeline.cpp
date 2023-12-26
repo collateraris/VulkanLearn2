@@ -107,7 +107,7 @@ void VulkanGbufferGenerateGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int c
 {
 	//make a clear-color from frame number. This will flash with a 120*pi frame period.
 	VkClearValue clearValue;
-	clearValue.color = { { 0.0f, 0.0f, 0.f, 1.0f } };
+	clearValue.color = { { -1.0f, 0.0f, 0.f, 1.0f } };
 
 	//clear depth at 1
 	VkClearValue depthClear;
@@ -226,7 +226,7 @@ void VulkanGbufferGenerateGraphicsPipeline::init_gbuffer_tex()
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
 		_gbuffer[int(EGbufferTex::WPOS)] = texBuilder.start()
-			.make_img_info(_wposFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _texExtent)
+			.make_img_info(_wposFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, _texExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_wposFormat, VK_IMAGE_ASPECT_COLOR_BIT)
@@ -237,7 +237,7 @@ void VulkanGbufferGenerateGraphicsPipeline::init_gbuffer_tex()
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
 		_gbuffer[int(EGbufferTex::NORM)] = texBuilder.start()
-			.make_img_info(_normalFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _texExtent)
+			.make_img_info(_normalFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, _texExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_normalFormat, VK_IMAGE_ASPECT_COLOR_BIT)
@@ -248,7 +248,7 @@ void VulkanGbufferGenerateGraphicsPipeline::init_gbuffer_tex()
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
 		_gbuffer[int(EGbufferTex::UV)] = texBuilder.start()
-			.make_img_info(_uvFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _texExtent)
+			.make_img_info(_uvFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, _texExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_uvFormat, VK_IMAGE_ASPECT_COLOR_BIT)
@@ -259,7 +259,7 @@ void VulkanGbufferGenerateGraphicsPipeline::init_gbuffer_tex()
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
 		_gbuffer[int(EGbufferTex::OBJ_ID)] = texBuilder.start()
-			.make_img_info(_objIDFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _texExtent)
+			.make_img_info(_objIDFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, _texExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_objIDFormat, VK_IMAGE_ASPECT_COLOR_BIT)
