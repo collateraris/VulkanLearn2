@@ -2,7 +2,7 @@
 #include <meshoptimizer.h>
 #include <iostream>
 
-#if MESHSHADER_ON
+#if MESHSHADER_ON || GBUFFER_ON
 
 Mesh& Mesh::remapVertexToVertexMS()
 {
@@ -58,7 +58,7 @@ void Mesh::buildMeshlets()
 
 		for (unsigned int i = 0; i < meshlet.triangle_count * 3; ++i)
 			meshletdata.push_back(meshlet_triangles[meshlet.triangle_offset + i]);
-#if !VBUFFER_ON
+#if !VBUFFER_ON && !GBUFFER_ON
 		glm::vec3 center = glm::vec3(0);
 		float radius = 0;
 
@@ -97,7 +97,7 @@ void Mesh::buildMeshlets()
 		m.dataOffset = uint32_t(dataOffset);
 		m.triangleCount = meshlet.triangle_count;
 		m.vertexCount = meshlet.vertex_count;
-#if !VBUFFER_ON
+#if !VBUFFER_ON && !GBUFFER_ON
 		m.center_radius[0] = center.x;
 		m.center_radius[1] = center.y;
 		m.center_radius[2] = center.z;

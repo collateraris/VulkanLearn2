@@ -36,9 +36,14 @@ struct alignas(16) Meshlet
 	uint32_t dataOffset; // dataOffset..dataOffset+vertexCount-1 stores vertex indices, we store indices packed in 4b units after that
 	uint8_t triangleCount;
 	uint8_t vertexCount;
+	#if GBUFFER_ON
+	uint16_t pad;
+	#endif
+	#if !GBUFFER_ON
 	float  center_radius[4];
 	float  aabb_min[3];
 	float  aabb_max[3];
+	#endif
 };
 
 struct alignas(16) GPUObjectData {
@@ -57,13 +62,13 @@ struct Mesh {
 #if VBUFFER_ON
 	std::vector<Vertex_VisB> _verticesVisB;
 #endif
-#if MESHSHADER_ON
+#if MESHSHADER_ON || GBUFFER_ON
 	std::vector<Meshlet> _meshlets;
 	VkDescriptorSet meshletsSet{VK_NULL_HANDLE };
 	std::vector<uint32_t> meshletdata;
 #endif
 	AllocatedBuffer _vertexBuffer;
-#if MESHSHADER_ON
+#if MESHSHADER_ON || GBUFFER_ON
 	AllocatedBuffer _meshletsBuffer;
 	AllocatedBuffer _meshletdataBuffer;
 #endif
@@ -80,7 +85,7 @@ struct Mesh {
 	glm::vec3 _center = glm::vec3(0);
 	float _radius = 0;
 
-#if MESHSHADER_ON
+#if MESHSHADER_ON || GBUFFER_ON
 	Mesh& remapVertexToVertexMS();
 	void buildMeshlets();
 #endif

@@ -84,7 +84,7 @@ void VulkanEngine::init()
 	load_meshes();
 
 	init_scene();
-#if MESHSHADER_ON || RAYTRACER_ON || VBUFFER_ON
+#if MESHSHADER_ON || RAYTRACER_ON || VBUFFER_ON || GBUFFER_ON
 	init_pipelines();
 #endif
 
@@ -120,6 +120,12 @@ void VulkanEngine::init()
 			fb_info.attachmentCount = 2;
 			VK_CHECK(vkCreateFramebuffer(_device, &fb_info, nullptr, &_visBufFramebuffer));
 	}
+#endif
+
+#if GBUFFER_ON
+	_gBufGenerateGraphicsPipeline.init(this);
+	_fullscreenGraphicsPipeline.init(this);
+	_fullscreenGraphicsPipeline.init_description_set(_gBufGenerateGraphicsPipeline.get_wpos_output());
 #endif
 
 	_camera = {};
@@ -214,6 +220,13 @@ void VulkanEngine::draw()
 				_visBufShadingGraphicsPipeline.copy_global_uniform_data(globalCameraData1, get_current_frame_index());
 			}
 #endif
+#if GBUFFER_ON
+			{
+				VulkanGbufferGenerateGraphicsPipeline::SGlobalCamera globalCameraData;
+				globalCameraData.viewProj = projection * view;
+				_gBufGenerateGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
+			}
+#endif
 
 		}
 
@@ -231,6 +244,18 @@ void VulkanEngine::draw()
 		//clear depth at 1
 		VkClearValue depthClear;
 		depthClear.depthStencil.depth = 1.f;
+
+#if GBUFFER_ON
+		_gBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+		{
+			std::array<VkImageMemoryBarrier, 1> gBufBarriers =
+			{
+				vkinit::image_barrier(_gBufGenerateGraphicsPipeline.get_wpos_output().image._image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+			};
+
+			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, gBufBarriers.size(), gBufBarriers.data());
+		}
+#endif
 
 #if VBUFFER_ON
 		{
@@ -310,6 +335,9 @@ void VulkanEngine::draw()
 			vkCmdSetViewport(cmd, 0, 1, &viewport);
 			vkCmdSetScissor(cmd, 0, 1, &scissor);
 			vkCmdSetDepthBias(cmd, 0, 0, 0);
+#if GBUFFER_ON
+			_fullscreenGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+#endif			
 #if RAYTRACER_ON
 			_fullscreenGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif
@@ -330,6 +358,17 @@ void VulkanEngine::draw()
 			};
 
 			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, 0, 0, 0, visBufBarriers.size(), visBufBarriers.data());
+		}
+#endif
+
+#if GBUFFER_ON
+		{
+			std::array<VkImageMemoryBarrier, 1> gBufBarriers =
+			{
+				vkinit::image_barrier(_gBufGenerateGraphicsPipeline.get_wpos_output().image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+			};
+
+			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, 0, 0, 0, gBufBarriers.size(), gBufBarriers.data());
 		}
 #endif
 		//_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });
@@ -499,7 +538,7 @@ void VulkanEngine::init_vulkan()
 		VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
 		VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
 		VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,
-#if MESHSHADER_ON
+#if MESHSHADER_ON || GBUFFER_ON
 		VK_NV_MESH_SHADER_EXTENSION_NAME,
 #endif
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,

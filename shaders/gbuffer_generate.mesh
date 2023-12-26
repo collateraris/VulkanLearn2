@@ -1,0 +1,95 @@
+#version 460
+
+#extension GL_EXT_nonuniform_qualifier:enable
+#extension GL_EXT_shader_explicit_arithmetic_types: enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int8: enable
+#extension GL_EXT_shader_explicit_arithmetic_types_float16: enable
+#extension GL_NV_mesh_shader: require
+
+#extension GL_GOOGLE_include_directive: require
+
+#extension GL_ARB_shader_draw_parameters: require
+
+#include "gbuffer.h"
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+layout(triangles, max_vertices = 64, max_primitives = 124) out;
+
+layout (set = 0, binding = 0) readonly buffer _vertices
+{
+	SVertex vertices[];
+} Vertex[];
+
+layout (set = 0, binding = 1) readonly buffer _meshlets
+{
+	SMeshlet meshlets[];
+} Meshlet[];
+
+layout(set = 0, binding = 2) readonly buffer _meshletData
+{
+	uint meshletData[];
+} MeshletData[];
+
+layout(set = 1, binding = 0) uniform _GlobalCamera { SGlobalCamera cameraData; };
+
+layout(set = 1, binding = 1) readonly buffer ObjectBuffer{
+
+	SObjectData objects[];
+} objectBuffer;
+
+in taskNV block
+{
+	uint meshletIndices[32];
+};
+
+// Custom vertex output block
+layout (location = 0) out PerVertexData
+{
+  vec3 wpos;  
+  flat uint drawID;
+} v_out[];   // [max_vertices]
+
+void main()
+{
+	uint mi = meshletIndices[gl_WorkGroupID.x];
+	uint ti = gl_LocalInvocationID.x;
+
+	mat4 modelMatrix = objectBuffer.objects[gl_DrawID].model;
+	uint meshletIndex = objectBuffer.objects[gl_DrawID].meshIndex;
+	SMeshlet currMeshlet = Meshlet[meshletIndex].meshlets[mi];
+
+	uint meshIndex = meshletIndex;
+
+	uint vertexCount = uint(currMeshlet.vertexCount);
+	uint triangleCount = uint(currMeshlet.triangleCount);
+	uint indexCount = triangleCount * 3;
+
+	uint dataOffset = currMeshlet.dataOffset;
+	uint vertexOffset = dataOffset;
+	uint indexOffset = dataOffset + vertexCount;
+
+	// TODO: if we have meshlets with 62 or 63 vertices then we pay a small penalty for branch divergence here - we can instead redundantly xform the last vertex
+	for (uint i = ti; i < vertexCount; i += 32)
+	{
+		uint vi = MeshletData[meshletIndex].meshletData[vertexOffset + i];
+		SVertex vert = Vertex[meshletIndex].vertices[vi];
+
+		vec3 position = vec3(vert.vx, vert.vy, vert.vz);
+
+		position = vec3(modelMatrix * vec4(position, 1.0f));
+
+		gl_MeshVerticesNV[i].gl_Position = cameraData.viewProj * vec4(position, 1.0f);
+		v_out[i].wpos = position;
+        v_out[i].drawID = gl_DrawID;
+	}
+
+    for (uint i = ti; i < indexCount; i += 32)
+	{
+		// TODO: We tried to use writePackedPrimitiveIndices4x8NV, it wasn't giving us better perf
+		// We are currently writing one byte from each thread of a warp, which seems like it's bad for perf (bank conflicts etc.) but GPU doesn't seem to care much?
+		gl_PrimitiveIndicesNV[i] = uint(MeshletData[meshletIndex].meshletData[indexOffset + i]);
+	}
+
+	if (ti == 0)
+		gl_PrimitiveCountNV = uint(currMeshlet.triangleCount);
+}

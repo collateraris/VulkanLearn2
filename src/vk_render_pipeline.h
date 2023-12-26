@@ -17,6 +17,7 @@ enum class EPipelineType : uint32_t
 	FullScreen = 6,
 	VbufferGenerate = 7,
 	VBufferShading = 8,
+	GBufferGenerate = 9,
 	Max,
 };
 

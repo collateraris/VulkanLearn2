@@ -7,6 +7,7 @@
 #define INDIRECT_DRAW_ON 0
 #define RAYTRACER_ON 0
 #define VBUFFER_ON 0
+#define GBUFFER_ON 1
 #define VULKAN_DEBUG_ON 1
 
 #include <volk.h>
@@ -14,6 +15,8 @@
 #include <taskflow.hpp>
 
 #define VK_ASSERT assert
+
+#define BIT(x) 1 << x
 
 constexpr uint32_t VULKAN_NUM_ATTACHMENTS = 8;
 

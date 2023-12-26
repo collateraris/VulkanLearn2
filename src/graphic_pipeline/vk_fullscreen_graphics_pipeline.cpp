@@ -95,7 +95,7 @@ void VulkanFullScreenGraphicsPipeline::init_description_set(const Texture& input
 		VkDescriptorImageInfo outImageBufferInfo;
 		outImageBufferInfo.sampler = sampler;
 		outImageBufferInfo.imageView = inputTex.imageView;
-		outImageBufferInfo.imageLayout = inputTex.createInfo.initialLayout;
+		outImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			.bind_image(0, &outImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
