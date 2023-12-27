@@ -67,7 +67,7 @@ struct Mesh {
 #if INDIRECT_DRAW_ON || VBUFFER_ON
 	AllocatedBuffer _indicesBuffer;
 #endif
-#if RAYTRACER_ON
+#if RAYTRACER_ON || AO_RAYTRACER_ON
 	AllocatedBuffer _vertexBufferRT;
 	AllocatedBuffer _indicesBufferRT;
 #endif

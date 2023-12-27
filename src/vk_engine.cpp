@@ -84,7 +84,7 @@ void VulkanEngine::init()
 	load_meshes();
 
 	init_scene();
-#if MESHSHADER_ON || RAYTRACER_ON || VBUFFER_ON || GBUFFER_ON
+#if MESHSHADER_ON || RAYTRACER_ON || VBUFFER_ON || GBUFFER_ON || AO_RAYTRACER_ON
 	init_pipelines();
 #endif
 
@@ -125,6 +125,10 @@ void VulkanEngine::init()
 #if GBUFFER_ON
 	_gBufGenerateGraphicsPipeline.init(this);
 	_gBufShadingGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer());
+#endif
+
+#if AO_RAYTRACER_ON && GBUFFER_ON
+	_aoRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer());
 #endif
 
 	_camera = {};
@@ -236,6 +240,17 @@ void VulkanEngine::draw()
 			}
 #endif
 
+#if AO_RAYTRACER_ON && GBUFFER_ON
+			{
+				VulkanAORaytracingGraphicsPipeline::GlobalAOParams aoData;
+				aoData.aoRadius = 50;
+				aoData.minT = 0.001;
+				aoData.frameCount = _frameNumber;
+				aoData.numRays = 25;
+				_aoRtGraphicsPipeline.copy_global_uniform_data(aoData, get_current_frame_index());
+			}
+#endif
+
 		}
 
 #if RAYTRACER_ON
@@ -254,6 +269,7 @@ void VulkanEngine::draw()
 #if GBUFFER_ON
 		_gBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 		_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_shading(&get_current_frame()._mainCommandBuffer);
+		_aoRtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif
 
 #if VBUFFER_ON
@@ -536,7 +552,7 @@ void VulkanEngine::init_vulkan()
 		VK_NV_MESH_SHADER_EXTENSION_NAME,
 #endif
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-#if RAYTRACER_ON
+#if RAYTRACER_ON || AO_RAYTRACER_ON
 		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
 		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, // Required by ray tracing pipeline
@@ -582,7 +598,7 @@ void VulkanEngine::init_vulkan()
 	descriptor_indexing_features.descriptorBindingPartiallyBound = true;
 	descriptor_indexing_features.runtimeDescriptorArray = true;
 
-#if RAYTRACER_ON
+#if RAYTRACER_ON || AO_RAYTRACER_ON
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
 	acceleration_structure_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
 	acceleration_structure_features.pNext = nullptr;
@@ -598,7 +614,7 @@ void VulkanEngine::init_vulkan()
 		.add_pNext(&featuresMesh)
 		.add_pNext(&buffer_device_address_features)
 		.add_pNext(&descriptor_indexing_features)
-#if RAYTRACER_ON
+#if RAYTRACER_ON || AO_RAYTRACER_ON
 		.add_pNext(&acceleration_structure_features)
 		.add_pNext(&rt_features)
 #endif
@@ -1516,7 +1532,7 @@ void VulkanEngine::init_scene()
 		});
 #endif
 
-#if MESHSHADER_ON || RAYTRACER_ON
+#if MESHSHADER_ON
 	init_bindless_scene();
 #elif INDIRECT_DRAW_ON
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);

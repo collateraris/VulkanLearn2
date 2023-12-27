@@ -19,6 +19,7 @@ enum class EPipelineType : uint32_t
 	VBufferShading = 8,
 	GBufferGenerate = 9,
 	GBufferShading = 10,
+	AO_Raytracing = 11,
 	Max,
 };
 
