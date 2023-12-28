@@ -41,7 +41,7 @@ private:
 
 	VkExtent3D _imageExtent;
 	Texture _colorTexture;
-	VkFormat      _colorFormat{ VK_FORMAT_R32_SFLOAT };
+	VkFormat      _colorFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
 	Texture _depthTexture;
 	VkFormat      _depthFormat{ VK_FORMAT_D32_SFLOAT };
 

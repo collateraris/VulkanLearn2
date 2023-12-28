@@ -107,7 +107,7 @@ void VulkanGbufferGenerateGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int c
 {
 	//make a clear-color from frame number. This will flash with a 120*pi frame period.
 	VkClearValue clearValue;
-	clearValue.color = { { -1.0f, 0.0f, 0.f, 1.0f } };
+	clearValue.color = { { -1.0f, 0.0f, 0.f, 0.0f } };
 
 	//clear depth at 1
 	VkClearValue depthClear;

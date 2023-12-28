@@ -31,7 +31,7 @@ void VulkanAORaytracingGraphicsPipeline::init(VulkanEngine* engine, const std::a
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
 		_colorTexture = texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _imageExtent)
+			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
@@ -215,7 +215,6 @@ void VulkanAORaytracingGraphicsPipeline::create_tlas(const std::vector<RenderObj
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
 		// set 0
-
 		VkAccelerationStructureKHR                   tlas = _rtBuilder.get_acceleration_structure();
 		VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
 		descASInfo.accelerationStructureCount = 1;
@@ -283,7 +282,6 @@ void VulkanAORaytracingGraphicsPipeline::init_description_set(const std::array<T
 
 void VulkanAORaytracingGraphicsPipeline::copy_global_uniform_data(VulkanAORaytracingGraphicsPipeline::GlobalAOParams& globalData, int current_frame_index)
 {
-
 	_engine->map_buffer(_engine->_allocator, _globalUniformsBuffer[current_frame_index]._allocation, [&](void*& data) {
 		memcpy(data, &globalData, sizeof(VulkanAORaytracingGraphicsPipeline::GlobalAOParams));
 		});
@@ -291,6 +289,27 @@ void VulkanAORaytracingGraphicsPipeline::copy_global_uniform_data(VulkanAORaytra
 
 void VulkanAORaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
+	{
+		std::array<VkImageMemoryBarrier, 1> outBarriers =
+		{
+			vkinit::image_barrier(get_output().image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, outBarriers.size(), outBarriers.data());
+	}
+
+	VkClearValue clear_value = { 0., 0., 0., 0. };
+	cmd->clear_image(_colorTexture, clear_value);
+
+	{
+		std::array<VkImageMemoryBarrier, 1> outBarriers =
+		{
+			vkinit::image_barrier(get_output().image._image, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_WRITE_BIT,  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, outBarriers.size(), outBarriers.data());
+	}
+
 	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
 		[&](VkCommandBuffer cmd) {
 			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::AO_Raytracing));

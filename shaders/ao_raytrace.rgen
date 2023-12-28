@@ -10,7 +10,7 @@ layout(location = 0) rayPayloadEXT AORayPayload aoRpl;
 layout(set = 0, binding = 0) uniform _GlobalAOParams { GlobalAOParams aoParams; };
 
 layout(set = 1, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 1, binding = 1, r32f) uniform image2D image;
+layout(set = 1, binding = 1, rgba32f) uniform image2D image;
 
 layout(set = 2, binding = 0) uniform sampler2D wposTex;
 layout(set = 2, binding = 1) uniform sampler2D normalTex;
@@ -20,7 +20,7 @@ float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT )
 {
 	aoRpl.aoValue = 0.f;
 
-    uint  rayFlags = gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+    uint  rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
 
     traceRayEXT(topLevelAS, // acceleration structure
             rayFlags,       // rayFlags
@@ -40,8 +40,9 @@ float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT )
 
 void main() 
 {
-    vec4 worldPos = texture(wposTex, ivec2(gl_LaunchIDEXT.xy)).rgba;
-    vec4 worldNorm = texture(normalTex, ivec2(gl_LaunchIDEXT.xy)).rgba;
+    const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
+    vec4 worldPos = texture(wposTex, uv).rgba;
+    vec4 worldNorm = texture(normalTex, uv).rgba;
 
     float ambientOcclusion = float(aoParams.numRays);
 

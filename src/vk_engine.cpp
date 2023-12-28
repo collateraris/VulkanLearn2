@@ -243,8 +243,8 @@ void VulkanEngine::draw()
 #if AO_RAYTRACER_ON && GBUFFER_ON
 			{
 				VulkanAORaytracingGraphicsPipeline::GlobalAOParams aoData;
-				aoData.aoRadius = 50;
-				aoData.minT = 0.001;
+				aoData.aoRadius = 5;
+				aoData.minT = 1e-5;
 				aoData.frameCount = _frameNumber;
 				aoData.numRays = 25;
 				_aoRtGraphicsPipeline.copy_global_uniform_data(aoData, get_current_frame_index());
