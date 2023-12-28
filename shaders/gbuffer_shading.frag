@@ -27,6 +27,7 @@ layout(set = 2, binding = 0) uniform sampler2D wposTex;
 layout(set = 2, binding = 1) uniform sampler2D normalTex;
 layout(set = 2, binding = 2) uniform sampler2D uvTex;
 layout(set = 2, binding = 3) uniform sampler2D objIDTex;
+layout(set = 2, binding = 4) uniform sampler2D aoTex;
 
 void main()
 {
@@ -42,5 +43,7 @@ void main()
     uint diffuseID = objectBuffer.objects[objID].diffuseTexIndex;
     vec2 gbufferTexCoord = texture(uvTex, texCoord).rg;
     vec3 diffuse = texture(texSet[diffuseID], gbufferTexCoord).rgb;
+    float ao = texture(aoTex, texCoord).r;
+    diffuse *= ao;
 	outFragColor = vec4(diffuse,1.0f);
 }

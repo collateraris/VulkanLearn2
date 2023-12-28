@@ -124,12 +124,10 @@ void VulkanEngine::init()
 
 #if GBUFFER_ON
 	_gBufGenerateGraphicsPipeline.init(this);
-	_gBufShadingGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer());
+	_aoRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer());
+	_gBufShadingGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer(), _aoRtGraphicsPipeline.get_output());
 #endif
 
-#if AO_RAYTRACER_ON && GBUFFER_ON
-	_aoRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer());
-#endif
 
 	_camera = {};
 	_camera.position = { 0.f,-6.f,-10.f };
@@ -243,10 +241,10 @@ void VulkanEngine::draw()
 #if AO_RAYTRACER_ON && GBUFFER_ON
 			{
 				VulkanAORaytracingGraphicsPipeline::GlobalAOParams aoData;
-				aoData.aoRadius = 5;
+				aoData.aoRadius = 0.1;
 				aoData.minT = 1e-5;
 				aoData.frameCount = _frameNumber;
-				aoData.numRays = 25;
+				aoData.numRays = 1;
 				_aoRtGraphicsPipeline.copy_global_uniform_data(aoData, get_current_frame_index());
 			}
 #endif
@@ -270,6 +268,7 @@ void VulkanEngine::draw()
 		_gBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 		_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_shading(&get_current_frame()._mainCommandBuffer);
 		_aoRtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+		_aoRtGraphicsPipeline.barrier_for_frag_read(&get_current_frame()._mainCommandBuffer);
 #endif
 
 #if VBUFFER_ON
@@ -379,6 +378,7 @@ void VulkanEngine::draw()
 #if GBUFFER_ON
 		{
 			_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_generate(&get_current_frame()._mainCommandBuffer);
+			_aoRtGraphicsPipeline.barrier_for_ao_raytracing(&get_current_frame()._mainCommandBuffer);
 		}
 #endif
 		//_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });

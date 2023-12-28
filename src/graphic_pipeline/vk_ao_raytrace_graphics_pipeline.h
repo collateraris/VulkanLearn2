@@ -29,6 +29,9 @@ public:
 
 	const Texture& get_output() const;
 
+	void barrier_for_frag_read(VulkanCommandBuffer* cmd);
+	void barrier_for_ao_raytracing(VulkanCommandBuffer* cmd);
+
 private:
 
 	void create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList);

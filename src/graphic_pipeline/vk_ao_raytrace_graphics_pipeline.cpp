@@ -327,6 +327,26 @@ const Texture& VulkanAORaytracingGraphicsPipeline::get_output() const
 	return _colorTexture;
 }
 
+void VulkanAORaytracingGraphicsPipeline::barrier_for_frag_read(VulkanCommandBuffer* cmd)
+{
+	std::array<VkImageMemoryBarrier, 1> aoBarriers =
+	{
+		vkinit::image_barrier(get_output().image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+	};
+
+	vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, aoBarriers.size(), aoBarriers.data());
+}
+
+void VulkanAORaytracingGraphicsPipeline::barrier_for_ao_raytracing(VulkanCommandBuffer* cmd)
+{
+	std::array<VkImageMemoryBarrier, 1> aoBarriers =
+	{
+		vkinit::image_barrier(get_output().image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
+	};
+
+	vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, aoBarriers.size(), aoBarriers.data());
+}
+
 VulkanRaytracerBuilder::BlasInput VulkanAORaytracingGraphicsPipeline::create_blas_input(Mesh& mesh)
 {
 	// BLAS builder requires raw device addresses.

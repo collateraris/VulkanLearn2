@@ -10,11 +10,11 @@
 #include <vk_shaders.h>
 #include <vk_initializers.h>
 
-void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer)
+void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const Texture& ao)
 {
 	_engine = engine;
 
-	init_description_set(gbuffer);
+	init_description_set(gbuffer, ao);
 	init_scene_buffer(_engine->_renderables);
 	init_bindless(_engine->_resManager.textureList);
 
@@ -109,7 +109,7 @@ void VulkanGbufferShadingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int cu
 		}); 
 }
 
-void VulkanGbufferShadingGraphicsPipeline::init_description_set(const std::array<Texture, 4>& gbuffer)
+void VulkanGbufferShadingGraphicsPipeline::init_description_set(const std::array<Texture, 4>& gbuffer, const Texture& ao)
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
@@ -144,11 +144,17 @@ void VulkanGbufferShadingGraphicsPipeline::init_description_set(const std::array
 		objIDImageBufferInfo.imageView = gbuffer[int(EGbufferTex::OBJ_ID)].imageView;
 		objIDImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
+		VkDescriptorImageInfo aoImageBufferInfo;
+		aoImageBufferInfo.sampler = sampler;
+		aoImageBufferInfo.imageView = ao.imageView;
+		aoImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			.bind_image(0, &wposImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 			.bind_image(1, &normalImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 			.bind_image(2, &uvImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 			.bind_image(3, &objIDImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+			.bind_image(4, &aoImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 			.build(_gBufDescSet[i], _gBufDescSetLayout);
 	}
 }
