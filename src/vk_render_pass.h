@@ -10,6 +10,7 @@ enum class ERenderPassType
 	Default = 1,
 	VisBufferGenerate = 2,
 	GBufferGenerate = 3,
+	SimpleAccumulation = 4,
 	Max,
 };
 

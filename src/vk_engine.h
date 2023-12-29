@@ -29,6 +29,7 @@
 #include <graphic_pipeline/vk_gbuffer_graphics_pipeline.h>
 #include <graphic_pipeline/vk_gbuffer_shading_graphics_pipeline.h>
 #include <graphic_pipeline/vk_ao_raytrace_graphics_pipeline.h>
+#include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
 
@@ -165,6 +166,7 @@ public:
 #if GBUFFER_ON
 	VulkanGbufferGenerateGraphicsPipeline _gBufGenerateGraphicsPipeline;
 	VulkanGbufferShadingGraphicsPipeline _gBufShadingGraphicsPipeline;
+	VulkanSimpleAccumulationGraphicsPipeline _simpleAccumGraphicsPipeline;
 #endif
 
 #if AO_RAYTRACER_ON && GBUFFER_ON

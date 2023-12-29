@@ -11,6 +11,8 @@ struct PlayerCamera {
 	glm::vec3 velocity;
 	glm::vec3 inputAxis;
 
+	glm::mat4 lastViewMatrix;
+
 	float farDistance = 1000.0f;
 	float nearDistance = 0.1f;
 

@@ -125,6 +125,7 @@ void VulkanEngine::init()
 #if GBUFFER_ON
 	_gBufGenerateGraphicsPipeline.init(this);
 	_aoRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer());
+	_simpleAccumGraphicsPipeline.init(this, _aoRtGraphicsPipeline.get_output());
 	_gBufShadingGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer(), _aoRtGraphicsPipeline.get_output());
 #endif
 
@@ -247,6 +248,10 @@ void VulkanEngine::draw()
 				aoData.numRays = 1;
 				_aoRtGraphicsPipeline.copy_global_uniform_data(aoData, get_current_frame_index());
 			}
+
+			{
+				_simpleAccumGraphicsPipeline.try_reset_accumulation(_camera);
+			}
 #endif
 
 		}
@@ -269,6 +274,7 @@ void VulkanEngine::draw()
 		_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_shading(&get_current_frame()._mainCommandBuffer);
 		_aoRtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 		_aoRtGraphicsPipeline.barrier_for_frag_read(&get_current_frame()._mainCommandBuffer);
+		_simpleAccumGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif
 
 #if VBUFFER_ON
