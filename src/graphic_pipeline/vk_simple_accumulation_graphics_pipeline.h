@@ -21,6 +21,7 @@ public:
 	void init(VulkanEngine* engine, const Texture& currentTex);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 	void try_reset_accumulation(PlayerCamera& camera);
+	void reset_accumulation();
 
 	const Texture& get_output() const;
 private:

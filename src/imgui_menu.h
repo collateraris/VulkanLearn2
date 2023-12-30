@@ -6,7 +6,10 @@
 #include <imgui_impl_sdl.h>
 #include <imgui_impl_vulkan.h>
 
+#include <vk_engine.h>
 #include <vk_light_manager.h>
+#include <graphic_pipeline/vk_ao_raytrace_graphics_pipeline.h>
+#include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
 
 //-----------------------------------------------------------------------------
 // [SECTION] Example App: Debug Log / ShowExampleAppLog()
@@ -166,6 +169,7 @@ static void EditSun(VulkanLightManager& lightManager)
 {
     static bool p_open = true;
     static VulkanLightManager::Light* pSun = nullptr;
+    static bool bChangedValue = false;
 
     if (!pSun)
     {
@@ -176,16 +180,51 @@ static void EditSun(VulkanLightManager& lightManager)
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
     ImGui::Begin("EditSun", &p_open);
     static float direction[4] = { 0.10f, 0.20f, 0.30f, 0.44f };
-    ImGui::InputFloat3("direction", direction);
+    bChangedValue |= ImGui::InputFloat3("direction", direction);
     static float position[4] = { 0.10f, 0.20f, 0.30f, 0.44f };
-    ImGui::InputFloat3("position", position);
-    if (ImGui::Button("Update"))
+    bChangedValue |= ImGui::InputFloat3("position", position);
+    if (bChangedValue)
     {
+        bChangedValue = false;
         pSun->direction = glm::vec4(direction[0], direction[1], direction[2], 1.);
         pSun->position = glm::vec4(position[0], position[1], position[2], 1.);
         lightManager.update_light_buffer();
     }
     ImGui::End();
+}
+
+static void EditAO(VulkanAORaytracingGraphicsPipeline& aoGP, VulkanSimpleAccumulationGraphicsPipeline& saGP, int current_frame_index, int frameNumber)
+{
+    static bool p_open = true;
+    static bool bChangedValue = false;
+    static VulkanAORaytracingGraphicsPipeline::GlobalAOParams aoParams = {.aoRadius = 2., .minT = 1e-1, .numRays = 1};
+    ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Edit AO", &p_open);
+    bChangedValue |= ImGui::InputFloat("AO Radius", &aoParams.aoRadius);
+    bChangedValue |= ImGui::InputFloat("AO minT", &aoParams.minT);
+    static int numRays = 1;
+    bChangedValue |= ImGui::InputInt("AO numRays", &numRays);
+    aoParams.numRays = std::max(1, numRays);
+    aoParams.frameCount = frameNumber;
+
+    if (bChangedValue)
+    {
+        bChangedValue = false;
+        saGP.reset_accumulation();
+    }
+  
+    aoGP.copy_global_uniform_data(aoParams, current_frame_index);
+    ImGui::End();
+}
+
+static void ShowVkMenu(VulkanEngine& engine)
+{
+    ImguiAppLog::ShowFPSLog(engine._stats);
+
+    ImguiAppLog::EditSun(engine._lightManager);
+#if AO_RAYTRACER_ON && GBUFFER_ON
+    ImguiAppLog::EditAO(engine._aoRtGraphicsPipeline, engine._simpleAccumGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
+#endif
 }
 
 };

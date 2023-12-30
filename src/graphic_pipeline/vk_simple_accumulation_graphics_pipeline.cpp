@@ -138,7 +138,7 @@ void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, in
 
 	//make a clear-color from frame number. This will flash with a 120*pi frame period.
 	VkClearValue clearValue;
-	clearValue.color = { { -1.0f, 0.0f, 0.f, 0.0f } };
+	clearValue.color = { { 1.0f, 1.0f, 1.f, 1.0f } };
 
 	//clear depth at 1
 	VkClearValue depthClear;
@@ -231,6 +231,11 @@ void VulkanSimpleAccumulationGraphicsPipeline::try_reset_accumulation(PlayerCame
 		_lastViewMatrix = view;
 		_counter.accumCount = 0;
 	}
+}
+
+void VulkanSimpleAccumulationGraphicsPipeline::reset_accumulation()
+{
+	_counter.accumCount = 0;
 }
 
 const Texture& VulkanSimpleAccumulationGraphicsPipeline::get_output() const

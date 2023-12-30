@@ -10,6 +10,7 @@ struct PlayerCamera {
 	glm::vec3 position;
 	glm::vec3 velocity;
 	glm::vec3 inputAxis;
+	bool bActiveCamera = true;
 
 	glm::mat4 lastViewMatrix;
 

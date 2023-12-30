@@ -10,29 +10,39 @@ void PlayerCamera::process_input_event(SDL_Event* ev)
 		{
 		case SDLK_UP:
 		case SDLK_w:
-			inputAxis.x -= 1.f;
+			if (bActiveCamera)
+				inputAxis.x -= 1.f;
 			break;
 		case SDLK_DOWN:
 		case SDLK_s:
-			inputAxis.x += 1.f;
+			if (bActiveCamera)
+				inputAxis.x += 1.f;
 			break;
 		case SDLK_LEFT:
 		case SDLK_a:
-			inputAxis.y -= 1.f;
+			if (bActiveCamera)
+				inputAxis.y -= 1.f;
 			break;
 		case SDLK_RIGHT:
 		case SDLK_d:
-			inputAxis.y += 1.f;
+			if (bActiveCamera)
+				inputAxis.y += 1.f;
 			break;
 		case SDLK_q:
-			inputAxis.z -= 1.f;
+			if (bActiveCamera)
+				inputAxis.z -= 1.f;
 			break;
 
 		case SDLK_e:
-			inputAxis.z += 1.f;
+			if (bActiveCamera)
+				inputAxis.z += 1.f;
 			break;
 		case SDLK_LSHIFT:
-			bSprint = true;
+			if (bActiveCamera)
+				bSprint = true;
+			break;
+		case SDLK_m: // m - menu
+			bActiveCamera = !bActiveCamera;
 			break;
 		}
 	}
@@ -42,34 +52,41 @@ void PlayerCamera::process_input_event(SDL_Event* ev)
 		{
 		case SDLK_UP:
 		case SDLK_w:
-			inputAxis.x += 1.f;
+			if (bActiveCamera)
+				inputAxis.x += 1.f;
 			break;
 		case SDLK_DOWN:
 		case SDLK_s:
-			inputAxis.x -= 1.f;
+			if (bActiveCamera)
+				inputAxis.x -= 1.f;
 			break;
 		case SDLK_LEFT:
 		case SDLK_a:
-			inputAxis.y += 1.f;
+			if (bActiveCamera)
+				inputAxis.y += 1.f;
 			break;
 		case SDLK_RIGHT:
 		case SDLK_d:
-			inputAxis.y -= 1.f;
+			if (bActiveCamera)
+				inputAxis.y -= 1.f;
 			break;
 		case SDLK_q:
-			inputAxis.z += 1.f;
+			if (bActiveCamera)
+				inputAxis.z += 1.f;
 			break;
 
 		case SDLK_e:
-			inputAxis.z -= 1.f;
+			if (bActiveCamera)
+				inputAxis.z -= 1.f;
 			break;
 		case SDLK_LSHIFT:
-			bSprint = false;
+			if (bActiveCamera)
+				bSprint = false;
 			break;
 		}
 	}
 	else if (ev->type == SDL_MOUSEMOTION) {
-		if (!bLocked)
+		if (!bLocked && bActiveCamera)
 		{
 			pitch -= ev->motion.yrel * 0.003f;
 			yaw -= ev->motion.xrel * 0.003f;

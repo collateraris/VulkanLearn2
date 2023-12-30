@@ -44,8 +44,8 @@ void VulkanEngine::init()
 		window_flags
 	);
 	SceneConfig config;
-	//config.fileName = "../../assets/sponza.obj";
-	config.fileName = "../../assets/lost_empire.obj";
+	config.fileName = "../../assets/sponza.obj";
+	//config.fileName = "../../assets/lost_empire.obj";
 	//config.fileName = "../../assets/monkey_smooth.obj";
 	config.scaleFactor = 0.1;
 	AsimpLoader::processScene(config, _scene, _resManager);
@@ -242,15 +242,6 @@ void VulkanEngine::draw()
 #endif
 
 #if AO_RAYTRACER_ON && GBUFFER_ON
-			{
-				VulkanAORaytracingGraphicsPipeline::GlobalAOParams aoData;
-				aoData.aoRadius = 2.;
-				aoData.minT = 1e-1;
-				aoData.frameCount = _frameNumber;
-				aoData.numRays = 1;
-				_aoRtGraphicsPipeline.copy_global_uniform_data(aoData, get_current_frame_index());
-			}
-
 			{
 				_simpleAccumGraphicsPipeline.try_reset_accumulation(_camera);
 			}
@@ -473,6 +464,7 @@ void VulkanEngine::run()
 			//close the window when user alt-f4s or clicks the X button			
 			if (e.type == SDL_QUIT) bQuit = true;
 			_camera.process_input_event(&e);
+			
 
 			ImGui_ImplSDL2_ProcessEvent(&e);
 		}
@@ -491,9 +483,7 @@ void VulkanEngine::run()
 		ImGui::NewFrame();
 
 		//imgui commands
-		ImguiAppLog::ShowFPSLog(_stats);
-
-		ImguiAppLog::EditSun(_lightManager);
+		ImguiAppLog::ShowVkMenu(*this);
 
 		ImGui::Render();
 
