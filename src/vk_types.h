@@ -24,19 +24,19 @@ constexpr uint32_t VULKAN_NUM_ATTACHMENTS = 8;
 //we will add our main reusable types here
 
 struct AllocatedBuffer {
-    VkBuffer _buffer;
-    VmaAllocation _allocation;
+    VkBuffer _buffer = VK_NULL_HANDLE;
+    VmaAllocation _allocation = VK_NULL_HANDLE;
 	uint32_t _size;
 };
 
 struct AllocatedImage {
-    VkImage _image;
-    VmaAllocation _allocation;
+    VkImage _image = VK_NULL_HANDLE;
+    VmaAllocation _allocation = VK_NULL_HANDLE;
 };
 
 struct Texture {
 	AllocatedImage image;
-	VkImageView imageView;
+	VkImageView imageView = VK_NULL_HANDLE;
 	VkExtent3D extend;
 	VkImageCreateInfo createInfo;
 	bool bIsSwapChainImage = false;

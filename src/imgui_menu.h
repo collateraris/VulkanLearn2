@@ -6,6 +6,8 @@
 #include <imgui_impl_sdl.h>
 #include <imgui_impl_vulkan.h>
 
+#include <vk_light_manager.h>
+
 //-----------------------------------------------------------------------------
 // [SECTION] Example App: Debug Log / ShowExampleAppLog()
 //-----------------------------------------------------------------------------
@@ -158,6 +160,32 @@ static void ShowFPSLog(Stats stats)
 
     // Actually call in the regular Log helper (which will Begin() into the same window as we just did)
     log.Draw("Example: Log", &p_open);
+}
+
+static void EditSun(VulkanLightManager& lightManager)
+{
+    static bool p_open = true;
+    static VulkanLightManager::Light* pSun = nullptr;
+
+    if (!pSun)
+    {
+        pSun = lightManager.add_light({.type = static_cast<uint32_t>(ELightType::Sun) });
+        lightManager.create_light_buffer();
+    }
+
+    ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
+    ImGui::Begin("EditSun", &p_open);
+    static float direction[4] = { 0.10f, 0.20f, 0.30f, 0.44f };
+    ImGui::InputFloat3("direction", direction);
+    static float position[4] = { 0.10f, 0.20f, 0.30f, 0.44f };
+    ImGui::InputFloat3("position", position);
+    if (ImGui::Button("Update"))
+    {
+        pSun->direction = glm::vec4(direction[0], direction[1], direction[2], 1.);
+        pSun->position = glm::vec4(position[0], position[1], position[2], 1.);
+        lightManager.update_light_buffer();
+    }
+    ImGui::End();
 }
 
 };

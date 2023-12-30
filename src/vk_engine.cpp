@@ -47,7 +47,7 @@ void VulkanEngine::init()
 	//config.fileName = "../../assets/sponza.obj";
 	config.fileName = "../../assets/lost_empire.obj";
 	//config.fileName = "../../assets/monkey_smooth.obj";
-	//config.scaleFactor = 0.1;
+	config.scaleFactor = 0.1;
 	AsimpLoader::processScene(config, _scene, _resManager);
 
 	_logger.init("vulkan.log");
@@ -55,6 +55,8 @@ void VulkanEngine::init()
 	_rgraph.init(this);
 
 	_depthReduceRenderPass.init(this);
+
+	_lightManager.init(this);
 
 	//load the core Vulkan structures
 	init_vulkan();
@@ -471,6 +473,8 @@ void VulkanEngine::run()
 			//close the window when user alt-f4s or clicks the X button			
 			if (e.type == SDL_QUIT) bQuit = true;
 			_camera.process_input_event(&e);
+
+			ImGui_ImplSDL2_ProcessEvent(&e);
 		}
 
 		end = std::chrono::system_clock::now();
@@ -488,6 +492,8 @@ void VulkanEngine::run()
 
 		//imgui commands
 		ImguiAppLog::ShowFPSLog(_stats);
+
+		ImguiAppLog::EditSun(_lightManager);
 
 		ImGui::Render();
 
