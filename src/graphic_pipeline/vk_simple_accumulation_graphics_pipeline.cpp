@@ -26,7 +26,7 @@ void VulkanSimpleAccumulationGraphicsPipeline::init(VulkanEngine* engine, const 
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
 		_outputTexture = texBuilder.start()
-			.make_img_info(_outputFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _imageExtent)
+			.make_img_info(_outputFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |VK_IMAGE_USAGE_TRANSFER_SRC_BIT, _imageExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_outputFormat, VK_IMAGE_ASPECT_COLOR_BIT)
@@ -37,7 +37,7 @@ void VulkanSimpleAccumulationGraphicsPipeline::init(VulkanEngine* engine, const 
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
 		_lastFrameTexture = texBuilder.start()
-			.make_img_info(_lastFrameFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _imageExtent)
+			.make_img_info(_lastFrameFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_lastFrameFormat, VK_IMAGE_ASPECT_COLOR_BIT)
@@ -183,6 +183,42 @@ void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, in
 
 	//finalize the render pass
 	vkCmdEndRenderPass(cmd->get_cmd());
+
+	{
+		std::array<VkImageMemoryBarrier, 1> outputBarriers =
+		{
+			vkinit::image_barrier(_outputTexture.image._image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, outputBarriers.size(), outputBarriers.data());
+
+		std::array<VkImageMemoryBarrier, 1> lastFrameBarriers =
+		{
+			vkinit::image_barrier(_lastFrameTexture.image._image,  VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_2_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, lastFrameBarriers.size(), lastFrameBarriers.data());
+	}
+
+	cmd->blit_image(_lastFrameTexture, _outputTexture, 
+		{ 0, 0, 0 }, { (int)_imageExtent.width, (int)_imageExtent.height , 1 },
+		{ 0, 0, 0 }, { (int)_imageExtent.width, (int)_imageExtent.height , 1 }, 0, 0);
+
+	{
+		std::array<VkImageMemoryBarrier, 1> outputBarriers =
+		{
+			vkinit::image_barrier(_outputTexture.image._image, VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  0, 0, 0, 0, 0, outputBarriers.size(), outputBarriers.data());
+
+		std::array<VkImageMemoryBarrier, 1> lastFrameBarriers =
+		{
+			vkinit::image_barrier(_lastFrameTexture.image._image, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_2_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, lastFrameBarriers.size(), lastFrameBarriers.data());
+	}
 
 	_counter.accumCount++;
 }

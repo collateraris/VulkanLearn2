@@ -126,7 +126,7 @@ void VulkanEngine::init()
 	_gBufGenerateGraphicsPipeline.init(this);
 	_aoRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer());
 	_simpleAccumGraphicsPipeline.init(this, _aoRtGraphicsPipeline.get_output());
-	_gBufShadingGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer(), _aoRtGraphicsPipeline.get_output());
+	_gBufShadingGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer(), _simpleAccumGraphicsPipeline.get_output());
 #endif
 
 
@@ -242,8 +242,8 @@ void VulkanEngine::draw()
 #if AO_RAYTRACER_ON && GBUFFER_ON
 			{
 				VulkanAORaytracingGraphicsPipeline::GlobalAOParams aoData;
-				aoData.aoRadius = 0.1;
-				aoData.minT = 1e-5;
+				aoData.aoRadius = 2.;
+				aoData.minT = 1e-1;
 				aoData.frameCount = _frameNumber;
 				aoData.numRays = 1;
 				_aoRtGraphicsPipeline.copy_global_uniform_data(aoData, get_current_frame_index());
