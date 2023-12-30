@@ -86,7 +86,7 @@ void PlayerCamera::process_input_event(SDL_Event* ev)
 		}
 	}
 	else if (ev->type == SDL_MOUSEMOTION) {
-		if (!bLocked && bActiveCamera)
+		if (bActiveCamera)
 		{
 			pitch -= ev->motion.yrel * 0.003f;
 			yaw -= ev->motion.xrel * 0.003f;
