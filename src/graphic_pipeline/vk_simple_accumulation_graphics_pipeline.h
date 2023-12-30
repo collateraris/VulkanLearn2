@@ -2,7 +2,7 @@
 
 #include <vk_types.h>
 
-#if AO_RAYTRACER_ON && GBUFFER_ON
+#if GI_RAYTRACER_ON && GBUFFER_ON
 
 class VulkanEngine;
 class VulkanFrameBuffer;
@@ -33,9 +33,9 @@ private:
 
 	VkExtent3D _imageExtent;
 	Texture _outputTexture;
-	VkFormat      _outputFormat{ VK_FORMAT_R32_SFLOAT };
+	VkFormat      _outputFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
 	Texture _lastFrameTexture;
-	VkFormat      _lastFrameFormat{ VK_FORMAT_R32_SFLOAT };
+	VkFormat      _lastFrameFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
 	Texture _depthTexture;
 	VkFormat      _depthFormat{ VK_FORMAT_D32_SFLOAT };
 

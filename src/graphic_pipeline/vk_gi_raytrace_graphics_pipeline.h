@@ -2,7 +2,7 @@
 
 #include <vk_types.h>
 
-#if AO_RAYTRACER_ON && GBUFFER_ON
+#if GI_RAYTRACER_ON && GBUFFER_ON
 #include <vk_raytracer_builder.h>
 #include <vk_render_pass.h>
 #include <vk_mesh.h>
@@ -12,7 +12,7 @@ class VulkanFrameBuffer;
 class VulkanCommandBuffer;
 class RenderObject;
 
-class VulkanAORaytracingGraphicsPipeline
+class VulkanGIShadowsRaytracingGraphicsPipeline
 {
 public:
 	struct alignas(16) GlobalAOParams
@@ -22,15 +22,15 @@ public:
 		float minT;
 		uint32_t  numRays;
 	};
-	VulkanAORaytracingGraphicsPipeline() = default;
+	VulkanGIShadowsRaytracingGraphicsPipeline() = default;
 	void init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer);
-	void copy_global_uniform_data(VulkanAORaytracingGraphicsPipeline::GlobalAOParams& aoData, int current_frame_index);
+	void copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalAOParams& aoData, int current_frame_index);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
 	const Texture& get_output() const;
 
 	void barrier_for_frag_read(VulkanCommandBuffer* cmd);
-	void barrier_for_ao_raytracing(VulkanCommandBuffer* cmd);
+	void barrier_for_gi_raytracing(VulkanCommandBuffer* cmd);
 
 private:
 
@@ -44,7 +44,7 @@ private:
 
 	VkExtent3D _imageExtent;
 	Texture _colorTexture;
-	VkFormat      _colorFormat{ VK_FORMAT_R32_SFLOAT };
+	VkFormat      _colorFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
 	Texture _depthTexture;
 	VkFormat      _depthFormat{ VK_FORMAT_D32_SFLOAT };
 

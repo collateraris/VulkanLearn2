@@ -43,7 +43,7 @@ void main()
     uint diffuseID = objectBuffer.objects[objID].diffuseTexIndex;
     vec2 gbufferTexCoord = texture(uvTex, texCoord).rg;
     vec3 diffuse = texture(texSet[diffuseID], gbufferTexCoord).rgb;
-    float ao = texture(aoTex, texCoord).r;
+    vec3 ao = texture(aoTex, texCoord).rgb;
     diffuse *= ao;
 	outFragColor = vec4(diffuse,1.0f);
 }

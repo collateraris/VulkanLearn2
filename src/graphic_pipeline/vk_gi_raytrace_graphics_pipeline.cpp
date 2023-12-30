@@ -1,6 +1,6 @@
-#include <graphic_pipeline/vk_ao_raytrace_graphics_pipeline.h>
+#include <graphic_pipeline/vk_gi_raytrace_graphics_pipeline.h>
 
-#if AO_RAYTRACER_ON && GBUFFER_ON
+#if GI_RAYTRACER_ON && GBUFFER_ON
 
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
@@ -11,7 +11,7 @@
 #include <vk_raytracer_builder.h>
 #include <vk_initializers.h>
 
-void VulkanAORaytracingGraphicsPipeline::init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer)
+void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer)
 {
 	_engine = engine;
 
@@ -58,7 +58,7 @@ void VulkanAORaytracingGraphicsPipeline::init(VulkanEngine* engine, const std::a
 		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::AO_Raytracing,
 			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
 				ShaderEffect defaultEffect;
-				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("ao_raytrace.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
+				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("gi_raytrace.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
 				uint32_t rayMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("ao_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("ao_raytrace.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 				defaultEffect.reflect_layout(engine->_device, nullptr, 0);
@@ -167,7 +167,7 @@ void VulkanAORaytracingGraphicsPipeline::init(VulkanEngine* engine, const std::a
 	}
 }
 
-void VulkanAORaytracingGraphicsPipeline::create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList)
+void VulkanGIShadowsRaytracingGraphicsPipeline::create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList)
 {
 	std::vector<VulkanRaytracerBuilder::BlasInput> allBlas;
 	allBlas.reserve(meshList.size());
@@ -193,7 +193,7 @@ void VulkanAORaytracingGraphicsPipeline::create_blas(const std::vector<std::uniq
 	_rtBuilder.build_blas(*_engine, allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 }
 
-void VulkanAORaytracingGraphicsPipeline::create_tlas(const std::vector<RenderObject>& renderables)
+void VulkanGIShadowsRaytracingGraphicsPipeline::create_tlas(const std::vector<RenderObject>& renderables)
 {
 	std::vector<VkAccelerationStructureInstanceKHR> tlas;
 	tlas.reserve(renderables.size());
@@ -232,7 +232,7 @@ void VulkanAORaytracingGraphicsPipeline::create_tlas(const std::vector<RenderObj
 
 		//set 1
 
-		_globalUniformsBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanAORaytracingGraphicsPipeline::GlobalAOParams), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		_globalUniformsBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalAOParams), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 		VkDescriptorBufferInfo globalUniformsInfo;
 		globalUniformsInfo.buffer = _globalUniformsBuffer[i]._buffer;
@@ -246,7 +246,7 @@ void VulkanAORaytracingGraphicsPipeline::create_tlas(const std::vector<RenderObj
 	}
 }
 
-void VulkanAORaytracingGraphicsPipeline::init_description_set(const std::array<Texture, 4>& gbuffer)
+void VulkanGIShadowsRaytracingGraphicsPipeline::init_description_set(const std::array<Texture, 4>& gbuffer)
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
@@ -280,14 +280,14 @@ void VulkanAORaytracingGraphicsPipeline::init_description_set(const std::array<T
 }
 
 
-void VulkanAORaytracingGraphicsPipeline::copy_global_uniform_data(VulkanAORaytracingGraphicsPipeline::GlobalAOParams& globalData, int current_frame_index)
+void VulkanGIShadowsRaytracingGraphicsPipeline::copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalAOParams& globalData, int current_frame_index)
 {
 	_engine->map_buffer(_engine->_allocator, _globalUniformsBuffer[current_frame_index]._allocation, [&](void*& data) {
-		memcpy(data, &globalData, sizeof(VulkanAORaytracingGraphicsPipeline::GlobalAOParams));
+		memcpy(data, &globalData, sizeof(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalAOParams));
 		});
 }
 
-void VulkanAORaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
 	{
 		std::array<VkImageMemoryBarrier, 1> outBarriers =
@@ -322,12 +322,12 @@ void VulkanAORaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int curr
 		});
 }
 
-const Texture& VulkanAORaytracingGraphicsPipeline::get_output() const
+const Texture& VulkanGIShadowsRaytracingGraphicsPipeline::get_output() const
 {
 	return _colorTexture;
 }
 
-void VulkanAORaytracingGraphicsPipeline::barrier_for_frag_read(VulkanCommandBuffer* cmd)
+void VulkanGIShadowsRaytracingGraphicsPipeline::barrier_for_frag_read(VulkanCommandBuffer* cmd)
 {
 	std::array<VkImageMemoryBarrier, 1> aoBarriers =
 	{
@@ -337,7 +337,7 @@ void VulkanAORaytracingGraphicsPipeline::barrier_for_frag_read(VulkanCommandBuff
 	vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, aoBarriers.size(), aoBarriers.data());
 }
 
-void VulkanAORaytracingGraphicsPipeline::barrier_for_ao_raytracing(VulkanCommandBuffer* cmd)
+void VulkanGIShadowsRaytracingGraphicsPipeline::barrier_for_gi_raytracing(VulkanCommandBuffer* cmd)
 {
 	std::array<VkImageMemoryBarrier, 1> aoBarriers =
 	{
@@ -347,7 +347,7 @@ void VulkanAORaytracingGraphicsPipeline::barrier_for_ao_raytracing(VulkanCommand
 	vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, aoBarriers.size(), aoBarriers.data());
 }
 
-VulkanRaytracerBuilder::BlasInput VulkanAORaytracingGraphicsPipeline::create_blas_input(Mesh& mesh)
+VulkanRaytracerBuilder::BlasInput VulkanGIShadowsRaytracingGraphicsPipeline::create_blas_input(Mesh& mesh)
 {
 	// BLAS builder requires raw device addresses.
 	VkDeviceAddress vertexAddress = _engine->get_buffer_device_address(mesh._vertexBufferRT._buffer);

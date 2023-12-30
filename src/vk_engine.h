@@ -28,7 +28,7 @@
 #include <graphic_pipeline/vk_vbuffer_shading_graphics_pipeline.h>
 #include <graphic_pipeline/vk_gbuffer_graphics_pipeline.h>
 #include <graphic_pipeline/vk_gbuffer_shading_graphics_pipeline.h>
-#include <graphic_pipeline/vk_ao_raytrace_graphics_pipeline.h>
+#include <graphic_pipeline/vk_gi_raytrace_graphics_pipeline.h>
 #include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
 #include <vk_light_manager.h>
 
@@ -170,8 +170,8 @@ public:
 	VulkanSimpleAccumulationGraphicsPipeline _simpleAccumGraphicsPipeline;
 #endif
 
-#if AO_RAYTRACER_ON && GBUFFER_ON
-	VulkanAORaytracingGraphicsPipeline _aoRtGraphicsPipeline;
+#if GI_RAYTRACER_ON && GBUFFER_ON
+	VulkanGIShadowsRaytracingGraphicsPipeline _giRtGraphicsPipeline;
 #endif
 
 	VulkanLightManager _lightManager;

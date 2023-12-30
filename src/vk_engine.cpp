@@ -86,7 +86,7 @@ void VulkanEngine::init()
 	load_meshes();
 
 	init_scene();
-#if MESHSHADER_ON || RAYTRACER_ON || VBUFFER_ON || GBUFFER_ON || AO_RAYTRACER_ON
+#if MESHSHADER_ON || RAYTRACER_ON || VBUFFER_ON || GBUFFER_ON || GI_RAYTRACER_ON
 	init_pipelines();
 #endif
 
@@ -126,8 +126,8 @@ void VulkanEngine::init()
 
 #if GBUFFER_ON
 	_gBufGenerateGraphicsPipeline.init(this);
-	_aoRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer());
-	_simpleAccumGraphicsPipeline.init(this, _aoRtGraphicsPipeline.get_output());
+	_giRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer());
+	_simpleAccumGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
 	_gBufShadingGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer(), _simpleAccumGraphicsPipeline.get_output());
 #endif
 
@@ -241,7 +241,7 @@ void VulkanEngine::draw()
 			}
 #endif
 
-#if AO_RAYTRACER_ON && GBUFFER_ON
+#if GI_RAYTRACER_ON && GBUFFER_ON
 			{
 				_simpleAccumGraphicsPipeline.try_reset_accumulation(_camera);
 			}
@@ -265,8 +265,8 @@ void VulkanEngine::draw()
 #if GBUFFER_ON
 		_gBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 		_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_shading(&get_current_frame()._mainCommandBuffer);
-		_aoRtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-		_aoRtGraphicsPipeline.barrier_for_frag_read(&get_current_frame()._mainCommandBuffer);
+		_giRtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+		_giRtGraphicsPipeline.barrier_for_frag_read(&get_current_frame()._mainCommandBuffer);
 		_simpleAccumGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif
 
@@ -377,7 +377,7 @@ void VulkanEngine::draw()
 #if GBUFFER_ON
 		{
 			_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_generate(&get_current_frame()._mainCommandBuffer);
-			_aoRtGraphicsPipeline.barrier_for_ao_raytracing(&get_current_frame()._mainCommandBuffer);
+			_giRtGraphicsPipeline.barrier_for_gi_raytracing(&get_current_frame()._mainCommandBuffer);
 		}
 #endif
 		//_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });
@@ -554,7 +554,7 @@ void VulkanEngine::init_vulkan()
 		VK_NV_MESH_SHADER_EXTENSION_NAME,
 #endif
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-#if RAYTRACER_ON || AO_RAYTRACER_ON
+#if RAYTRACER_ON || GI_RAYTRACER_ON
 		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
 		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, // Required by ray tracing pipeline
@@ -600,7 +600,7 @@ void VulkanEngine::init_vulkan()
 	descriptor_indexing_features.descriptorBindingPartiallyBound = true;
 	descriptor_indexing_features.runtimeDescriptorArray = true;
 
-#if RAYTRACER_ON || AO_RAYTRACER_ON
+#if RAYTRACER_ON || GI_RAYTRACER_ON
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
 	acceleration_structure_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
 	acceleration_structure_features.pNext = nullptr;
@@ -616,7 +616,7 @@ void VulkanEngine::init_vulkan()
 		.add_pNext(&featuresMesh)
 		.add_pNext(&buffer_device_address_features)
 		.add_pNext(&descriptor_indexing_features)
-#if RAYTRACER_ON || AO_RAYTRACER_ON
+#if RAYTRACER_ON || GI_RAYTRACER_ON
 		.add_pNext(&acceleration_structure_features)
 		.add_pNext(&rt_features)
 #endif
