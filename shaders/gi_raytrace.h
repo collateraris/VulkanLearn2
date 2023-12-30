@@ -24,6 +24,11 @@ struct AORayPayload
   float aoValue;  // Store 0 if we hit a surface, 1 if we miss all surfaces
 };
 
+struct ShadowRayPayload
+{
+	float visFactor;  // Will be 1.0 for fully lit, 0.0 for fully shadowed
+};
+
 // Generates a seed for a random number generator from 2 inputs plus a backoff
 uint initRand(uint val0, uint val1)
 {

@@ -4,10 +4,10 @@
 
 #include "gi_raytrace.h"
 
-layout(location = 0) rayPayloadInEXT AORayPayload aoRpl;
+layout(location = 1) rayPayloadEXT ShadowRayPayload shadowRpl;
 
 void main()
 {
 	// Our ambient occlusion value is 1 if we hit nothing.    
-    aoRpl.aoValue = 1.0f;
+    shadowRpl.visFactor = 1.0f;
 }

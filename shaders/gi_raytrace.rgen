@@ -5,7 +5,7 @@
 #include "gi_raytrace.h"
 
 layout(location = 0) rayPayloadEXT AORayPayload aoRpl;
-
+layout(location = 1) rayPayloadEXT ShadowRayPayload shadowRpl;
 
 layout(set = 0, binding = 0) uniform _GlobalAOParams { SGlobalAOParams aoParams; };
 
@@ -43,6 +43,28 @@ float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT )
 	return aoRpl.aoValue;
 };
 
+float shadowRayVisibility( vec3 orig, vec3 dir, float minT, float maxT )
+{
+	shadowRpl.visFactor = 0.f;
+
+    uint  rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+
+    traceRayEXT(topLevelAS, // acceleration structure
+            rayFlags,       // rayFlags
+            0xFF,           // cullMask
+            0,              // sbtRecordOffset
+            0,              // sbtRecordStride
+            0,              // missIndex
+            orig.xyz,       // ray origin
+            minT,           // ray min range
+            dir.xyz,         // ray direction
+            maxT,           // ray max range
+            1      // payload (location = 0)
+    );        
+
+	return shadowRpl.visFactor;
+};
+
 void main() 
 {
     const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
@@ -50,6 +72,10 @@ void main()
     vec4 worldNorm = texture(normalTex, uv).rgba;
 
     float ambientOcclusion = float(aoParams.numRays);
+
+    SLight sunInfo = lightsBuffer.lights[0];
+
+    float shadowMult = 1;
 
     if (worldPos.w != 0.0f)
 	{
@@ -68,13 +94,17 @@ void main()
 			// Shoot our ambient occlusion ray and update the value we'll output with the result
 			ambientOcclusion += shootAmbientOcclusionRay(worldPos.xyz, worldDir, aoParams.minT, aoParams.aoRadius);
 		}
+
+        float distToLight = length(sunInfo.position.xyz - worldPos.xyz);
+        shadowMult = shadowRayVisibility(worldPos.xyz, -sunInfo.direction.xyz, 0.01, distToLight);
 	}
 
     float aoColor = ambientOcclusion / float(aoParams.numRays); 
 
-    vec3 sunLightColor = lightsBuffer.lights[0].color.xyz; 
+    vec3 sunLightColor = sunInfo.color.xyz; 
 
     sunLightColor *= aoColor;
+    sunLightColor *= shadowMult;
 
     imageStore(outputImage, ivec2(gl_LaunchIDEXT.xy), vec4(sunLightColor, 1.0f));
 }
