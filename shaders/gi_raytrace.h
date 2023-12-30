@@ -1,9 +1,22 @@
-struct GlobalAOParams
+struct SGlobalAOParams
 {
 	float aoRadius;
 	uint  frameCount;
 	float minT;
 	uint  numRays;
+};
+
+const uint SUN_COLOR_TYPE = 0;
+
+struct SLight
+{
+	vec4 position;
+	vec4 direction;
+	vec4 color;
+	uint type;
+	uint pad1;
+	uint pad2;
+	uint pad3;
 };
 
 struct AORayPayload

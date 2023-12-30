@@ -239,9 +239,15 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::create_tlas(const std::vector<Re
 		globalUniformsInfo.offset = 0;
 		globalUniformsInfo.range = _globalUniformsBuffer[i]._size;
 
+		VkDescriptorBufferInfo lightsInfo;
+		lightsInfo.buffer = _engine->_lightManager.get_light_buffer(i)._buffer;
+		lightsInfo.offset = 0;
+		lightsInfo.range = _engine->_lightManager.get_light_buffer(i)._size;
+
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_buffer(1, &lightsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.build(_globalUniformsDescSet[i], _globalUniformsDescSetLayout);
 	}
 }

@@ -56,8 +56,6 @@ void VulkanEngine::init()
 
 	_depthReduceRenderPass.init(this);
 
-	_lightManager.init(this);
-
 	//load the core Vulkan structures
 	init_vulkan();
 
@@ -89,6 +87,8 @@ void VulkanEngine::init()
 #if MESHSHADER_ON || RAYTRACER_ON || VBUFFER_ON || GBUFFER_ON || GI_RAYTRACER_ON
 	init_pipelines();
 #endif
+
+	_lightManager.init(this);
 
 #if RAYTRACER_ON
 	_rtGraphicsPipeline.init(this);

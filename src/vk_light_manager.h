@@ -18,6 +18,7 @@ public:
 	{
 		glm::vec4 position;
 		glm::vec4 direction;
+		glm::vec4 color;
 		uint32_t type = static_cast<uint32_t>(ELightType::None);
 		uint32_t pad1;
 		uint32_t pad2;
@@ -29,14 +30,15 @@ public:
 	void save_config(std::string&& path);
 
 	VulkanLightManager::Light* add_light(VulkanLightManager::Light&& lightInfo);
-	void create_light_buffer();
-	void update_light_buffer();
-	const AllocatedBuffer& get_light_buffer() const;
+	VulkanLightManager::Light* get_sun_light();
+	void create_light_buffer(int current_frame_index);
+	void update_light_buffer(int current_frame_index);
+	const AllocatedBuffer& get_light_buffer(int current_frame_index) const;
 
 private:
 
 	VulkanEngine* _engine = nullptr;
 
 	std::vector<std::unique_ptr<VulkanLightManager::Light>> _lightsOnScene = {};
-	AllocatedBuffer _lightsBuffer;
+	std::array<AllocatedBuffer, 2> _lightsBuffer;
 };

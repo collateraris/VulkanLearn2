@@ -165,16 +165,15 @@ static void ShowFPSLog(Stats stats)
     log.Draw("Example: Log", &p_open);
 }
 
-static void EditSun(VulkanLightManager& lightManager)
+static void EditSun(VulkanLightManager& lightManager, int current_frame_index)
 {
     static bool p_open = true;
     static VulkanLightManager::Light* pSun = nullptr;
-    static bool bChangedValue = false;
+    static bool bChangedValue = true;
 
     if (!pSun)
     {
-        pSun = lightManager.add_light({.type = static_cast<uint32_t>(ELightType::Sun) });
-        lightManager.create_light_buffer();
+        pSun = lightManager.get_sun_light();
     }
 
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
@@ -183,12 +182,15 @@ static void EditSun(VulkanLightManager& lightManager)
     bChangedValue |= ImGui::InputFloat3("direction", direction);
     static float position[4] = { 0.10f, 0.20f, 0.30f, 0.44f };
     bChangedValue |= ImGui::InputFloat3("position", position);
+    static float col1[3] = { 1.0f, 1.0f, 1.0f };
+    bChangedValue |= ImGui::ColorEdit3("color", col1);
     if (bChangedValue)
     {
         bChangedValue = false;
         pSun->direction = glm::vec4(direction[0], direction[1], direction[2], 1.);
         pSun->position = glm::vec4(position[0], position[1], position[2], 1.);
-        lightManager.update_light_buffer();
+        pSun->color = glm::vec4(col1[0], col1[1], col1[2], 1.);
+        lightManager.update_light_buffer(current_frame_index);
     }
     ImGui::End();
 }
@@ -196,7 +198,7 @@ static void EditSun(VulkanLightManager& lightManager)
 static void EditAO(VulkanGIShadowsRaytracingGraphicsPipeline& giGP, VulkanSimpleAccumulationGraphicsPipeline& saGP, int current_frame_index, int frameNumber)
 {
     static bool p_open = true;
-    static bool bChangedValue = false;
+    static bool bChangedValue = true;
     static VulkanGIShadowsRaytracingGraphicsPipeline::GlobalAOParams aoParams = {.aoRadius = 2., .minT = 1e-1, .numRays = 1};
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
     ImGui::Begin("Edit AO", &p_open);
@@ -221,7 +223,7 @@ static void ShowVkMenu(VulkanEngine& engine)
 {
     ImguiAppLog::ShowFPSLog(engine._stats);
 
-    ImguiAppLog::EditSun(engine._lightManager);
+    ImguiAppLog::EditSun(engine._lightManager, engine.get_current_frame_index());
 #if GI_RAYTRACER_ON && GBUFFER_ON
     ImguiAppLog::EditAO(engine._giRtGraphicsPipeline, engine._simpleAccumGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
 #endif
