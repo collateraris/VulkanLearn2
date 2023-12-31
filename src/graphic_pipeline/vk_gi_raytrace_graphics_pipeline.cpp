@@ -52,6 +52,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const
 		create_blas(_engine->_resManager.meshList);
 		create_tlas(_engine->_renderables);
 		init_description_set(gbuffer);
+		init_bindless(_engine->_resManager.meshList, _engine->_resManager.textureList);
 	}
 
 	{
@@ -72,7 +73,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const
 				pipelineBuilder.setShaders(&defaultEffect);
 
 				VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
-				std::vector<VkDescriptorSetLayout> setLayout = { _globalUniformsDescSetLayout, _rtDescSetLayout, _gBuffDescSetLayout };
+				std::vector<VkDescriptorSetLayout> setLayout = { _bindlessSetLayout, _globalUniformsDescSetLayout, _rtDescSetLayout, _gBuffDescSetLayout };
 				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
 				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
 
@@ -229,6 +230,8 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::create_tlas(const std::vector<Re
 	}
 	_rtBuilder.build_tlas(*_engine, tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 
+	_objectBuffer = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanGIShadowsRaytracingGraphicsPipeline::ObjectData) * renderables.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
 		// set 0
@@ -243,7 +246,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::create_tlas(const std::vector<Re
 		outImageBufferInfo.imageLayout = _colorTexture.createInfo.initialLayout;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_rt_as(0, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_rt_as(0, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 			.bind_image(1, &outImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.build(_rtDescSet[i], _rtDescSetLayout);
 
@@ -261,12 +264,29 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::create_tlas(const std::vector<Re
 		lightsInfo.offset = 0;
 		lightsInfo.range = _engine->_lightManager.get_light_buffer(i)._size;
 
+		VkDescriptorBufferInfo objectBufferInfo;
+		objectBufferInfo.buffer = _objectBuffer._buffer;
+		objectBufferInfo.offset = 0;
+		objectBufferInfo.range = _objectBuffer._size;
+
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.bind_buffer(1, &lightsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_buffer(2, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 			.build(_globalUniformsDescSet[i], _globalUniformsDescSetLayout);
 	}
+
+	_engine->map_buffer(_engine->_allocator, _objectBuffer._allocation, [&](void*& data) {
+		VulkanGIShadowsRaytracingGraphicsPipeline::ObjectData* objectSSBO = (VulkanGIShadowsRaytracingGraphicsPipeline::ObjectData*)data;
+
+		for (int i = 0; i < renderables.size(); i++)
+		{
+			const RenderObject& object = renderables[i];
+			objectSSBO[i].meshIndex = object.meshIndex;
+			objectSSBO[i].diffuseTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->diffuseTextureIndex;
+		}
+		});
 }
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::init_description_set(const std::array<Texture, 4>& gbuffer)
@@ -302,6 +322,48 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_description_set(const std::
 	}
 }
 
+void VulkanGIShadowsRaytracingGraphicsPipeline::init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList)
+{
+	const uint32_t verticesBinding = 0;
+	const uint32_t textureBinding = 1;
+
+	//BIND MESHDATA
+	std::vector<VkDescriptorBufferInfo> vertexBufferInfoList{};
+	vertexBufferInfoList.resize(meshList.size());
+
+
+	for (uint32_t meshArrayIndex = 0; meshArrayIndex < meshList.size(); meshArrayIndex++)
+	{
+		Mesh* mesh = meshList[meshArrayIndex].get();
+
+		VkDescriptorBufferInfo& vertexBufferInfo = vertexBufferInfoList[meshArrayIndex];
+		vertexBufferInfo.buffer = mesh->_vertexBufferRT._buffer;
+		vertexBufferInfo.offset = 0;
+		vertexBufferInfo.range = mesh->_vertexBufferRT._size;
+	}
+
+	//BIND SAMPLERS
+	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
+
+	VkSampler blockySampler;
+	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &blockySampler);
+
+	std::vector<VkDescriptorImageInfo> imageInfoList{};
+	imageInfoList.resize(textureList.size());
+
+	for (uint32_t textureArrayIndex = 0; textureArrayIndex < textureList.size(); textureArrayIndex++)
+	{
+		VkDescriptorImageInfo& imageBufferInfo = imageInfoList[textureArrayIndex];
+		imageBufferInfo.sampler = blockySampler;
+		imageBufferInfo.imageView = textureList[textureArrayIndex]->imageView;
+		imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	}
+
+	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
+		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, vertexBufferInfoList.size())
+		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, imageInfoList.size())
+		.build_bindless(_bindlessSet, _bindlessSetLayout);
+}
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalAOParams& globalData, int current_frame_index)
 {
@@ -337,10 +399,12 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, i
 		[&](VkCommandBuffer cmd) {
 			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::AO_Raytracing));
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::AO_Raytracing), 0,
-				1, &_globalUniformsDescSet[current_frame_index], 0, nullptr);
+				1, &_bindlessSet, 0, nullptr);
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::AO_Raytracing), 1,
-				1, &_rtDescSet[current_frame_index], 0, nullptr);
+				1, &_globalUniformsDescSet[current_frame_index], 0, nullptr);
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::AO_Raytracing), 2,
+				1, &_rtDescSet[current_frame_index], 0, nullptr);
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::AO_Raytracing), 3,
 				1, &_gBuffDescSet[current_frame_index], 0, nullptr);
 		});
 }

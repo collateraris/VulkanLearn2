@@ -91,5 +91,5 @@ void main()
   float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, 0.01, distToLight);
 
 
-  prd.hitValue = diffuse * LdotN * sunInfo.color.xyz * M_INV_PI;
+  indirectRpl.color = diffuse * LdotN * sunInfo.color.xyz * M_INV_PI;
 }

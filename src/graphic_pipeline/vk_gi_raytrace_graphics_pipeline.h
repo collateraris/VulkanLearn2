@@ -14,6 +14,13 @@ class RenderObject;
 
 class VulkanGIShadowsRaytracingGraphicsPipeline
 {
+	struct alignas(16) ObjectData
+	{
+		uint32_t meshIndex;
+		uint32_t diffuseTexIndex;
+		uint32_t pad1;
+		uint32_t pad2;
+	};
 public:
 	struct alignas(16) GlobalAOParams
 	{
@@ -37,6 +44,7 @@ private:
 	void create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList);
 	void create_tlas(const std::vector<RenderObject>& renderables);
 	void init_description_set(const std::array<Texture, 4>& gbuffer);
+	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList);
 
 	VulkanRaytracerBuilder::BlasInput create_blas_input(Mesh& mesh);
 
@@ -68,6 +76,9 @@ private:
 
 	VkDescriptorSetLayout _gBuffDescSetLayout;
 	std::array<VkDescriptorSet, 2> _gBuffDescSet;
+
+	VkDescriptorSet _bindlessSet;
+	VkDescriptorSetLayout _bindlessSetLayout;
 
 	VulkanRaytracerBuilder _rtBuilder;
 };

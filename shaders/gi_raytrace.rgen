@@ -132,6 +132,8 @@ void main()
         //INDIRECT ILLUMINATION
         vec3 bounceDir = getCosHemisphereSample(randSeed, worldNorm.xyz);
 
+        float NdotLIndirect = clamp(dot(worldNorm.xyz, bounceDir), 0., 1.);
+
         // Shoot our indirect global illumination ray
 		vec3 bounceColor = shootIndirectRay(worldPos.xyz, bounceDir, 0.01);
 

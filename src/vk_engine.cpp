@@ -44,10 +44,10 @@ void VulkanEngine::init()
 		window_flags
 	);
 	SceneConfig config;
-	config.fileName = "../../assets/sponza.obj";
-	//config.fileName = "../../assets/lost_empire.obj";
+	//config.fileName = "../../assets/sponza.obj";
+	config.fileName = "../../assets/lost_empire.obj";
 	//config.fileName = "../../assets/monkey_smooth.obj";
-	config.scaleFactor = 0.1;
+	//config.scaleFactor = 0.1;
 	AsimpLoader::processScene(config, _scene, _resManager);
 
 	_logger.init("vulkan.log");
