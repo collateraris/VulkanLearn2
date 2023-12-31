@@ -61,7 +61,10 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const
 				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("gi_raytrace.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
 				uint32_t rayMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("ao_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayShadowMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("shadow_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
+				uint32_t rayIndirectMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("ao_raytrace.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+				uint32_t rayIndirectClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+
 				defaultEffect.reflect_layout(engine->_device, nullptr, 0);
 
 				RTPipelineBuilder pipelineBuilder;
@@ -103,10 +106,19 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const
 				group.generalShader = rayShadowMissIndex;
 				rtShaderGroups.push_back(group);
 
+				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+				group.generalShader = rayIndirectMissIndex;
+				rtShaderGroups.push_back(group);
+
 				// closest hit shader
 				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 				group.generalShader = VK_SHADER_UNUSED_KHR;
 				group.closestHitShader = rayClosestHitIndex;
+				rtShaderGroups.push_back(group);
+
+				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+				group.generalShader = VK_SHADER_UNUSED_KHR;
+				group.closestHitShader = rayIndirectClosestHitIndex;
 				rtShaderGroups.push_back(group);
 
 				pipelineBuilder._rayPipelineInfo.groupCount = static_cast<uint32_t>(rtShaderGroups.size());
@@ -119,8 +131,8 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const
 	}
 
 	{
-		uint32_t missCount{ 2 };
-		uint32_t hitCount{ 1 };
+		uint32_t missCount{ 3 };
+		uint32_t hitCount{ 2 };
 		auto     handleCount = 1 + missCount + hitCount;
 		uint32_t handleSize = _rtProperties.shaderGroupHandleSize;
 

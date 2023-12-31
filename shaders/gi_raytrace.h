@@ -1,3 +1,7 @@
+#define M_PI     3.14159265358979323846
+#define M_PI2    6.28318530717958647692
+#define M_INV_PI 0.3183098861837906715
+
 struct SGlobalAOParams
 {
 	float aoRadius;
@@ -19,6 +23,20 @@ struct SLight
 	uint pad3;
 };
 
+struct SVertex {
+
+	vec4 positionXYZ_normalX;
+	vec4 normalYZ_texCoordUV;
+};
+
+struct SObjectData
+{
+  uint meshIndex;
+  uint diffuseTexIndex;
+  uint pad1;
+  uint pad2;
+};
+
 struct AORayPayload
 {
   float aoValue;  // Store 0 if we hit a surface, 1 if we miss all surfaces
@@ -27,6 +45,12 @@ struct AORayPayload
 struct ShadowRayPayload
 {
 	float visFactor;  // Will be 1.0 for fully lit, 0.0 for fully shadowed
+};
+
+// The payload used for our indirect global illumination rays
+struct IndirectRayPayload
+{
+	vec3 color;    // The (returned) color in the ray's direction
 };
 
 // Generates a seed for a random number generator from 2 inputs plus a backoff
