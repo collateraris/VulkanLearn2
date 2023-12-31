@@ -96,7 +96,8 @@ void main()
 		}
 
         float distToLight = length(sunInfo.position.xyz - worldPos.xyz);
-        shadowMult = shadowRayVisibility(worldPos.xyz, -sunInfo.direction.xyz, 0.01, distToLight);
+        vec3 toLight = -normalize(sunInfo.direction.xyz);
+        shadowMult = shadowRayVisibility(worldPos.xyz, toLight, 0.01, distToLight);
 	}
 
     float aoColor = ambientOcclusion / float(aoParams.numRays); 

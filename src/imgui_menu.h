@@ -178,9 +178,9 @@ static void EditSun(VulkanLightManager& lightManager, int current_frame_index)
 
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
     ImGui::Begin("EditSun", &p_open);
-    static float direction[4] = { 0.f, 0.f, 0.f, 1.f };
+    static float direction[4] = { 1.f, 0.f, 0.f, 1.f };
     bChangedValue |= ImGui::InputFloat3("direction", direction);
-    static float position[4] = { 0.10f, 0.20f, 0.30f, 0.44f };
+    static float position[4] = { 2.10f, 0.20f, 0.30f, 0.44f };
     bChangedValue |= ImGui::InputFloat3("position", position);
     static float col1[3] = { 1.0f, 1.0f, 1.0f };
     bChangedValue |= ImGui::ColorEdit3("color", col1);
