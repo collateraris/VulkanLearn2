@@ -71,16 +71,14 @@ void main()
     vec4 worldPos = texture(wposTex, uv).rgba;
     vec4 worldNorm = texture(normalTex, uv).rgba;
 
-    float ambientOcclusion = float(aoParams.numRays);
-
     SLight sunInfo = lightsBuffer.lights[0];
 
-    float shadowMult = 1;
+    vec3 shadeColor = vec3(1., 1., 1.);
 
     if (worldPos.w != 0.0f)
 	{
 		// Start accumulating from zero if we don't hit the background
-		ambientOcclusion = 0.0f;
+        float ambientOcclusion = 0.0f;
 
         // Initialize a random seed, per-pixel, based on a screen position and temporally varying count
 	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, aoParams.frameCount);
@@ -95,17 +93,17 @@ void main()
 			ambientOcclusion += shootAmbientOcclusionRay(worldPos.xyz, worldDir, aoParams.minT, aoParams.aoRadius);
 		}
 
+        float aoColor = ambientOcclusion / float(aoParams.numRays); 
+
         float distToLight = length(sunInfo.position.xyz - worldPos.xyz);
         vec3 toLight = -normalize(sunInfo.direction.xyz);
-        shadowMult = shadowRayVisibility(worldPos.xyz, toLight, 0.01, distToLight);
+        float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, 0.01, distToLight);
+
+        float NdotL = clamp(dot(worldNorm.xyz, toLight), 0., 1.);
+
+        shadeColor = sunInfo.color.xyz * NdotL * shadowMult * aoColor;
 	}
 
-    float aoColor = ambientOcclusion / float(aoParams.numRays); 
 
-    vec3 sunLightColor = sunInfo.color.xyz; 
-
-    sunLightColor *= aoColor;
-    sunLightColor *= shadowMult;
-
-    imageStore(outputImage, ivec2(gl_LaunchIDEXT.xy), vec4(sunLightColor, 1.0f));
+    imageStore(outputImage, ivec2(gl_LaunchIDEXT.xy), vec4(shadeColor, 1.0f));
 }
