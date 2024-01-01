@@ -22,16 +22,16 @@ class VulkanGIShadowsRaytracingGraphicsPipeline
 		uint32_t pad2;
 	};
 public:
-	struct alignas(16) GlobalAOParams
+	struct alignas(16) GlobalGIParams
 	{
 		float aoRadius;
 		uint32_t  frameCount;
-		float minT;
+		float shadowMult;
 		uint32_t  numRays;
 	};
 	VulkanGIShadowsRaytracingGraphicsPipeline() = default;
 	void init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer);
-	void copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalAOParams& aoData, int current_frame_index);
+	void copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams& aoData, int current_frame_index);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
 	const Texture& get_output() const;

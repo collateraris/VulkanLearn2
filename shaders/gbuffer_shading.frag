@@ -43,8 +43,8 @@ void main()
     uint diffuseID = objectBuffer.objects[objID].diffuseTexIndex;
     vec2 gbufferTexCoord = texture(uvTex, texCoord).rg;
     vec3 diffuse = texture(texSet[diffuseID], gbufferTexCoord).rgb;
-    //vec3 gi = texture(giTex, texCoord).rgb;
-    //diffuse *= gi;
+    vec3 gi = texture(giTex, texCoord).rgb;
+    diffuse *= gi;
 
     const float gamma = 2.2;
     vec3 mapped = diffuse / (diffuse + vec3(1.0));

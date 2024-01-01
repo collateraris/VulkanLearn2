@@ -199,13 +199,13 @@ static void EditAO(VulkanGIShadowsRaytracingGraphicsPipeline& giGP, VulkanSimple
 {
     static bool p_open = true;
     static bool bChangedValue = true;
-    static VulkanGIShadowsRaytracingGraphicsPipeline::GlobalAOParams aoParams = {.aoRadius = 2., .minT = 1e-1, .numRays = 1};
+    static VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams aoParams = {.aoRadius = 0.5, .shadowMult = 0.05, .numRays = 1};
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Edit AO", &p_open);
+    ImGui::Begin("Edit GI", &p_open);
     bChangedValue |= ImGui::InputFloat("AO Radius", &aoParams.aoRadius);
-    bChangedValue |= ImGui::InputFloat("AO minT", &aoParams.minT);
     static int numRays = 1;
     bChangedValue |= ImGui::InputInt("AO numRays", &numRays);
+    bChangedValue |= ImGui::InputFloat("shadow Mult", &aoParams.shadowMult);
     aoParams.numRays = std::max(1, numRays);
     aoParams.frameCount = frameNumber;
 

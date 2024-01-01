@@ -6,7 +6,7 @@ struct SGlobalAOParams
 {
 	float aoRadius;
 	uint  frameCount;
-	float minT;
+	float shadowMult;
 	uint  numRays;
 };
 

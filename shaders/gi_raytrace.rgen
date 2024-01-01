@@ -7,6 +7,8 @@
 layout(location = 0) rayPayloadEXT IndirectRayPayload indirectRpl;
 layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
 
+layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
+
 layout(set = 1, binding = 0) uniform _GlobalAOParams { SGlobalAOParams aoParams; };
 
 layout(set = 1, binding = 1) readonly buffer _Lights{
@@ -14,16 +16,15 @@ layout(set = 1, binding = 1) readonly buffer _Lights{
 	SLight lights[];
 } lightsBuffer;
 
-layout(set = 2, binding = 0) uniform accelerationStructureEXT topLevelAS;
-layout(set = 2, binding = 1, rgba32f) uniform image2D outputImage;
+layout(set = 2, binding = 0, rgba32f) uniform image2D outputImage;
 
 layout(set = 3, binding = 0) uniform sampler2D wposTex;
 layout(set = 3, binding = 1) uniform sampler2D normalTex;
 
 // A wrapper function that encapsulates shooting an ambient occlusion ray query
-float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float maxT)
+float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float maxT, float defaultVal)
 {
-	aoRpl.aoValue = 0.;
+	aoRpl.aoValue = defaultVal;
 
     uint  rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
 
@@ -43,9 +44,9 @@ float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float maxT)
 	return aoRpl.aoValue;
 };
 
-float shadowRayVisibility( vec3 orig, vec3 dir)
+float shadowRayVisibility( vec3 orig, vec3 dir, float defaultVal)
 {
-    return shootAmbientOcclusionRay(orig, dir, 10000000);
+    return shootAmbientOcclusionRay(orig, dir, 10000000, defaultVal);
 };
 
 vec3 shootIndirectRay(vec3 orig, vec3 dir)
@@ -96,17 +97,17 @@ void main()
 			vec3 worldDir = getCosHemisphereSample(randSeed, worldNorm.xyz);
 
 			// Shoot our ambient occlusion ray and update the value we'll output with the result
-			ambientOcclusion += shootAmbientOcclusionRay(worldPos.xyz, worldDir, aoParams.aoRadius);
+			ambientOcclusion += shootAmbientOcclusionRay(worldPos.xyz, worldDir, aoParams.aoRadius, 0.);
 		}
 
         float aoColor = ambientOcclusion / float(aoParams.numRays); 
 
         //SHADOW
         vec3 toLight = normalize(-sunInfo.direction.xyz);
-        float shadowMult = shadowRayVisibility(worldPos.xyz, toLight);
+        float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, aoParams.shadowMult);
 
         float NdotL = clamp(dot(worldNorm.xyz, toLight), 0., 1.);
-        shadeColor = /*shadowMult * NdotL * */sunInfo.color.xyz * aoColor * M_INV_PI;
+        shadeColor = shadowMult * NdotL * sunInfo.color.xyz * aoColor * M_INV_PI;
         
         //INDIRECT ILLUMINATION
         vec3 bounceDir = getCosHemisphereSample(randSeed, worldNorm.xyz);

@@ -231,25 +231,18 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::create_tlas(const std::vector<Re
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
-		// set 0
-		VkAccelerationStructureKHR                   tlas = _rtBuilder.get_acceleration_structure();
-		VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
-		descASInfo.accelerationStructureCount = 1;
-		descASInfo.pAccelerationStructures = &tlas;
-
 		VkDescriptorImageInfo outImageBufferInfo;
 		outImageBufferInfo.sampler = VK_NULL_HANDLE;
 		outImageBufferInfo.imageView = _colorTexture.imageView;
 		outImageBufferInfo.imageLayout = _colorTexture.createInfo.initialLayout;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_rt_as(0, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
-			.bind_image(1, &outImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(0, &outImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.build(_rtDescSet[i], _rtDescSetLayout);
 
 		//set 1
 
-		_globalUniformsBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalAOParams), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		_globalUniformsBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 		VkDescriptorBufferInfo globalUniformsInfo;
 		globalUniformsInfo.buffer = _globalUniformsBuffer[i]._buffer;
@@ -268,7 +261,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::create_tlas(const std::vector<Re
 
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 			.bind_buffer(1, &lightsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 			.bind_buffer(2, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 			.build(_globalUniformsDescSet[i], _globalUniformsDescSetLayout);
@@ -323,6 +316,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_bindless(const std::vector<
 {
 	const uint32_t verticesBinding = 0;
 	const uint32_t textureBinding = 1;
+	const uint32_t tlasBinding = 2;
 
 	//BIND MESHDATA
 	std::vector<VkDescriptorBufferInfo> vertexBufferInfoList{};
@@ -356,16 +350,23 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_bindless(const std::vector<
 		imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	}
 
+	//BIND TLAS
+	VkAccelerationStructureKHR  tlas = _rtBuilder.get_acceleration_structure();
+	VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
+	descASInfo.accelerationStructureCount = 1;
+	descASInfo.pAccelerationStructures = &tlas;
+
 	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
 		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, vertexBufferInfoList.size())
 		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, imageInfoList.size())
+		.bind_rt_as(tlasBinding, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 		.build_bindless(_bindlessSet, _bindlessSetLayout);
 }
 
-void VulkanGIShadowsRaytracingGraphicsPipeline::copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalAOParams& globalData, int current_frame_index)
+void VulkanGIShadowsRaytracingGraphicsPipeline::copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams& globalData, int current_frame_index)
 {
 	_engine->map_buffer(_engine->_allocator, _globalUniformsBuffer[current_frame_index]._allocation, [&](void*& data) {
-		memcpy(data, &globalData, sizeof(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalAOParams));
+		memcpy(data, &globalData, sizeof(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams));
 		});
 }
 

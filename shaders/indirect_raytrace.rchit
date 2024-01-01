@@ -10,12 +10,17 @@ layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
 
 hitAttributeEXT vec2 baryCoord;
 
+
 layout (set = 0, std140, binding = 0) readonly buffer _vertices
 {
 	SVertex vertices[];
 } Vertices[];
 
 layout(set = 0, binding = 1) uniform sampler2D texSet[];
+
+layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
+
+layout(set = 1, binding = 0) uniform _GlobalAOParams { SGlobalAOParams aoParams; };
 
 layout(set = 1, binding = 1) readonly buffer _Lights{
 
@@ -27,12 +32,10 @@ layout(set = 1, binding = 2) readonly buffer ObjectBuffer{
 	SObjectData objects[];
 } objectBuffer;
 
-layout(set = 2, binding = 0) uniform accelerationStructureEXT topLevelAS;
-
 // A wrapper function that encapsulates shooting an ambient occlusion ray query
-float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float maxT)
+float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float maxT, float defaultVal)
 {
-	aoRpl.aoValue = 0.;
+	aoRpl.aoValue = defaultVal;
 
     uint  rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
 
@@ -52,9 +55,9 @@ float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float maxT)
 	return aoRpl.aoValue;
 };
 
-float shadowRayVisibility( vec3 orig, vec3 dir)
+float shadowRayVisibility( vec3 orig, vec3 dir, float defaultVal)
 {
-    return shootAmbientOcclusionRay(orig, dir, 10000000);
+    return shootAmbientOcclusionRay(orig, dir, 10000000, defaultVal);
 };
 
 
@@ -94,7 +97,7 @@ void main()
 
   // Compute our lambertion term (L dot N)
 	float LdotN = clamp(dot(worldNormal, toLight), 0., 1.);
-  float shadowMult = shadowRayVisibility(worldPos.xyz, toLight);
+  float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, aoParams.shadowMult);
 
-  indirectRpl.color = LdotN * diffuse * sunInfo.color.xyz * M_INV_PI;
+  indirectRpl.color = shadowMult * LdotN * diffuse * sunInfo.color.xyz * M_INV_PI;
 }
