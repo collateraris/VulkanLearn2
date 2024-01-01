@@ -42,11 +42,6 @@ struct AORayPayload
   float aoValue;  // Store 0 if we hit a surface, 1 if we miss all surfaces
 };
 
-struct ShadowRayPayload
-{
-	float visFactor;  // Will be 1.0 for fully lit, 0.0 for fully shadowed
-};
-
 // The payload used for our indirect global illumination rays
 struct IndirectRayPayload
 {

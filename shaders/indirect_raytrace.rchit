@@ -5,8 +5,8 @@
 
 #include "gi_raytrace.h"
 
-layout(location = 1) rayPayloadEXT ShadowRayPayload shadowRpl;
-layout(location = 2) rayPayloadEXT IndirectRayPayload indirectRpl;
+layout(location = 0) rayPayloadInEXT  IndirectRayPayload indirectRpl;
+layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
 
 hitAttributeEXT vec2 baryCoord;
 
@@ -29,9 +29,10 @@ layout(set = 1, binding = 2) readonly buffer ObjectBuffer{
 
 layout(set = 2, binding = 0) uniform accelerationStructureEXT topLevelAS;
 
-float shadowRayVisibility( vec3 orig, vec3 dir, float minT, float maxT )
+// A wrapper function that encapsulates shooting an ambient occlusion ray query
+float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT )
 {
-	shadowRpl.visFactor = 0.f;
+	aoRpl.aoValue = 0.f;
 
     uint  rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
 
@@ -40,7 +41,7 @@ float shadowRayVisibility( vec3 orig, vec3 dir, float minT, float maxT )
             0xFF,           // cullMask
             0,              // sbtRecordOffset
             0,              // sbtRecordStride
-            0,              // missIndex
+            1,              // missIndex
             orig.xyz,       // ray origin
             minT,           // ray min range
             dir.xyz,         // ray direction
@@ -48,8 +49,14 @@ float shadowRayVisibility( vec3 orig, vec3 dir, float minT, float maxT )
             1      // payload (location = 0)
     );        
 
-	return shadowRpl.visFactor;
+	return aoRpl.aoValue;
 };
+
+float shadowRayVisibility( vec3 orig, vec3 dir, float minT)
+{
+    return shootAmbientOcclusionRay(orig, dir, minT, 1.0e38f);
+};
+
 
 void main()
 {
@@ -84,12 +91,10 @@ void main()
 
   SLight sunInfo = lightsBuffer.lights[0];
   vec3 toLight = -normalize(sunInfo.direction.xyz);
-  float distToLight = length(sunInfo.position.xyz - worldPos.xyz);
 
   // Compute our lambertion term (L dot N)
 	float LdotN = clamp(dot(worldNormal, toLight), 0., 1.);
-  float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, 0.01, distToLight);
+  //float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, 0.01);
 
-
-  indirectRpl.color = diffuse * LdotN * sunInfo.color.xyz * M_INV_PI;
+  indirectRpl.color = diffuse * sunInfo.color.xyz * M_INV_PI;
 }

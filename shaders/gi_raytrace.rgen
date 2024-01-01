@@ -4,9 +4,8 @@
 
 #include "gi_raytrace.h"
 
-layout(location = 0) rayPayloadEXT AORayPayload aoRpl;
-layout(location = 1) rayPayloadEXT ShadowRayPayload shadowRpl;
-layout(location = 2) rayPayloadEXT IndirectRayPayload indirectRpl;
+layout(location = 0) rayPayloadEXT IndirectRayPayload indirectRpl;
+layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
 
 layout(set = 1, binding = 0) uniform _GlobalAOParams { SGlobalAOParams aoParams; };
 
@@ -33,44 +32,27 @@ float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT )
             0xFF,           // cullMask
             0,              // sbtRecordOffset
             0,              // sbtRecordStride
-            0,              // missIndex
+            1,              // missIndex
             orig.xyz,       // ray origin
             minT,           // ray min range
             dir.xyz,         // ray direction
             maxT,           // ray max range
-            0      // payload (location = 0)
+            1      // payload (location = 1)
     );        
 
 	return aoRpl.aoValue;
 };
 
-float shadowRayVisibility( vec3 orig, vec3 dir, float minT, float maxT )
+float shadowRayVisibility( vec3 orig, vec3 dir, float minT, float maxT)
 {
-	shadowRpl.visFactor = 0.f;
-
-    uint  rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
-
-    traceRayEXT(topLevelAS, // acceleration structure
-            rayFlags,       // rayFlags
-            0xFF,           // cullMask
-            0,              // sbtRecordOffset
-            0,              // sbtRecordStride
-            0,              // missIndex
-            orig.xyz,       // ray origin
-            minT,           // ray min range
-            dir.xyz,         // ray direction
-            maxT,           // ray max range
-            1      // payload (location = 0)
-    );        
-
-	return shadowRpl.visFactor;
+    return shootAmbientOcclusionRay(orig, dir, minT, maxT);
 };
 
 vec3 shootIndirectRay(vec3 orig, vec3 dir, float minT)
 {
     indirectRpl.color = vec3(0., 0., 0.);
 
-    uint  rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
+    uint  rayFlags = gl_RayFlagsOpaqueEXT;
 
     traceRayEXT(topLevelAS, // acceleration structure
             rayFlags,       // rayFlags
@@ -81,8 +63,8 @@ vec3 shootIndirectRay(vec3 orig, vec3 dir, float minT)
             orig.xyz,       // ray origin
             minT,           // ray min range
             dir.xyz,         // ray direction
-            1.0e38f,           // ray max range
-            2      // payload (location = 0)
+            1,//.0e38f,           // ray max range
+            0      // payload (location = 0)
     );   
 
 	// Return the color we got from our ray
@@ -121,21 +103,18 @@ void main()
         float aoColor = ambientOcclusion / float(aoParams.numRays); 
 
         //SHADOW
-        float distToLight = length(sunInfo.position.xyz - worldPos.xyz);
-        vec3 toLight = -normalize(sunInfo.direction.xyz);
-        float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, 0.01, distToLight);
+        vec3 toLight = normalize(-sunInfo.direction.xyz);
+        float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, 1e-3, 10000000);
 
         float NdotL = clamp(dot(worldNorm.xyz, toLight), 0., 1.);
 
-        shadeColor = sunInfo.color.xyz * NdotL * shadowMult * aoColor * M_INV_PI;
+        shadeColor = sunInfo.color.xyz * aoColor * M_INV_PI;
         
         //INDIRECT ILLUMINATION
         vec3 bounceDir = getCosHemisphereSample(randSeed, worldNorm.xyz);
 
-        float NdotLIndirect = clamp(dot(worldNorm.xyz, bounceDir), 0., 1.);
-
         // Shoot our indirect global illumination ray
-		vec3 bounceColor = shootIndirectRay(worldPos.xyz, bounceDir, 0.01);
+		vec3 bounceColor = shootIndirectRay(worldPos.xyz, bounceDir, 1e-3);
 
         shadeColor += bounceColor;
 	}

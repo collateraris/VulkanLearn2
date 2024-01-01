@@ -56,14 +56,12 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const
 	}
 
 	{
-		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::AO_Raytracing,
+		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::GI_Raytracing,
 			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
 				ShaderEffect defaultEffect;
 				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("gi_raytrace.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
-				uint32_t rayMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("ao_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
-				uint32_t rayShadowMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("shadow_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayIndirectMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
-				uint32_t rayClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("ao_raytrace.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+				uint32_t rayMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("ao_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayIndirectClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
 				defaultEffect.reflect_layout(engine->_device, nullptr, 0);
@@ -100,23 +98,14 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const
 
 				// Miss
 				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-				group.generalShader = rayMissIndex;
-				rtShaderGroups.push_back(group);
-
-				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-				group.generalShader = rayShadowMissIndex;
-				rtShaderGroups.push_back(group);
-
-				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
 				group.generalShader = rayIndirectMissIndex;
 				rtShaderGroups.push_back(group);
 
-				// closest hit shader
-				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-				group.generalShader = VK_SHADER_UNUSED_KHR;
-				group.closestHitShader = rayClosestHitIndex;
+				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+				group.generalShader = rayMissIndex;
 				rtShaderGroups.push_back(group);
 
+				// closest hit shader
 				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 				group.generalShader = VK_SHADER_UNUSED_KHR;
 				group.closestHitShader = rayIndirectClosestHitIndex;
@@ -132,8 +121,8 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const
 	}
 
 	{
-		uint32_t missCount{ 3 };
-		uint32_t hitCount{ 2 };
+		uint32_t missCount{ 2 };
+		uint32_t hitCount{ 1 };
 		auto     handleCount = 1 + missCount + hitCount;
 		uint32_t handleSize = _rtProperties.shaderGroupHandleSize;
 
@@ -150,10 +139,10 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const
 		// Get the shader group handles
 		uint32_t             dataSize = handleCount * handleSize;
 		std::vector<uint8_t> handles(dataSize);
-		auto result = vkGetRayTracingShaderGroupHandlesKHR(_engine->_device, _engine->_renderPipelineManager.get_pipeline(EPipelineType::AO_Raytracing), 0, handleCount, dataSize, handles.data());
+		auto result = vkGetRayTracingShaderGroupHandlesKHR(_engine->_device, _engine->_renderPipelineManager.get_pipeline(EPipelineType::GI_Raytracing), 0, handleCount, dataSize, handles.data());
 
 		// Allocate a buffer for storing the SBT.
-		VkDeviceSize sbtSize = _rgenRegion.size + _missRegion.size + _hitRegion.size + _callRegion.size;
+		VkDeviceSize sbtSize = _rgenRegion.size + _missRegion.size + _hitRegion.size;
 		_rtSBTBuffer = _engine->create_staging_buffer(sbtSize,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
 			| VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR);
@@ -176,12 +165,20 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const
 			memcpy(pData, getHandle(handleIdx++), handleSize);
 			// Miss
 			pData = pSBTBuffer + _rgenRegion.size;
-			memcpy(pData, getHandle(handleIdx++), handleSize);
+			for (uint32_t i = 0; i < missCount; i++)
+			{
+				memcpy(pData, getHandle(handleIdx++), handleSize);
+				pData += _missRegion.stride;
+			}
 			// Hit
 			pData = pSBTBuffer + _rgenRegion.size + _missRegion.size;
-			memcpy(pData, getHandle(handleIdx++), handleSize);
+			for (uint32_t i = 0; i < hitCount; i++)
+			{
+				memcpy(pData, getHandle(handleIdx++), handleSize);
+				pData += _hitRegion.stride;
+			}
 
-			});
+		});
 	}
 }
 
@@ -272,7 +269,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::create_tlas(const std::vector<Re
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.bind_buffer(1, &lightsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_buffer(1, &lightsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 			.bind_buffer(2, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 			.build(_globalUniformsDescSet[i], _globalUniformsDescSetLayout);
 	}
@@ -397,14 +394,14 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, i
 
 	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
 		[&](VkCommandBuffer cmd) {
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::AO_Raytracing));
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::AO_Raytracing), 0,
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::GI_Raytracing));
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::GI_Raytracing), 0,
 				1, &_bindlessSet, 0, nullptr);
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::AO_Raytracing), 1,
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::GI_Raytracing), 1,
 				1, &_globalUniformsDescSet[current_frame_index], 0, nullptr);
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::AO_Raytracing), 2,
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::GI_Raytracing), 2,
 				1, &_rtDescSet[current_frame_index], 0, nullptr);
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::AO_Raytracing), 3,
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::GI_Raytracing), 3,
 				1, &_gBuffDescSet[current_frame_index], 0, nullptr);
 		});
 }

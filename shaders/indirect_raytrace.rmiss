@@ -4,10 +4,9 @@
 
 #include "gi_raytrace.h"
 
-layout(location = 2) rayPayloadEXT IndirectRayPayload indirectRpl;
+layout(location = 1) rayPayloadInEXT IndirectRayPayload indirectRpl;
 
 void main()
-{
-	// Our ambient occlusion value is 1 if we hit nothing.    
+{    
     indirectRpl.color = vec3(0., 0., 0.);
 }
