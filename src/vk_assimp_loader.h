@@ -7,5 +7,5 @@
 class AsimpLoader
 {
 public:
-	static void processScene(const SceneConfig& config, Scene& newScene, ResourceManager& resManager);
+	static void processScene(const SceneConfig& config, Scene& newScene, ResourceManager& resManager, glm::mat4 model = glm::mat4(1.0));
 };

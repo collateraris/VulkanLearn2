@@ -9,13 +9,13 @@
 
 glm::mat4 toMat4(const aiMatrix4x4& from);
 
-void traverse(const aiScene* sourceScene, Scene& scene, aiNode* anode, int parent, int level);
+void traverse(const aiScene* sourceScene, Scene& scene, aiNode* anode, int parent, int level, glm::mat4 model);
 
 void collectAIMesh(const aiMesh* amesh, const SceneConfig& config, ResourceManager& resManager);
 
 void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& resManager, std::string lastDirectory);
 
-void AsimpLoader::processScene(const SceneConfig& config, Scene& newScene, ResourceManager& resManager)
+void AsimpLoader::processScene(const SceneConfig& config, Scene& newScene, ResourceManager& resManager, glm::mat4 model/* = glm::mat4(1.0)*/)
 {
 	std::filesystem::path filePath(config.fileName);
 	if (!std::filesystem::exists(filePath))
@@ -60,7 +60,7 @@ void AsimpLoader::processScene(const SceneConfig& config, Scene& newScene, Resou
 		collectAIMaterialDescAndTexture(scene->mMaterials[m], resManager, lastDirectory);
 	}
 
-	traverse(scene, newScene, scene->mRootNode, -1, 0);
+	traverse(scene, newScene, scene->mRootNode, -1, 0, model);
 }
 
 glm::mat4 toMat4(const aiMatrix4x4& from)
@@ -73,7 +73,7 @@ glm::mat4 toMat4(const aiMatrix4x4& from)
 	return to;
 }
 
-void traverse(const aiScene* sourceScene, Scene& scene, aiNode* anode, int parent, int level)
+void traverse(const aiScene* sourceScene, Scene& scene, aiNode* anode, int parent, int level, glm::mat4 model)
 {
 	int newNode = SceneManager::addNode(scene, parent, level);
 
@@ -97,14 +97,14 @@ void traverse(const aiScene* sourceScene, Scene& scene, aiNode* anode, int paren
 		scene._matForNode[newSubNode] = sourceScene->mMeshes[mesh]->mMaterialIndex;
 
 		scene._globalTransforms[newSubNode] = glm::mat4(1.0f);
-		scene._localTransforms[newSubNode] = glm::mat4(1.0f);
+		scene._localTransforms[newSubNode] = model;
 	}
 
 	scene._globalTransforms[newNode] = glm::mat4(1.0f);
-	scene._localTransforms[newNode] = toMat4(anode->mTransformation);
+	scene._localTransforms[newNode] = model * toMat4(anode->mTransformation);
 
 	for (unsigned int n = 0; n < anode->mNumChildren; n++)
-		traverse(sourceScene, scene, anode->mChildren[n], newNode, level + 1);
+		traverse(sourceScene, scene, anode->mChildren[n], newNode, level + 1, model);
 }
 
 void collectAIMesh(const aiMesh* amesh, const SceneConfig& config, ResourceManager& resManager)
@@ -148,6 +148,7 @@ void ProcessMeshLoadMaterialTextures(const aiMaterial* mat, aiTextureType type, 
 
 		switch (type)
 		{
+		case aiTextureType_BASE_COLOR:
 		case aiTextureType_DIFFUSE:
 			newMatDesc->diffuseTexture = texPath;
 			newMatDesc->diffuseTextureIndex = resManager.storeTexture(newMatDesc->diffuseTexture);
@@ -174,6 +175,6 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 
 	newMatDesc->matName = amat->GetName().C_Str();
 
-	ProcessMeshLoadMaterialTextures(amat, aiTextureType_DIFFUSE, lastDirectory, newMatDesc, resManager);
-	ProcessMeshLoadMaterialTextures(amat, aiTextureType_HEIGHT, lastDirectory, newMatDesc, resManager);
+	ProcessMeshLoadMaterialTextures(amat, aiTextureType_BASE_COLOR, lastDirectory, newMatDesc, resManager);
+	//ProcessMeshLoadMaterialTextures(amat, aiTextureType_HEIGHT, lastDirectory, newMatDesc, resManager);
 }

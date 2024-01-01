@@ -44,11 +44,15 @@ void VulkanEngine::init()
 		window_flags
 	);
 	SceneConfig config;
-	config.fileName = "../../assets/sponza.obj";
+	config.fileName = "../../assets/builder/scene.gltf";
+	//config.fileName = "../../assets/sponza.obj";
 	//config.fileName = "../../assets/lost_empire.obj";
 	//config.fileName = "../../assets/monkey_smooth.obj";
-	config.scaleFactor = 0.1;
-	AsimpLoader::processScene(config, _scene, _resManager);
+	//config.scaleFactor = 0.001;
+	glm::mat4 model = glm::mat4(1.0);
+	model = glm::rotate(model, glm::radians(-90.f), glm::vec3(1, 0, 0));
+	AsimpLoader::processScene(config, _scene, _resManager, model);
+	//AsimpLoader::processScene(config, _scene, _resManager);
 
 	_logger.init("vulkan.log");
 

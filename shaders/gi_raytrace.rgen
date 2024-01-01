@@ -106,7 +106,7 @@ void main()
         float shadowMult = shadowRayVisibility(worldPos.xyz, toLight);
 
         float NdotL = clamp(dot(worldNorm.xyz, toLight), 0., 1.);
-        shadeColor = shadowMult * NdotL * sunInfo.color.xyz * aoColor * M_INV_PI;
+        shadeColor = /*shadowMult * NdotL * */sunInfo.color.xyz * aoColor * M_INV_PI;
         
         //INDIRECT ILLUMINATION
         vec3 bounceDir = getCosHemisphereSample(randSeed, worldNorm.xyz);

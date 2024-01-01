@@ -96,5 +96,5 @@ void main()
 	float LdotN = clamp(dot(worldNormal, toLight), 0., 1.);
   float shadowMult = shadowRayVisibility(worldPos.xyz, toLight);
 
-  indirectRpl.color = shadowMult * LdotN * diffuse * sunInfo.color.xyz * M_INV_PI;
+  indirectRpl.color = LdotN * diffuse * sunInfo.color.xyz * M_INV_PI;
 }
