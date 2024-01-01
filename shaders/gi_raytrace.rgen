@@ -4,6 +4,7 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "gi_raytrace.h"
+#include "ggx_brdf.h"
 
 layout(location = 0) rayPayloadEXT IndirectRayPayload indirectRpl;
 layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
@@ -93,11 +94,20 @@ void main()
 
     if (worldPos.w != 0.0f)
 	{
+
+
         float objIDf = texture(objIDTex, uv).r;
         uint objID = uint(objIDf);
-        uint diffuseID = objectBuffer.objects[objID].diffuseTexIndex;
+        SObjectData shadeData = objectBuffer.objects[objID];
         vec2 gbufferTexCoord = texture(uvTex, uv).rg;
-        vec3 diffuse = texture(texSet[diffuseID], gbufferTexCoord).rgb;
+
+        vec3 diffuse = texture(texSet[shadeData.diffuseTexIndex], gbufferTexCoord).rgb;
+
+        vec3 emission = vec3(0., 0., 0);
+        if (shadeData.emissionTexIndex > 0)
+            emission = texture(texSet[shadeData.emissionTexIndex], gbufferTexCoord).rgb;
+
+        shadeColor = emission;    
 
         //AO
 		// Start accumulating from zero if we don't hit the background
@@ -122,7 +132,7 @@ void main()
         float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, aoParams.shadowMult);
 
         float NdotL = clamp(dot(worldNorm.xyz, toLight), 0., 1.);
-        shadeColor = diffuse * shadowMult * NdotL * sunInfo.color.xyz * aoColor * M_INV_PI;
+        shadeColor += diffuse * shadowMult * NdotL * sunInfo.color.xyz * aoColor * M_INV_PI;
         
         //INDIRECT ILLUMINATION
         vec3 bounceDir = getCosHemisphereSample(randSeed, worldNorm.xyz);

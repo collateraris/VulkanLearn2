@@ -48,7 +48,8 @@ void VulkanEngine::init()
 	//config.fileName = "../../assets/sponza.obj";
 	//config.fileName = "../../assets/lost_empire.obj";
 	//config.fileName = "../../assets/monkey_smooth.obj";
-	//config.scaleFactor = 0.001;
+	//config.fileName = "F:/myrepo/Bistro_v5_2/Bistro_v5_2/BistroExterior.fbx";
+	//config.scaleFactor = 0.1;
 	glm::mat4 model = glm::mat4(1.0);
 	model = glm::rotate(model, glm::radians(-90.f), glm::vec3(1, 0, 0));
 	AsimpLoader::processScene(config, _scene, _resManager, model);
