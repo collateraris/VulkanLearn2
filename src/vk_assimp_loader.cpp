@@ -138,6 +138,35 @@ void collectAIMesh(const aiMesh* amesh, const SceneConfig& config, ResourceManag
 	}
 }
 
+void ProcessMeshLoadMaterialTextures(const aiMaterial* mat, aiTextureType type, std::string lastDirectory, MaterialDesc* newMatDesc, ResourceManager& resManager)
+{
+	for (unsigned int i = 0; i < mat->GetTextureCount(type); i++)
+	{
+		aiString str;
+		mat->GetTexture(type, i, &str);
+		std::string texPath = lastDirectory + "/" + std::string(str.C_Str());
+
+		switch (type)
+		{
+		case aiTextureType_DIFFUSE:
+			newMatDesc->diffuseTexture = texPath;
+			newMatDesc->diffuseTextureIndex = resManager.storeTexture(newMatDesc->diffuseTexture);
+			break;
+		case aiTextureType_SPECULAR:
+			break;
+		case aiTextureType_HEIGHT:
+		case aiTextureType_NORMALS:
+			newMatDesc->normalTexture = texPath;
+			newMatDesc->normalTextureIndex = resManager.storeTexture(newMatDesc->normalTexture);
+			break;
+		case aiTextureType_AMBIENT:
+			break;
+		default:
+			continue;
+		}
+	}
+}
+
 void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& resManager, std::string lastDirectory)
 {
 	resManager.matDescList.push_back(std::make_unique<MaterialDesc>());
@@ -145,18 +174,6 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 
 	newMatDesc->matName = amat->GetName().C_Str();
 
-	aiString Path;
-	aiTextureMapping Mapping;
-	unsigned int UVIndex = 0;
-	float Blend = 1.0f;
-	aiTextureOp TextureOp = aiTextureOp_Add;
-	aiTextureMapMode TextureMapMode[2] = { aiTextureMapMode_Wrap, aiTextureMapMode_Wrap };
-	unsigned int TextureFlags = 0;
-
-
-	if (aiGetMaterialTexture(amat, aiTextureType_DIFFUSE, 0, &Path, &Mapping, &UVIndex, &Blend, &TextureOp, TextureMapMode, &TextureFlags) == AI_SUCCESS)
-	{
-		newMatDesc->diffuseTexture = lastDirectory + "/" + std::string(Path.C_Str());
-		newMatDesc->diffuseTextureIndex = resManager.storeTexture(newMatDesc->diffuseTexture);
-	}
+	ProcessMeshLoadMaterialTextures(amat, aiTextureType_DIFFUSE, lastDirectory, newMatDesc, resManager);
+	ProcessMeshLoadMaterialTextures(amat, aiTextureType_HEIGHT, lastDirectory, newMatDesc, resManager);
 }

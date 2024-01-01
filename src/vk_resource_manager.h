@@ -8,6 +8,8 @@ struct MaterialDesc
 	std::string matName = {};
 	std::string diffuseTexture = {};
 	uint32_t diffuseTextureIndex;
+	std::string normalTexture = {};
+	int32_t normalTextureIndex = -1;
 };
 
 class ResourceManager
