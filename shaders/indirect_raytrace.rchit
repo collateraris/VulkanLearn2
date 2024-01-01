@@ -30,9 +30,9 @@ layout(set = 1, binding = 2) readonly buffer ObjectBuffer{
 layout(set = 2, binding = 0) uniform accelerationStructureEXT topLevelAS;
 
 // A wrapper function that encapsulates shooting an ambient occlusion ray query
-float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT, float aoVal )
+float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float maxT)
 {
-	aoRpl.aoValue = aoVal;
+	aoRpl.aoValue = 0.;
 
     uint  rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
 
@@ -43,7 +43,7 @@ float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT, flo
             0,              // sbtRecordStride
             1,              // missIndex
             orig.xyz,       // ray origin
-            minT,           // ray min range
+            1e-3,           // ray min range
             dir.xyz,         // ray direction
             maxT,           // ray max range
             1      // payload (location = 1)
@@ -52,9 +52,9 @@ float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT, flo
 	return aoRpl.aoValue;
 };
 
-float shadowRayVisibility( vec3 orig, vec3 dir, float minT)
+float shadowRayVisibility( vec3 orig, vec3 dir)
 {
-    return shootAmbientOcclusionRay(orig, dir, minT, 10000000, 0.01);
+    return shootAmbientOcclusionRay(orig, dir, 10000000);
 };
 
 
@@ -94,7 +94,7 @@ void main()
 
   // Compute our lambertion term (L dot N)
 	float LdotN = clamp(dot(worldNormal, toLight), 0., 1.);
-  float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, 0.01);
+  float shadowMult = shadowRayVisibility(worldPos.xyz, toLight);
 
-  indirectRpl.color = LdotN * diffuse * sunInfo.color.xyz * M_INV_PI;
+  indirectRpl.color = shadowMult * LdotN * diffuse * sunInfo.color.xyz * M_INV_PI;
 }
