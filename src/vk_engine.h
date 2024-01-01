@@ -22,7 +22,6 @@
 #include <vk_command_buffer.h>
 #include <vk_render_pipeline.h>
 #include <vk_framebuffer.h>
-#include <graphic_pipeline/vk_raytrace_graphic_pipeline.h>
 #include <graphic_pipeline/vk_fullscreen_graphics_pipeline.h>
 #include <graphic_pipeline/vbuffer_graphics_pipeline.h>
 #include <graphic_pipeline/vk_vbuffer_shading_graphics_pipeline.h>
@@ -152,11 +151,6 @@ public:
 
 	VulkanDepthReduceRenderPass _depthReduceRenderPass;
 	std::vector<VkFramebuffer> _framebuffers;
-
-#if RAYTRACER_ON
-	VulkanRaytracingGraphicsPipeline _rtGraphicsPipeline;
-	VulkanFullScreenGraphicsPipeline _fullscreenGraphicsPipeline;
-#endif
 
 #if VBUFFER_ON
 	VulkanVbufferGraphicsPipeline _visBufGenerateGraphicsPipeline;

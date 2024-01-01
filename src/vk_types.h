@@ -4,8 +4,6 @@
 #pragma once
 
 #define MESHSHADER_ON 0
-#define INDIRECT_DRAW_ON 0
-#define RAYTRACER_ON 0
 #define GI_RAYTRACER_ON 1 // NEED GBUFFER_ON
 #define VBUFFER_ON 0
 #define GBUFFER_ON 1

@@ -77,9 +77,6 @@ void VulkanEngine::init()
 	init_sync_structures();
 
 	init_descriptors();
-#if INDIRECT_DRAW_ON
-	init_pipelines();
-#endif
 
 	init_imgui();
 
@@ -88,18 +85,11 @@ void VulkanEngine::init()
 	load_meshes();
 
 	init_scene();
-#if MESHSHADER_ON || RAYTRACER_ON || VBUFFER_ON || GBUFFER_ON || GI_RAYTRACER_ON
+#if MESHSHADER_ON || VBUFFER_ON || GBUFFER_ON || GI_RAYTRACER_ON
 	init_pipelines();
 #endif
 
 	_lightManager.init(this);
-
-#if RAYTRACER_ON
-	_rtGraphicsPipeline.init(this);
-
-	_fullscreenGraphicsPipeline.init(this);
-	_fullscreenGraphicsPipeline.init_description_set(_rtGraphicsPipeline.get_output());
-#endif
 
 #if VBUFFER_ON
 
@@ -213,13 +203,6 @@ void VulkanEngine::draw()
 			map_buffer(_allocator, get_current_frame().cameraBuffer._allocation, [&](void*& data) {
 				memcpy(data, &camData, sizeof(GPUCameraData));
 				});
-#if RAYTRACER_ON
-			VulkanRaytracingGraphicsPipeline::GlobalUniforms globalData;
-			globalData.viewProj = projection * view;
-			globalData.projInverse = glm::inverse(projection);
-			globalData.viewInverse = glm::inverse(view);
-			_rtGraphicsPipeline.copy_global_uniform_data(globalData, get_current_frame_index());
-#endif
 #if VBUFFER_ON
 			{
 				VulkanVbufferGraphicsPipeline::SGlobalCamera globalCameraData;
@@ -253,9 +236,6 @@ void VulkanEngine::draw()
 
 		}
 
-#if RAYTRACER_ON
-		_rtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-#endif
 		//compute_pass(cmd); 
 
 		//make a clear-color from frame number. This will flash with a 120*pi frame period.
@@ -355,9 +335,6 @@ void VulkanEngine::draw()
 #if GBUFFER_ON
 			_gBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif			
-#if RAYTRACER_ON
-			_fullscreenGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-#endif
 #if VBUFFER_ON
 			_visBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif
@@ -558,7 +535,7 @@ void VulkanEngine::init_vulkan()
 		VK_NV_MESH_SHADER_EXTENSION_NAME,
 #endif
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-#if RAYTRACER_ON || GI_RAYTRACER_ON
+#if GI_RAYTRACER_ON
 		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
 		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, // Required by ray tracing pipeline
@@ -604,7 +581,7 @@ void VulkanEngine::init_vulkan()
 	descriptor_indexing_features.descriptorBindingPartiallyBound = true;
 	descriptor_indexing_features.runtimeDescriptorArray = true;
 
-#if RAYTRACER_ON || GI_RAYTRACER_ON
+#if GI_RAYTRACER_ON
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
 	acceleration_structure_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
 	acceleration_structure_features.pNext = nullptr;
@@ -620,7 +597,7 @@ void VulkanEngine::init_vulkan()
 		.add_pNext(&featuresMesh)
 		.add_pNext(&buffer_device_address_features)
 		.add_pNext(&descriptor_indexing_features)
-#if RAYTRACER_ON || GI_RAYTRACER_ON
+#if GI_RAYTRACER_ON
 		.add_pNext(&acceleration_structure_features)
 		.add_pNext(&rt_features)
 #endif
@@ -919,11 +896,6 @@ void VulkanEngine::init_pipelines() {
 		});
 #endif
 
-#if INDIRECT_DRAW_ON
-	auto meshPipeline = _renderPipelineManager.get_pipeline(EPipelineType::DrawIndirectForward);
-	auto meshPipLayout = _renderPipelineManager.get_pipelineLayout(EPipelineType::DrawIndirectForward);
-	load_materials(meshPipeline, meshPipLayout);
-#endif
 #if MESHSHADER_ON
 	_depthReduceRenderPass.init_pipelines();
 #endif	
@@ -937,8 +909,6 @@ void VulkanEngine::load_meshes()
 		mesh->remapVertexToVertexMS()
 			.calcAddInfo()
 			.buildMeshlets();
-#elif INDIRECT_DRAW_ON
-		mesh->calcAddInfo();
 #endif // MESHSHADER_ON
 		upload_mesh(*mesh);
 	}
@@ -962,17 +932,6 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 			size_t bufferSize = padSizeToMinStorageBufferOffsetAlignment(mesh.meshletdata.size() * sizeof(uint32_t));
 
 			mesh._meshletdataBuffer = create_buffer_n_copy_data(bufferSize, mesh.meshletdata.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		}
-#elif INDIRECT_DRAW_ON
-		{
-			size_t bufferSize = mesh._vertices.size() * sizeof(Vertex);
-
-			mesh._vertexBuffer = create_buffer_n_copy_data(bufferSize, mesh._vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-		}
-		{
-			size_t bufferSize = mesh._indices.size() * sizeof(mesh._indices[0]);
-
-			mesh._indicesBuffer = create_buffer_n_copy_data(bufferSize, mesh._indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 		}
 #endif
 
@@ -1246,8 +1205,6 @@ void VulkanEngine::init_descriptors()
 
 #if MESHSHADER_ON
 	_indirectBuffer = create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawMeshTasksIndirectCommandNV), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
-#elif INDIRECT_DRAW_ON
-	_indirectBuffer = create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
 #endif
 	_objectBuffer = create_cpu_to_gpu_buffer(sizeof(GPUObjectData) * MAX_OBJECTS, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
@@ -1282,10 +1239,6 @@ void VulkanEngine::init_descriptors()
 			.bind_image(1, &depthPyramidImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_TASK_BIT_NV | VK_SHADER_STAGE_MESH_BIT_NV)
 			.bind_buffer(2, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_TASK_BIT_NV | VK_SHADER_STAGE_MESH_BIT_NV)
 			.build(_frames[i].globalDescriptor, _globalSetLayout);
-#elif INDIRECT_DRAW_ON
-		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
-			.bind_buffer(0, &cameraInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-			.build(_frames[i].globalDescriptor, _globalSetLayout);
 #endif
 
 #if MESHSHADER_ON
@@ -1300,10 +1253,6 @@ void VulkanEngine::init_descriptors()
 			.bind_buffer(1, &indirectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
 			.bind_buffer(2, &cameraInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
 			.bind_image(3, &depthPyramidImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
-			.build(_frames[i].objectDescriptor, _objectSetLayout);
-#elif INDIRECT_DRAW_ON
-		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
-			.bind_buffer(0, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
 			.build(_frames[i].objectDescriptor, _objectSetLayout);
 #endif
 	}
@@ -1442,40 +1391,6 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 	VkDeviceSize indirect_offset = 0 * sizeof(VkDrawMeshTasksIndirectCommandNV);
 	uint32_t draw_stride = sizeof(VkDrawMeshTasksIndirectCommandNV);
 	vkCmdDrawMeshTasksIndirectNV(cmd, _indirectBuffer._buffer, indirect_offset, count, draw_stride);
-#elif INDIRECT_DRAW_ON
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _indirectBatchRO[0].material->pipeline);
-
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _indirectBatchRO[0].material->pipelineLayout, 0, 1, &get_current_frame().globalDescriptor, 0, nullptr);
-	for (IndirectBatch& object : _indirectBatchRO)
-	{
-		//only bind the pipeline if it doesn't match with the already bound one
-		if (object.material != lastMaterial) {
-
-			//object data descriptor
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &get_current_frame().objectDescriptor, 0, nullptr);
-
-			if (object.material->textureSet[frameIndex] != VK_NULL_HANDLE) {
-				//texture descriptor
-				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet[frameIndex], 0, nullptr);
-			}
-			lastMaterial = object.material;
-		}
-
-		//only bind the mesh if its a different one from last bind
-		if (object.mesh != lastMesh) {
-			//bind the mesh vertex buffer with offset 0
-			VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(cmd, 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
-			vkCmdBindIndexBuffer(cmd, object.mesh->_indicesBuffer._buffer, offset, VK_INDEX_TYPE_UINT32);
-			lastMesh = object.mesh;
-		}
-
-		VkDeviceSize indirect_offset = object.first * sizeof(VkDrawIndexedIndirectCommand);
-		uint32_t draw_stride = sizeof(VkDrawIndexedIndirectCommand);
-
-		//execute the draw command buffer on each section as defined by the array of draws
-		vkCmdDrawIndexedIndirect(cmd, _indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
-	}
 #endif
 }
 
@@ -1503,23 +1418,8 @@ void VulkanEngine::init_scene()
 			for (const auto& map : mapVector)
 				_renderables.push_back(map);
 	_indirectBatchRO = compact_draws(_renderables.data(), _renderables.size());
-#if INDIRECT_DRAW_ON
-	map_buffer(_allocator, _indirectBuffer._allocation, [&](void*& data) {
-		VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)data;
-		//encode the draw data of each object into the indirect draw buffer
-		for (int i = 0; i < _renderables.size(); i++)
-		{
-			RenderObject& object = _renderables[i];
-			drawCommands[i].indexCount = object.mesh->_indices.size();
-			drawCommands[i].instanceCount = 1;
-			drawCommands[i].vertexOffset = 0;
-			drawCommands[i].firstIndex = 0;
-			drawCommands[i].firstInstance = i; //used to access object matrix in the shader
-		}
-		});
-#endif
 
-#if MESHSHADER_ON || INDIRECT_DRAW_ON
+#if MESHSHADER_ON
 	map_buffer(_allocator, _objectBuffer._allocation, [&](void*& data) {
 		GPUObjectData* objectSSBO = (GPUObjectData*)data;
 
@@ -1540,32 +1440,6 @@ void VulkanEngine::init_scene()
 
 #if MESHSHADER_ON
 	init_bindless_scene();
-#elif INDIRECT_DRAW_ON
-	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
-
-	VkSampler blockySampler;
-	vkCreateSampler(_device, &samplerInfo, nullptr, &blockySampler);
-
-	for (const auto& matDesc : _resManager.matDescList)
-	{
-		if (matDesc->diffuseTexture.empty())
-			continue;
-
-		{
-
-			const std::string& matName = matDesc->matName;
-			Material* texturedMat = get_material(matName);
-
-			VkDescriptorImageInfo imageBufferInfo;
-			imageBufferInfo.sampler = blockySampler;
-			imageBufferInfo.imageView = _resManager.textureCache[matDesc->diffuseTexture]->imageView;
-			imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-			vkutil::DescriptorBuilder::begin(_descriptorLayoutCache.get(), _descriptorAllocator.get())
-				.bind_image(0, &imageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-				.build(texturedMat->textureSet, _singleTextureSetLayout);
-		}
-	}
 #endif
 }
 

@@ -48,8 +48,6 @@ add_executable(vulkan_guide
     vk_command_pool.cpp
     vk_render_pipeline.h
     vk_render_pipeline.cpp
-    graphic_pipeline/vk_raytrace_graphic_pipeline.h
-    graphic_pipeline/vk_raytrace_graphic_pipeline.cpp
     graphic_pipeline/vk_fullscreen_graphics_pipeline.h
     graphic_pipeline/vk_fullscreen_graphics_pipeline.cpp
     graphic_pipeline/vbuffer_graphics_pipeline.h

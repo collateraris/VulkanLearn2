@@ -64,10 +64,10 @@ struct Mesh {
 	AllocatedBuffer _meshletsBuffer;
 	AllocatedBuffer _meshletdataBuffer;
 #endif
-#if INDIRECT_DRAW_ON || VBUFFER_ON
+#if VBUFFER_ON
 	AllocatedBuffer _indicesBuffer;
 #endif
-#if RAYTRACER_ON || GI_RAYTRACER_ON
+#if GI_RAYTRACER_ON
 	AllocatedBuffer _vertexBufferRT;
 	AllocatedBuffer _indicesBufferRT;
 #endif
