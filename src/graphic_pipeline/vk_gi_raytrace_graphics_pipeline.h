@@ -18,8 +18,12 @@ class VulkanGIShadowsRaytracingGraphicsPipeline
 	{
 		uint32_t meshIndex;
 		uint32_t diffuseTexIndex;
-		uint32_t pad1;
-		uint32_t pad2;
+		int32_t normalTexIndex = -1;
+		int32_t metalnessTexIndex = -1;
+		int32_t roughnessTexIndex = -1;
+		int32_t emissionTexIndex = -1;
+		int32_t opacityTexIndex = -1;
+		uint32_t pad;
 	};
 public:
 	struct alignas(16) GlobalGIParams

@@ -122,7 +122,7 @@ void VulkanEngine::init()
 	_gBufGenerateGraphicsPipeline.init(this);
 	_giRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer());
 	_simpleAccumGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
-	_gBufShadingGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer(), _simpleAccumGraphicsPipeline.get_output());
+	_gBufShadingGraphicsPipeline.init(this, _simpleAccumGraphicsPipeline.get_output());
 #endif
 
 
@@ -219,12 +219,6 @@ void VulkanEngine::draw()
 				VulkanGbufferGenerateGraphicsPipeline::SGlobalCamera globalCameraData;
 				globalCameraData.viewProj = projection * view;
 				_gBufGenerateGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
-			}
-
-			{
-				VulkanGbufferShadingGraphicsPipeline::SGlobalCamera globalCameraData;
-				globalCameraData.viewProj = projection * view;
-				_gBufShadingGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
 			}
 #endif
 

@@ -1,5 +1,6 @@
 #version 460
 #extension GL_EXT_ray_tracing : require
+#extension GL_EXT_nonuniform_qualifier:enable
 #extension GL_GOOGLE_include_directive : enable
 
 #include "gi_raytrace.h"
@@ -7,6 +8,7 @@
 layout(location = 0) rayPayloadEXT IndirectRayPayload indirectRpl;
 layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
 
+layout(set = 0, binding = 1) uniform sampler2D texSet[];
 layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
 
 layout(set = 1, binding = 0) uniform _GlobalAOParams { SGlobalAOParams aoParams; };
@@ -16,10 +18,17 @@ layout(set = 1, binding = 1) readonly buffer _Lights{
 	SLight lights[];
 } lightsBuffer;
 
+layout(set = 1, binding = 2) readonly buffer ObjectBuffer{
+
+	SObjectData objects[];
+} objectBuffer;
+
 layout(set = 2, binding = 0, rgba32f) uniform image2D outputImage;
 
 layout(set = 3, binding = 0) uniform sampler2D wposTex;
 layout(set = 3, binding = 1) uniform sampler2D normalTex;
+layout(set = 3, binding = 2) uniform sampler2D uvTex;
+layout(set = 3, binding = 3) uniform sampler2D objIDTex;
 
 // A wrapper function that encapsulates shooting an ambient occlusion ray query
 float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float maxT, float defaultVal)
@@ -80,10 +89,16 @@ void main()
 
     SLight sunInfo = lightsBuffer.lights[0];
 
-    vec3 shadeColor = vec3(1., 1., 1.);
+    vec3 shadeColor = vec3(1., 0., 1.);
 
     if (worldPos.w != 0.0f)
 	{
+        float objIDf = texture(objIDTex, uv).r;
+        uint objID = uint(objIDf);
+        uint diffuseID = objectBuffer.objects[objID].diffuseTexIndex;
+        vec2 gbufferTexCoord = texture(uvTex, uv).rg;
+        vec3 diffuse = texture(texSet[diffuseID], gbufferTexCoord).rgb;
+
         //AO
 		// Start accumulating from zero if we don't hit the background
         float ambientOcclusion = 0.0f;
@@ -107,7 +122,7 @@ void main()
         float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, aoParams.shadowMult);
 
         float NdotL = clamp(dot(worldNorm.xyz, toLight), 0., 1.);
-        shadeColor = shadowMult * NdotL * sunInfo.color.xyz * aoColor * M_INV_PI;
+        shadeColor = diffuse * shadowMult * NdotL * sunInfo.color.xyz * aoColor * M_INV_PI;
         
         //INDIRECT ILLUMINATION
         vec3 bounceDir = getCosHemisphereSample(randSeed, worldNorm.xyz);

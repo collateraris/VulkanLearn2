@@ -150,15 +150,50 @@ void ProcessMeshLoadMaterialTextures(const aiMaterial* mat, aiTextureType type, 
 		{
 		case aiTextureType_BASE_COLOR:
 		case aiTextureType_DIFFUSE:
-			newMatDesc->diffuseTexture = texPath;
-			newMatDesc->diffuseTextureIndex = resManager.storeTexture(newMatDesc->diffuseTexture);
+			if (newMatDesc->diffuseTexture.empty())
+			{
+				newMatDesc->diffuseTexture = texPath;
+				newMatDesc->diffuseTextureIndex = resManager.storeTexture(newMatDesc->diffuseTexture);
+			}
 			break;
 		case aiTextureType_SPECULAR:
 			break;
 		case aiTextureType_HEIGHT:
 		case aiTextureType_NORMALS:
-			newMatDesc->normalTexture = texPath;
-			newMatDesc->normalTextureIndex = resManager.storeTexture(newMatDesc->normalTexture);
+			if (newMatDesc->normalTexture.empty())
+			{
+				newMatDesc->normalTexture = texPath;
+				newMatDesc->normalTextureIndex = resManager.storeTexture(newMatDesc->normalTexture);
+			}
+			break;
+		case aiTextureType_EMISSION_COLOR:
+		case aiTextureType_EMISSIVE:
+			if (newMatDesc->emissionTexture.empty())
+			{
+				newMatDesc->emissionTexture = texPath;
+				newMatDesc->emissionTextureIndex = resManager.storeTexture(newMatDesc->emissionTexture);
+			}
+			break;
+		case aiTextureType_METALNESS:
+			if (newMatDesc->metalnessTexture.empty())
+			{
+				newMatDesc->metalnessTexture = texPath;
+				newMatDesc->metalnessTextureIndex = resManager.storeTexture(newMatDesc->metalnessTexture);
+			}
+			break;
+		case aiTextureType_DIFFUSE_ROUGHNESS:
+			if (newMatDesc->roughnessTexture.empty())
+			{
+				newMatDesc->roughnessTexture = texPath;
+				newMatDesc->roughnessTextureIndex = resManager.storeTexture(newMatDesc->roughnessTexture);
+			}
+			break;
+		case aiTextureType_OPACITY:
+			if (newMatDesc->opacityTexture.empty())
+			{
+				newMatDesc->opacityTexture = texPath;
+				newMatDesc->opacityTextureIndex = resManager.storeTexture(newMatDesc->opacityTexture);
+			}
 			break;
 		case aiTextureType_AMBIENT:
 			break;
@@ -175,6 +210,15 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 
 	newMatDesc->matName = amat->GetName().C_Str();
 
+	ProcessMeshLoadMaterialTextures(amat, aiTextureType_DIFFUSE, lastDirectory, newMatDesc, resManager);
+	ProcessMeshLoadMaterialTextures(amat, aiTextureType_HEIGHT, lastDirectory, newMatDesc, resManager);
+	ProcessMeshLoadMaterialTextures(amat, aiTextureType_OPACITY, lastDirectory, newMatDesc, resManager);
+	// or PBR
+
 	ProcessMeshLoadMaterialTextures(amat, aiTextureType_BASE_COLOR, lastDirectory, newMatDesc, resManager);
-	//ProcessMeshLoadMaterialTextures(amat, aiTextureType_HEIGHT, lastDirectory, newMatDesc, resManager);
+	ProcessMeshLoadMaterialTextures(amat, aiTextureType_NORMALS, lastDirectory, newMatDesc, resManager);
+	ProcessMeshLoadMaterialTextures(amat, aiTextureType_EMISSIVE, lastDirectory, newMatDesc, resManager);
+	ProcessMeshLoadMaterialTextures(amat, aiTextureType_EMISSION_COLOR, lastDirectory, newMatDesc, resManager);
+	ProcessMeshLoadMaterialTextures(amat, aiTextureType_METALNESS, lastDirectory, newMatDesc, resManager);
+	ProcessMeshLoadMaterialTextures(amat, aiTextureType_DIFFUSE_ROUGHNESS, lastDirectory, newMatDesc, resManager);
 }

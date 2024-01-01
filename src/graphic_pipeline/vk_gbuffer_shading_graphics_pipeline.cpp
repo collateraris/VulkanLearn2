@@ -10,12 +10,11 @@
 #include <vk_shaders.h>
 #include <vk_initializers.h>
 
-void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const Texture& ao)
+void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine,const Texture& gi)
 {
 	_engine = engine;
 
-	init_description_set(gbuffer, ao);
-	init_scene_buffer(_engine->_renderables);
+	init_description_set(gi);
 	init_bindless(_engine->_resManager.textureList);
 
 	{
@@ -32,7 +31,7 @@ void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const std:
 				pipelineBuilder.setShaders(&defaultEffect);
 
 				VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
-				std::vector<VkDescriptorSetLayout> setLayout = { _bindlessSetLayout, _globalDescSetLayout, _gBufDescSetLayout };
+				std::vector<VkDescriptorSetLayout> setLayout = { _bindlessSetLayout, _gBufDescSetLayout };
 				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
 				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
 
@@ -89,13 +88,6 @@ void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const std:
 	}
 }
 
-void VulkanGbufferShadingGraphicsPipeline::copy_global_uniform_data(VulkanGbufferShadingGraphicsPipeline::SGlobalCamera& camData, int current_frame_index)
-{
-	_engine->map_buffer(_engine->_allocator, _globalCameraBuffer[current_frame_index]._allocation, [&](void*& data) {
-		memcpy(data, &camData, sizeof(VulkanGbufferShadingGraphicsPipeline::SGlobalCamera));
-		});
-}
-
 void VulkanGbufferShadingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
 	cmd->draw_quad([&](VkCommandBuffer cmd) {
@@ -103,13 +95,11 @@ void VulkanGbufferShadingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int cu
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::GBufferShading), 0,
 			1, &_bindlessSet, 0, nullptr);
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::GBufferShading), 1,
-			1, &_globalDescSet[current_frame_index], 0, nullptr);
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::GBufferShading), 2,
 			1, &_gBufDescSet[current_frame_index], 0, nullptr);
 		}); 
 }
 
-void VulkanGbufferShadingGraphicsPipeline::init_description_set(const std::array<Texture, 4>& gbuffer, const Texture& ao)
+void VulkanGbufferShadingGraphicsPipeline::init_description_set(const Texture& gi)
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
@@ -124,76 +114,15 @@ void VulkanGbufferShadingGraphicsPipeline::init_description_set(const std::array
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
-		VkDescriptorImageInfo wposImageBufferInfo;
-		wposImageBufferInfo.sampler = sampler;
-		wposImageBufferInfo.imageView = gbuffer[int(EGbufferTex::WPOS)].imageView;
-		wposImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		VkDescriptorImageInfo normalImageBufferInfo;
-		normalImageBufferInfo.sampler = sampler;
-		normalImageBufferInfo.imageView = gbuffer[int(EGbufferTex::NORM)].imageView;
-		normalImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		VkDescriptorImageInfo uvImageBufferInfo;
-		uvImageBufferInfo.sampler = sampler;
-		uvImageBufferInfo.imageView = gbuffer[int(EGbufferTex::UV)].imageView;
-		uvImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		VkDescriptorImageInfo objIDImageBufferInfo;
-		objIDImageBufferInfo.sampler = sampler;
-		objIDImageBufferInfo.imageView = gbuffer[int(EGbufferTex::OBJ_ID)].imageView;
-		objIDImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		VkDescriptorImageInfo aoImageBufferInfo;
-		aoImageBufferInfo.sampler = sampler;
-		aoImageBufferInfo.imageView = ao.imageView;
-		aoImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		VkDescriptorImageInfo giImageBufferInfo;
+		giImageBufferInfo.sampler = sampler;
+		giImageBufferInfo.imageView = gi.imageView;
+		giImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_image(0, &wposImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-			.bind_image(1, &normalImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-			.bind_image(2, &uvImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-			.bind_image(3, &objIDImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-			.bind_image(4, &aoImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+			.bind_image(0, &giImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 			.build(_gBufDescSet[i], _gBufDescSetLayout);
 	}
-}
-
-void VulkanGbufferShadingGraphicsPipeline::init_scene_buffer(const std::vector<RenderObject>& renderables)
-{
-	_objectBuffer = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanGbufferShadingGraphicsPipeline::ObjectData) * renderables.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-
-	for (int i = 0; i < FRAME_OVERLAP; i++)
-	{
-		_globalCameraBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanGbufferGenerateGraphicsPipeline::SGlobalCamera), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-		VkDescriptorBufferInfo globalUniformsInfo;
-		globalUniformsInfo.buffer = _globalCameraBuffer[i]._buffer;
-		globalUniformsInfo.offset = 0;
-		globalUniformsInfo.range = _globalCameraBuffer[i]._size;
-
-		VkDescriptorBufferInfo objectBufferInfo;
-		objectBufferInfo.buffer = _objectBuffer._buffer;
-		objectBufferInfo.offset = 0;
-		objectBufferInfo.range = _objectBuffer._size;
-
-		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-			.bind_buffer(1, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-			.build(_globalDescSet[i], _globalDescSetLayout);
-	}
-
-	_engine->map_buffer(_engine->_allocator, _objectBuffer._allocation, [&](void*& data) {
-		VulkanGbufferShadingGraphicsPipeline::ObjectData* objectSSBO = (VulkanGbufferShadingGraphicsPipeline::ObjectData*)data;
-
-		for (int i = 0; i < renderables.size(); i++)
-		{
-			const RenderObject& object = renderables[i];
-			objectSSBO[i].model = object.transformMatrix;
-			objectSSBO[i].meshIndex = object.meshIndex;
-			objectSSBO[i].diffuseTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->diffuseTextureIndex;
-		}
-		});
 }
 
 void VulkanGbufferShadingGraphicsPipeline::init_bindless(const std::vector<Texture*>& textureList)

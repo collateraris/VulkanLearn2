@@ -31,10 +31,14 @@ struct SVertex {
 
 struct SObjectData
 {
-  uint meshIndex;
-  uint diffuseTexIndex;
-  uint pad1;
-  uint pad2;
+	uint meshIndex;
+	uint diffuseTexIndex;
+	int normalTexIndex;
+	int metalnessTexIndex;
+	int roughnessTexIndex;
+	int emissionTexIndex;
+	int opacityTexIndex;
+	uint pad;
 };
 
 struct AORayPayload
