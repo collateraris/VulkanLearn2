@@ -30,9 +30,9 @@ layout(set = 1, binding = 2) readonly buffer ObjectBuffer{
 layout(set = 2, binding = 0) uniform accelerationStructureEXT topLevelAS;
 
 // A wrapper function that encapsulates shooting an ambient occlusion ray query
-float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT )
+float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT, float aoVal )
 {
-	aoRpl.aoValue = 0.f;
+	aoRpl.aoValue = aoVal;
 
     uint  rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
 
@@ -46,7 +46,7 @@ float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT )
             minT,           // ray min range
             dir.xyz,         // ray direction
             maxT,           // ray max range
-            1      // payload (location = 0)
+            1      // payload (location = 1)
     );        
 
 	return aoRpl.aoValue;
@@ -54,7 +54,7 @@ float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT )
 
 float shadowRayVisibility( vec3 orig, vec3 dir, float minT)
 {
-    return shootAmbientOcclusionRay(orig, dir, minT, 1.0e38f);
+    return shootAmbientOcclusionRay(orig, dir, minT, 10000000, 0.01);
 };
 
 
@@ -90,11 +90,11 @@ void main()
   vec3 diffuse = texture(texSet[objData.diffuseTexIndex], texCoord).xyz;
 
   SLight sunInfo = lightsBuffer.lights[0];
-  vec3 toLight = -normalize(sunInfo.direction.xyz);
+  vec3 toLight = normalize(-sunInfo.direction.xyz);
 
   // Compute our lambertion term (L dot N)
 	float LdotN = clamp(dot(worldNormal, toLight), 0., 1.);
-  //float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, 0.01);
+  float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, 0.01);
 
-  indirectRpl.color = diffuse * sunInfo.color.xyz * M_INV_PI;
+  indirectRpl.color = LdotN * diffuse * sunInfo.color.xyz * M_INV_PI;
 }

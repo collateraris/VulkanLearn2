@@ -21,9 +21,9 @@ layout(set = 3, binding = 0) uniform sampler2D wposTex;
 layout(set = 3, binding = 1) uniform sampler2D normalTex;
 
 // A wrapper function that encapsulates shooting an ambient occlusion ray query
-float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT )
+float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT, float aoVal )
 {
-	aoRpl.aoValue = 0.f;
+	aoRpl.aoValue = aoVal;
 
     uint  rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
 
@@ -43,9 +43,9 @@ float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float minT, float maxT )
 	return aoRpl.aoValue;
 };
 
-float shadowRayVisibility( vec3 orig, vec3 dir, float minT, float maxT)
+float shadowRayVisibility( vec3 orig, vec3 dir, float minT)
 {
-    return shootAmbientOcclusionRay(orig, dir, minT, maxT);
+    return shootAmbientOcclusionRay(orig, dir, minT, 10000000, 0.01);
 };
 
 vec3 shootIndirectRay(vec3 orig, vec3 dir, float minT)
@@ -97,18 +97,18 @@ void main()
 			vec3 worldDir = getCosHemisphereSample(randSeed, worldNorm.xyz);
 
 			// Shoot our ambient occlusion ray and update the value we'll output with the result
-			ambientOcclusion += shootAmbientOcclusionRay(worldPos.xyz, worldDir, aoParams.minT, aoParams.aoRadius);
+			ambientOcclusion += shootAmbientOcclusionRay(worldPos.xyz, worldDir, aoParams.minT, aoParams.aoRadius, 0.);
 		}
 
         float aoColor = ambientOcclusion / float(aoParams.numRays); 
 
         //SHADOW
         vec3 toLight = normalize(-sunInfo.direction.xyz);
-        float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, 1e-3, 10000000);
+        float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, 1e-3);
 
         float NdotL = clamp(dot(worldNorm.xyz, toLight), 0., 1.);
 
-        shadeColor = sunInfo.color.xyz * aoColor * M_INV_PI;
+        shadeColor = shadowMult * NdotL * sunInfo.color.xyz * aoColor * M_INV_PI;
         
         //INDIRECT ILLUMINATION
         vec3 bounceDir = getCosHemisphereSample(randSeed, worldNorm.xyz);
