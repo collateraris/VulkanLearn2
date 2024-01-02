@@ -94,7 +94,7 @@ mat3 getTBN(vec3 worldNormal)
 {
     vec3 B = getPerpendicularVector(worldNormal);
 	vec3 T = cross(B, worldNormal);
-
+    T = normalize(T - dot(T, worldNormal) * worldNormal);
     mat3 TBN = mat3(T, B, worldNormal);
     return TBN;
 }
