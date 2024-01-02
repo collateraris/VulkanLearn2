@@ -85,6 +85,7 @@ void main()
 
         shadeColor += ggxIndirect(randSeed, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, lightDir, viewDir, F0);
         //shadeColor = vec3(aoColor, aoColor, aoColor);
+        //hadeColor = vec3(roughness, roughness, roughness);
 	}
 
 

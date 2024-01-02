@@ -60,9 +60,9 @@ vec3 ggxDirect(uint randSeed, SObjectData shadeData, vec2 uv, vec3 worldPos, vec
 
 	vec3 H = normalize(viewDir + lightDir);
 
-	float HdotV = max(dot(H, viewDir), 1-3);
-	float NdotV = max(dot(worldNorm.xyz, viewDir), 1-3);
-	float NdotL = max(dot(worldNorm.xyz, lightDir), 1-3);
+	float HdotV = clamp(dot(H, viewDir), 0.f, 1.f);
+	float NdotV = clamp(dot(worldNorm.xyz, viewDir), 0.f, 1.f);
+	float NdotL = clamp(dot(worldNorm.xyz, lightDir), 0.f, 1.f);
     
 	F0      = mix(F0, albedo, metallic);
 	vec3 F  = fresnelSchlick(HdotV, F0);
@@ -70,12 +70,14 @@ vec3 ggxDirect(uint randSeed, SObjectData shadeData, vec2 uv, vec3 worldPos, vec
 	float NDF = DistributionGGX(worldNorm, H, roughness);
 	float G = GeometrySmith(worldNorm, viewDir, lightDir, roughness);
 
-	vec3 specular = (NDF * G) * F / (4.0 * NdotV * NdotL + 0.001);
+    // Evaluate the Cook-Torrance Microfacet BRDF model
+	//     Cancel out NdotL here & the next eq. to avoid catastrophic numerical precision issues.
+	vec3 specular = (NDF * G) * F / (4.0f * NdotV /* * NdotL */ + 0.001f);
 
 	vec3 kS = F;
-	vec3 kD = vec3(1.0) - kS;
+	vec3 kD = vec3(1.0f) - kS;
 	
-	kD *= 1.0 - metallic;
+	kD *= 1.0f - metallic;
 
 	float shadowMult = shadowRayVisibility(worldPos.xyz, lightDir, giParams.shadowMult);
 
@@ -89,13 +91,12 @@ vec3 ggxDirect(uint randSeed, SObjectData shadeData, vec2 uv, vec3 worldPos, vec
         vec3 worldDir = getCosHemisphereSample(randSeed, worldNorm.xyz);
 
         // Shoot our ambient occlusion ray and update the value we'll output with the result
-        ambientOcclusion += shootAmbientOcclusionRay(worldPos.xyz, worldDir, giParams.aoRadius, 0.);
+        ambientOcclusion += shootAmbientOcclusionRay(worldPos.xyz, worldDir, giParams.aoRadius, 0.f);
     }
 
     float aoColor = ambientOcclusion / float(giParams.numRays); 
 
-    vec3 Lo = shadowMult * (kD * albedo * M_INV_PI + specular) * sunColor * NdotL;
-    Lo *= aoColor;
+    vec3 Lo = (kD * albedo * aoColor * M_INV_PI + specular) * sunColor;
 
 	return Lo;
 };
@@ -107,7 +108,7 @@ vec3 ggxIndirect(uint randSeed, vec3 worldPos, vec3 worldNorm, vec3 camPos, vec3
 	bool chooseDiffuse = (nextRand(randSeed) < probDiffuse);
 
 	// We'll need NdotV for both diffuse and specular...
-	float NdotV = clamp(dot(worldNorm, viewDir), 1-3, 1.);
+	float NdotV = clamp(dot(worldNorm, viewDir), 0.f, 1.f);
 
     if (chooseDiffuse)
     {
@@ -130,18 +131,18 @@ vec3 ggxIndirect(uint randSeed, vec3 worldPos, vec3 worldNorm, vec3 camPos, vec3
         vec3 bounceColor = shootIndirectRay(worldPos.xyz, L, randSeed);  
 
         // // Compute some dot products needed for shading
-        float  NdotL = clamp(dot(worldNorm, L), 1-3, 1.);
-        float  NdotH = clamp(dot(worldNorm, H), 1-3, 1.);
-        float  LdotH = clamp(dot(L, H), 1-3, 1.);
+        float  NdotL = clamp(dot(worldNorm, L), 0.f, 1.f);
+        float  NdotH = clamp(dot(worldNorm, H), 0.f, 1.f);
+        float  LdotH = clamp(dot(L, H), 0.f, 1.f);
 
         // Evaluate our BRDF using a microfacet BRDF model
         float  D = ggxNormalDistribution(NdotH, roughness);          // The GGX normal distribution
         float  G = IndirectGeometrySmith(worldNorm, viewDir, L, roughness);   // Use Schlick's masking term approx
         vec3 F = fresnelSchlickRoughness(LdotH, F0, roughness);  // Use Schlick's approx to Fresnel
-        vec3 ggxTerm = D * G * F / (4 * NdotL * NdotV + 0.001);        // The Cook-Torrance microfacet BRDF
+        vec3 ggxTerm = D * G * F / (4.f * NdotL * NdotV + 0.001);        // The Cook-Torrance microfacet BRDF
 
         // What's the probability of sampling vector H from getGGXMicrofacet()?
-        float  ggxProb = D * NdotH / (4 * LdotH);
+        float  ggxProb = D * NdotH / (4.f * LdotH);
 
         // Accumulate the color:  ggx-BRDF * incomingLight * NdotL / probability-of-sampling
         //    -> Should really simplify the math above.
