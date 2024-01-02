@@ -81,5 +81,5 @@ void main()
 	vec3 viewDir = normalize(giParams.camPos.xyz - worldPos.xyz);
   vec3 F0 = vec3(0.04); 
 
-  indirectRpl.color = shadeColor + ggxDirect(shadeData, texCoord, worldPos.xyz, worldNormal.xyz, giParams.camPos.xyz, albedo, roughness, lightDir, viewDir, sunInfo.color.xyz, F0);
+  indirectRpl.color = shadeColor + ggxDirect(indirectRpl.randSeed, shadeData, texCoord, worldPos.xyz, worldNormal.xyz, giParams.camPos.xyz, albedo, roughness, lightDir, viewDir, sunInfo.color.xyz, F0);
 }

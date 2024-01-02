@@ -221,6 +221,7 @@ void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, in
 	}
 
 	_counter.accumCount++;
+	_counter.initLastFrame = 1;
 }
 
 void VulkanSimpleAccumulationGraphicsPipeline::try_reset_accumulation(PlayerCamera& camera)

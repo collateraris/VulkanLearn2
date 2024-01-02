@@ -8,6 +8,9 @@ layout (location = 0) out vec4 outFragColor;
 struct PerFrameCB
 {
     uint accumCount;
+    uint initLastFrame;
+    uint pad1;
+    uint pad2;
 };
 
 layout(set = 0, binding = 0) uniform _PerFrameCB { PerFrameCB perFrame; };
@@ -19,5 +22,8 @@ void main()
 {
 	vec4 curColor = texture(currentFrame,texCoord).rgba;
     vec4 prevColor = texture(prevFrame,texCoord).rgba;
-	outFragColor = (perFrame.accumCount * prevColor + curColor) / (perFrame.accumCount + 1);
+    if (perFrame.initLastFrame == 0)
+	    outFragColor = curColor;
+    else
+        outFragColor = (perFrame.accumCount * prevColor + curColor) / (perFrame.accumCount + 1);
 }

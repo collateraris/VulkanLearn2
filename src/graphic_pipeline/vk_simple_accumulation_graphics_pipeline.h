@@ -15,6 +15,9 @@ class VulkanSimpleAccumulationGraphicsPipeline
 	struct PerFrameCB
 	{
 		uint32_t accumCount;
+		uint32_t initLastFrame = 0;
+		uint32_t pad1;
+		uint32_t pad2;
 	};
 
 public:
@@ -49,7 +52,7 @@ private:
 	VkDescriptorSetLayout          _imageDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _imageDescSet;
 
-	PerFrameCB _counter = { 0 };
+	PerFrameCB _counter = { 0, 0 };
 
 	glm::mat4 _lastViewMatrix;
 };
