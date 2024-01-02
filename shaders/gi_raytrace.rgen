@@ -59,7 +59,7 @@ void main()
 
         float roughness = 1.;
 	    if (shadeData.roughnessTexIndex > 0)
-		    roughness = texture(texSet[shadeData.roughnessTexIndex], uv).r;    
+		    roughness = texture(texSet[shadeData.roughnessTexIndex], gbufferTexCoord).g;    
 
         shadeColor = emission;   
 
@@ -91,7 +91,7 @@ void main()
 
         //INDIRECT ILLUMINATIO
 
-        shadeColor += ggxIndirect(randSeed, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz,roughness, lightDir, viewDir, F0);
+        //shadeColor += ggxIndirect(randSeed, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz,roughness, lightDir, viewDir, F0);
 	}
 
 

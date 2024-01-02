@@ -1,11 +1,4 @@
 
-float ggxNormalDistribution( float NdotH, float roughness )
-{
-	float a2 = roughness * roughness;
-	float d = ((NdotH * a2 - NdotH) * NdotH + 1);
-	return a2 / (d * d * M_PI);
-};
-
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
@@ -62,7 +55,7 @@ float IndirectGeometrySchlickGGX(float NdotV, float roughness)
     float denom = NdotV * (1.0 - k) + k;
 
     return nom / denom;
-}
+};
 // ----------------------------------------------------------------------------
 float IndirectGeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 {
@@ -72,7 +65,42 @@ float IndirectGeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
     float ggx1 = GeometrySchlickGGX(NdotL, roughness);
 
     return ggx1 * ggx2;
-}  
+} ; 
+
+// Get a GGX half vector / microfacet normal, sampled according to the distribution computed by
+//     the function ggxNormalDistribution() above.  
+//
+// When using this function to sample, the probability density is pdf = D * NdotH / (4 * HdotV)
+vec3 getGGXMicrofacet(inout uint randSeed, float roughness, vec3 hitNorm)
+{
+	// Get our uniform random numbers
+	vec2 randVal = vec2(nextRand(randSeed), nextRand(randSeed));
+
+	// Get an orthonormal basis from the normal
+	vec3 B = getPerpendicularVector(hitNorm);
+	vec3 T = cross(B, hitNorm);
+
+	// GGX NDF sampling
+	float a2 = roughness * roughness;
+	float cosThetaH = sqrt(max(0.0f, (1.0 - randVal.x) / ((a2 - 1.0) * randVal.x + 1)));
+	float sinThetaH = sqrt(max(0.0f, 1.0f - cosThetaH * cosThetaH));
+	float phiH = randVal.y * M_PI * 2.0f;
+
+	// Get our GGX NDF sample (i.e., the half vector)
+	return T * (sinThetaH * cos(phiH)) + B * (sinThetaH * sin(phiH)) + hitNorm * cosThetaH;
+};
+
+// The NDF for GGX, see Eqn 19 from 
+//    http://blog.selfshadow.com/publications/s2012-shading-course/hoffman/s2012_pbs_physics_math_notes.pdf
+//
+// This function can be used for "D" in the Cook-Torrance model:  D*G*F / (4*NdotL*NdotV)
+float ggxNormalDistribution(float NdotH, float roughness)
+{
+	float a2 = roughness * roughness;
+	float d = ((NdotH * a2 - NdotH) * NdotH + 1);
+	return a2 / max(0.001f, (d * d * M_PI));
+};
+
 
 
 
