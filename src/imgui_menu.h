@@ -10,6 +10,7 @@
 #include <vk_light_manager.h>
 #include <graphic_pipeline/vk_gi_raytrace_graphics_pipeline.h>
 #include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
+#include <vk_camera.h>
 
 //-----------------------------------------------------------------------------
 // [SECTION] Example App: Debug Log / ShowExampleAppLog()
@@ -195,19 +196,20 @@ static void EditSun(VulkanLightManager& lightManager, int current_frame_index)
     ImGui::End();
 }
 
-static void EditAO(VulkanGIShadowsRaytracingGraphicsPipeline& giGP, VulkanSimpleAccumulationGraphicsPipeline& saGP, int current_frame_index, int frameNumber)
+static void EditGI(PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeline& giGP, VulkanSimpleAccumulationGraphicsPipeline& saGP, int current_frame_index, int frameNumber)
 {
     static bool p_open = true;
     static bool bChangedValue = true;
-    static VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams aoParams = {.aoRadius = 0.5, .shadowMult = 0.05, .numRays = 1};
+    static VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams giParams = {.aoRadius = 0.5, .shadowMult = 0.05, .numRays = 1};
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
     ImGui::Begin("Edit GI", &p_open);
-    bChangedValue |= ImGui::InputFloat("AO Radius", &aoParams.aoRadius);
+    bChangedValue |= ImGui::InputFloat("AO Radius", &giParams.aoRadius);
     static int numRays = 1;
     bChangedValue |= ImGui::InputInt("AO numRays", &numRays);
-    bChangedValue |= ImGui::InputFloat("shadow Mult", &aoParams.shadowMult);
-    aoParams.numRays = std::max(1, numRays);
-    aoParams.frameCount = frameNumber;
+    bChangedValue |= ImGui::InputFloat("shadow Mult", &giParams.shadowMult);
+    giParams.numRays = std::max(1, numRays);
+    giParams.frameCount = frameNumber;
+    giParams.camPos = glm::vec4(camera.position, 1.f);
 
     if (bChangedValue)
     {
@@ -215,7 +217,7 @@ static void EditAO(VulkanGIShadowsRaytracingGraphicsPipeline& giGP, VulkanSimple
         saGP.reset_accumulation();
     }
   
-    giGP.copy_global_uniform_data(aoParams, current_frame_index);
+    giGP.copy_global_uniform_data(giParams, current_frame_index);
     ImGui::End();
 }
 
@@ -225,7 +227,7 @@ static void ShowVkMenu(VulkanEngine& engine)
 
     ImguiAppLog::EditSun(engine._lightManager, engine.get_current_frame_index());
 #if GI_RAYTRACER_ON && GBUFFER_ON
-    ImguiAppLog::EditAO(engine._giRtGraphicsPipeline, engine._simpleAccumGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
+    ImguiAppLog::EditGI(engine._camera, engine._giRtGraphicsPipeline, engine._simpleAccumGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
 #endif
 }
 

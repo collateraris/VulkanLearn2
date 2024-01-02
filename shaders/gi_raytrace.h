@@ -2,8 +2,9 @@
 #define M_PI2    6.28318530717958647692
 #define M_INV_PI 0.3183098861837906715
 
-struct SGlobalAOParams
+struct SGlobalGIParams
 {
+	vec4 camPos;
 	float aoRadius;
 	uint  frameCount;
 	float shadowMult;
@@ -99,3 +100,5 @@ vec3 getCosHemisphereSample(inout uint randSeed, vec3 hitNorm)
 	// Get our cosine-weighted hemisphere lobe sample direction
 	return tangent * (r * cos(phi).x) + bitangent * (r * sin(phi)) + hitNorm.xyz * sqrt(max(0.0, 1.0f - randVal.x));
 }
+
+#include "ggx_brdf.h"

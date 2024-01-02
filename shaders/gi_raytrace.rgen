@@ -4,7 +4,6 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "gi_raytrace.h"
-#include "ggx_brdf.h"
 
 layout(location = 0) rayPayloadEXT IndirectRayPayload indirectRpl;
 layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
@@ -12,7 +11,7 @@ layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
 layout(set = 0, binding = 1) uniform sampler2D texSet[];
 layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
 
-layout(set = 1, binding = 0) uniform _GlobalAOParams { SGlobalAOParams aoParams; };
+layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams; };
 
 layout(set = 1, binding = 1) readonly buffer _Lights{
 
@@ -86,7 +85,7 @@ void main()
 {
     const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
     vec4 worldPos = texture(wposTex, uv).rgba;
-    vec4 worldNorm = texture(normalTex, uv).rgba;
+    vec3 worldNorm = normalize(texture(normalTex, uv).rgb);
 
     SLight sunInfo = lightsBuffer.lights[0];
 
@@ -94,53 +93,83 @@ void main()
 
     if (worldPos.w != 0.0f)
 	{
-
-
         float objIDf = texture(objIDTex, uv).r;
         uint objID = uint(objIDf);
         SObjectData shadeData = objectBuffer.objects[objID];
         vec2 gbufferTexCoord = texture(uvTex, uv).rg;
 
-        vec3 diffuse = texture(texSet[shadeData.diffuseTexIndex], gbufferTexCoord).rgb;
+        vec3 albedo = texture(texSet[shadeData.diffuseTexIndex], gbufferTexCoord).rgb;
 
         vec3 emission = vec3(0., 0., 0);
         if (shadeData.emissionTexIndex > 0)
             emission = texture(texSet[shadeData.emissionTexIndex], gbufferTexCoord).rgb;
 
-        shadeColor = emission;    
+        shadeColor = emission;     
 
+        float roughness = 1.;
+        if (shadeData.roughnessTexIndex > 0)
+            roughness = texture(texSet[shadeData.roughnessTexIndex], gbufferTexCoord).r;
+
+        float metalness = 0.;
+        if (shadeData.metalnessTexIndex > 0)
+            metalness = texture(texSet[shadeData.metalnessTexIndex], gbufferTexCoord).r;
+
+        float metallic = metalness;        
+
+        vec3 lightDir = normalize(-sunInfo.direction.xyz);
+        vec3 viewDir = normalize(giParams.camPos.xyz - worldPos.xyz);
+        vec3 H = normalize(viewDir + lightDir);
+
+        float HdotV = max(dot(H, viewDir), 0.0);
+        float NdotV = max(dot(worldNorm.xyz, viewDir), 0.0);
+        float NdotL = max(dot(worldNorm.xyz, lightDir), 0.0);
+
+        vec3 F0 = vec3(0.04); 
+        F0      = mix(F0, albedo, metallic);
+        vec3 F  = fresnelSchlick(HdotV, F0);
+
+        float NDF = DistributionGGX(worldNorm, H, roughness);
+        float G = GeometrySmith(worldNorm, viewDir, lightDir, roughness);
+
+        vec3 specular = (NDF * G) * F / (4.0 * NdotV * NdotL + 0.001);
+
+        vec3 kS = F;
+        vec3 kD = vec3(1.0) - kS;
+        
+        kD *= 1.0 - metallic;	
         //AO
 		// Start accumulating from zero if we don't hit the background
         float ambientOcclusion = 0.0f;
 
         // Initialize a random seed, per-pixel, based on a screen position and temporally varying count
-	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, aoParams.frameCount);
+	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, giParams.frameCount);
 
-		for (int i = 0; i < aoParams.numRays; i++)
+		for (int i = 0; i < giParams.numRays; i++)
 		{
 			// Sample cosine-weighted hemisphere around surface normal to pick a random ray direction
 			vec3 worldDir = getCosHemisphereSample(randSeed, worldNorm.xyz);
 
 			// Shoot our ambient occlusion ray and update the value we'll output with the result
-			ambientOcclusion += shootAmbientOcclusionRay(worldPos.xyz, worldDir, aoParams.aoRadius, 0.);
+			ambientOcclusion += shootAmbientOcclusionRay(worldPos.xyz, worldDir, giParams.aoRadius, 0.);
 		}
 
-        float aoColor = ambientOcclusion / float(aoParams.numRays); 
+        float aoColor = ambientOcclusion / float(giParams.numRays); 
 
         //SHADOW
-        vec3 toLight = normalize(-sunInfo.direction.xyz);
-        float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, aoParams.shadowMult);
+        float shadowMult = shadowRayVisibility(worldPos.xyz, lightDir, giParams.shadowMult);
 
-        float NdotL = clamp(dot(worldNorm.xyz, toLight), 0., 1.);
-        shadeColor += diffuse * shadowMult * NdotL * sunInfo.color.xyz * aoColor * M_INV_PI;
+        vec3 Lo = shadowMult * (kD * albedo * M_INV_PI + specular) * sunInfo.color.xyz * NdotL;
+        vec3 ambient = vec3(0.03) * albedo * aoColor;
+
+        shadeColor += ambient + Lo;
         
         //INDIRECT ILLUMINATION
         vec3 bounceDir = getCosHemisphereSample(randSeed, worldNorm.xyz);
 
         // Shoot our indirect global illumination ray
-		vec3 bounceColor = shootIndirectRay(worldPos.xyz, bounceDir);
+		//vec3 bounceColor = shootIndirectRay(worldPos.xyz, bounceDir);
 
-        shadeColor += bounceColor;
+        //shadeColor += bounceColor;
 	}
 
 

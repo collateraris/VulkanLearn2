@@ -20,7 +20,7 @@ layout(set = 0, binding = 1) uniform sampler2D texSet[];
 
 layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
 
-layout(set = 1, binding = 0) uniform _GlobalAOParams { SGlobalAOParams aoParams; };
+layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams; };
 
 layout(set = 1, binding = 1) readonly buffer _Lights{
 
@@ -97,7 +97,7 @@ void main()
 
   // Compute our lambertion term (L dot N)
 	float LdotN = clamp(dot(worldNormal, toLight), 0., 1.);
-  float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, aoParams.shadowMult);
+  float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, giParams.shadowMult);
 
   indirectRpl.color = shadowMult * LdotN * diffuse * sunInfo.color.xyz * M_INV_PI;
 }

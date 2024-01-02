@@ -28,6 +28,7 @@ class VulkanGIShadowsRaytracingGraphicsPipeline
 public:
 	struct alignas(16) GlobalGIParams
 	{
+		glm::vec4 camPos;
 		float aoRadius;
 		uint32_t  frameCount;
 		float shadowMult;
