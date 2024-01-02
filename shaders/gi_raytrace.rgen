@@ -59,7 +59,15 @@ void main()
 
         float roughness = 1.;
 	    if (shadeData.roughnessTexIndex > 0)
-		    roughness = texture(texSet[shadeData.roughnessTexIndex], gbufferTexCoord).g;    
+		    roughness = texture(texSet[shadeData.roughnessTexIndex], gbufferTexCoord).g; 
+
+        if (shadeData.normalTexIndex > 0)
+        {
+            mat3 TBN = getTBN(worldNorm);
+            vec3 normal = texture(texSet[shadeData.normalTexIndex], gbufferTexCoord).rgb;
+            normal = normalize(normal * 2.0 - 1.0);   
+            worldNorm = normalize(TBN * normal);
+        }  
 
         shadeColor = emission;   
 

@@ -90,6 +90,15 @@ vec3 getGGXMicrofacet(inout uint randSeed, float roughness, vec3 hitNorm)
 	return T * (sinThetaH * cos(phiH)) + B * (sinThetaH * sin(phiH)) + hitNorm * cosThetaH;
 };
 
+mat3 getTBN(vec3 worldNormal)
+{
+    vec3 B = getPerpendicularVector(worldNormal);
+	vec3 T = cross(B, worldNormal);
+
+    mat3 TBN = mat3(T, B, worldNormal);
+    return TBN;
+}
+
 // The NDF for GGX, see Eqn 19 from 
 //    http://blog.selfshadow.com/publications/s2012-shading-course/hoffman/s2012_pbs_physics_math_notes.pdf
 //

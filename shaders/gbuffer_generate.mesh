@@ -82,7 +82,7 @@ void main()
 		position = vec3(modelMatrix * vec4(position, 1.0f));
 
 		vec3 normal = vec3(int(vert.nx), int(vert.ny), int(vert.nz)) / 127.0 - 1.0;
-		normal = normalMatrix * normal;
+		normal = normalize(normalMatrix * normal);
 		vec2 texcoord = vec2(vert.tu, vert.tv);
 
 		gl_MeshVerticesNV[i].gl_Position = cameraData.viewProj * vec4(position, 1.0f);
