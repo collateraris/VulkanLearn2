@@ -86,30 +86,28 @@ vec3 ggxDirect(SObjectData shadeData, vec2 uv, vec3 worldPos, vec3 worldNorm, ve
 
 vec3 ggxIndirect(uint randSeed, vec3 worldPos, vec3 worldNorm, vec3 camPos, float roughness, vec3 lightDir, vec3 viewDir, in vec3 F0)
 {
-    // Randomly sample the NDF to get a microfacet in our BRDF to reflect off of
-    vec3 H = getGGXMicrofacet(randSeed, roughness, worldNorm);
+    vec3 H = normalize(getCosHemisphereSample(randSeed, worldNorm.xyz) + viewDir);
 
-    // Compute the outgoing direction based on this (perfectly reflective) microfacet
-    vec3 bounceDir = normalize(2.f * dot(viewDir, H) * H - viewDir);
+    vec3 L = normalize(2.f * dot(viewDir, H) * H - viewDir);
 
-        // Shoot our indirect global illumination ray
-	vec3 bounceColor = shootIndirectRay(worldPos.xyz, bounceDir, randSeed);  
+    //   Shoot our indirect global illumination ray
+    vec3 bounceColor = shootIndirectRay(worldPos.xyz, L, randSeed);  
 
-    // Compute some dot products needed for shading
-    //float  NdotL = max(dot(worldNorm, bounceDir), 0.0);
-    //float  NdotH = max(dot(worldNorm, H), 0.0);
-   // float  LdotH = max(dot(bounceDir, H), 0.0);
-    float NdotV = max(dot(worldNorm, viewDir), 0.0);
+    // // Compute some dot products needed for shading
+    // float  NdotL = clamp(dot(worldNorm, L), 0.0, 1.);
+    // float  NdotH = clamp(dot(worldNorm, H), 0.0, 1.);
+    // float  LdotH = clamp(dot(L, H), 0.0, 1.);
+    // float NdotV = clamp(dot(worldNorm, viewDir), 0.0, 1.);
 
-    //float NDF = DistributionGGX(worldNorm, H, roughness);
-    //float  G = IndirectGeometrySmith(NdotL, NdotV, roughness);
-    vec3 F  = fresnelSchlickRoughness(LdotH, F0,  roughness);
-    vec3 kS = F;
-    vec3 kD = 1.0 - kS;
-   // vec3 specular = (NDF * G) * F / (4.0 * NdotV * NdotL + 0.001);
+    // float NDF = DistributionGGX(worldNorm, H, roughness);
+    // float  G = IndirectGeometrySmith(worldNorm, viewDir, L, roughness);
+    // vec3 F  = fresnelSchlickRoughness(NdotV, F0,  roughness);
+    // vec3 kS = F;
+    // vec3 kD = 1.0 - kS;
+    // vec3 specular = (NDF * G) * F / (4.0 * NdotV * NdotL + 0.001);
 
     // Accumulate the color:  ggx-BRDF * incomingLight * NdotL / probability-of-sampling
     //    -> Should really simplify the math above.
-   // return NdotL * bounceColor * specular;
-    return kD * bounceColor;
+   // return (kD * bounceColor + specular);
+    return bounceColor;
 };

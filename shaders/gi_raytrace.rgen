@@ -86,19 +86,12 @@ void main()
         vec3 F0 = vec3(0.04); 
 
         vec3 Lo = ggxDirect(shadeData, gbufferTexCoord, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, lightDir, viewDir, sunInfo.color.xyz, F0);
-        vec3 ambient = vec3(0.03) * albedo * aoColor;
 
-        shadeColor += ambient + Lo;
+        shadeColor += Lo * aoColor;
 
-        //  //INDIRECT ILLUMINATION
-        vec3 bounceDir = getCosHemisphereSample(randSeed, worldNorm.xyz);
+        //INDIRECT ILLUMINATIO
 
-        // Shoot our indirect global illumination ray
-		vec3 bounceColor = shootIndirectRay(worldPos.xyz, bounceDir, randSeed);
-
-        shadeColor = bounceColor;
-
-        //shadeColor = ggxIndirect(randSeed, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz,roughness, lightDir, viewDir, F0);
+        shadeColor += ggxIndirect(randSeed, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz,roughness, lightDir, viewDir, F0);
 	}
 
 

@@ -53,42 +53,26 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 }
 
 // ----------------------------------------------------------------------------
-float IndirectGeometrySmith(float NdotL, float NdotV, float roughness)
+float IndirectGeometrySchlickGGX(float NdotV, float roughness)
 {
-	// Karis notes they use alpha / 2 (or roughness^2 / 2)
-	float k = roughness*roughness / 2;
+    float a = roughness;
+    float k = (a * a) / 2.0;
 
-	// Compute G(v) and G(l).  These equations directly from Schlick 1994
-	//     (Though note, Schlick's notation is cryptic and confusing.)
-	float g_v = NdotV / (NdotV*(1 - k) + k);
-	float g_l = NdotL / (NdotL*(1 - k) + k);
+    float nom   = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
 
-	// Return G(v) * G(l)
-	return g_v * g_l;
-};
-
-// Get a GGX half vector / microfacet normal, sampled according to the distribution computed by
-//     the function ggxNormalDistribution() above.  
-//
-// When using this function to sample, the probability density is pdf = D * NdotH / (4 * HdotV)
-vec3 getGGXMicrofacet(inout uint randSeed, float roughness, vec3 hitNorm)
+    return nom / denom;
+}
+// ----------------------------------------------------------------------------
+float IndirectGeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 {
-	// Get our uniform random numbers
-	vec2 randVal = vec2(nextRand(randSeed), nextRand(randSeed));
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
 
-	// Get an orthonormal basis from the normal
-	vec3 B = getPerpendicularVector(hitNorm);
-	vec3 T = cross(B, hitNorm);
-
-	// GGX NDF sampling
-	float a2 = roughness * roughness;
-	float cosThetaH = sqrt(max(0.0f, (1.0 - randVal.x) / ((a2 - 1.0) * randVal.x + 1)));
-	float sinThetaH = sqrt(max(0.0f, 1.0f - cosThetaH * cosThetaH));
-	float phiH = randVal.y * M_PI * 2.0f;
-
-	// Get our GGX NDF sample (i.e., the half vector)
-	return T * (sinThetaH * cos(phiH)) + B * (sinThetaH * sin(phiH)) + hitNorm * cosThetaH;
-};
+    return ggx1 * ggx2;
+}  
 
 
 

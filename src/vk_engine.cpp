@@ -53,7 +53,6 @@ void VulkanEngine::init()
 	glm::mat4 model = glm::mat4(1.0);
 	model = glm::rotate(model, glm::radians(-90.f), glm::vec3(1, 0, 0));
 	AsimpLoader::processScene(config, _scene, _resManager, model);
-	//AsimpLoader::processScene(config, _scene, _resManager);
 
 	_logger.init("vulkan.log");
 
