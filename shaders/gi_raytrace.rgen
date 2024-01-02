@@ -91,7 +91,7 @@ void main()
 
         //INDIRECT ILLUMINATIO
 
-        //shadeColor += ggxIndirect(randSeed, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz,roughness, lightDir, viewDir, F0);
+        shadeColor += ggxIndirect(randSeed, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, lightDir, viewDir, F0);
 	}
 
 

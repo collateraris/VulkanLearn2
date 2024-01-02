@@ -101,6 +101,19 @@ float ggxNormalDistribution(float NdotH, float roughness)
 	return a2 / max(0.001f, (d * d * M_PI));
 };
 
+float luminance(vec3 rgb)
+{
+    return dot(rgb, vec3(0.2126f, 0.7152f, 0.0722f));
+};
+
+// Our material has have both a diffuse and a specular lobe.  
+//     With what probability should we sample the diffuse one?
+float probabilityToSampleDiffuse(vec3 difColor, vec3 specColor)
+{
+	float lumDiffuse = max(0.01f, luminance(difColor.rgb));
+	float lumSpecular = max(0.01f, luminance(specColor.rgb));
+	return lumDiffuse / (lumDiffuse + lumSpecular);
+};
 
 
 

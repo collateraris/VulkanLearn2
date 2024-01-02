@@ -84,32 +84,51 @@ vec3 ggxDirect(SObjectData shadeData, vec2 uv, vec3 worldPos, vec3 worldNorm, ve
 	return Lo;
 };
 
-vec3 ggxIndirect(uint randSeed, vec3 worldPos, vec3 worldNorm, vec3 camPos, float roughness, vec3 lightDir, vec3 viewDir, in vec3 F0)
+vec3 ggxIndirect(uint randSeed, vec3 worldPos, vec3 worldNorm, vec3 camPos, vec3 albedo, float roughness, vec3 lightDir, vec3 viewDir, in vec3 F0)
 {
-    // Randomly sample the NDF to get a microfacet in our BRDF to reflect off of
-    vec3 H = getGGXMicrofacet(randSeed, roughness, worldNorm);
+	// We have to decide whether we sample our diffuse or specular/ggx lobe.
+	float probDiffuse = probabilityToSampleDiffuse(albedo, F0);
+	bool chooseDiffuse = (nextRand(randSeed) < probDiffuse);
 
-    vec3 L = normalize(2.f * dot(viewDir, H) * H - viewDir);
+	// We'll need NdotV for both diffuse and specular...
+	float NdotV = clamp(dot(worldNorm, viewDir), 0.0, 1.);
 
-    //   Shoot our indirect global illumination ray
-    vec3 bounceColor = shootIndirectRay(worldPos.xyz, L, randSeed);  
+    if (chooseDiffuse)
+    {
+        // Shoot a randomly selected cosine-sampled diffuse ray.
+		vec3 L = getCosHemisphereSample(randSeed, worldNorm);
+		vec3 bounceColor = shootIndirectRay(worldPos.xyz, L, randSeed);
 
-    // // Compute some dot products needed for shading
-    float  NdotL = clamp(dot(worldNorm, L), 0.0, 1.);
-    float  NdotH = clamp(dot(worldNorm, H), 0.0, 1.);
-    float  LdotH = clamp(dot(L, H), 0.0, 1.);
-    float NdotV = clamp(dot(worldNorm, viewDir), 0.0, 1.);
+		// Accumulate the color: (NdotL * incomingLight * dif / pi) 
+		// Probability of sampling:  (NdotL / pi) * probDiffuse
+		return bounceColor * albedo / probDiffuse;
+    }
+    else
+    {
+        // Randomly sample the NDF to get a microfacet in our BRDF to reflect off of
+        vec3 H = getGGXMicrofacet(randSeed, roughness, worldNorm);
 
-    // Evaluate our BRDF using a microfacet BRDF model
-    float  D = ggxNormalDistribution(NdotH, roughness);          // The GGX normal distribution
-    float  G = IndirectGeometrySmith(worldNorm, viewDir, L, roughness);   // Use Schlick's masking term approx
-    vec3 F = fresnelSchlickRoughness(LdotH, F0, roughness);  // Use Schlick's approx to Fresnel
-    vec3 ggxTerm = D * G * F / (4 * NdotL * NdotV);        // The Cook-Torrance microfacet BRDF
+        vec3 L = normalize(2.f * dot(viewDir, H) * H - viewDir);
 
-    // What's the probability of sampling vector H from getGGXMicrofacet()?
-    float  ggxProb = D * NdotH / (4 * LdotH);
+        //   Shoot our indirect global illumination ray
+        vec3 bounceColor = shootIndirectRay(worldPos.xyz, L, randSeed);  
 
-    // Accumulate the color:  ggx-BRDF * incomingLight * NdotL / probability-of-sampling
-    //    -> Should really simplify the math above.
-    return NdotL * bounceColor * ggxTerm;
+        // // Compute some dot products needed for shading
+        float  NdotL = clamp(dot(worldNorm, L), 0.0, 1.);
+        float  NdotH = clamp(dot(worldNorm, H), 0.0, 1.);
+        float  LdotH = clamp(dot(L, H), 0.0, 1.);
+
+        // Evaluate our BRDF using a microfacet BRDF model
+        float  D = ggxNormalDistribution(NdotH, roughness);          // The GGX normal distribution
+        float  G = IndirectGeometrySmith(worldNorm, viewDir, L, roughness);   // Use Schlick's masking term approx
+        vec3 F = fresnelSchlickRoughness(LdotH, F0, roughness);  // Use Schlick's approx to Fresnel
+        vec3 ggxTerm = D * G * F / (4 * NdotL * NdotV);        // The Cook-Torrance microfacet BRDF
+
+        // What's the probability of sampling vector H from getGGXMicrofacet()?
+        float  ggxProb = D * NdotH / (4 * LdotH);
+
+        // Accumulate the color:  ggx-BRDF * incomingLight * NdotL / probability-of-sampling
+        //    -> Should really simplify the math above.
+        return NdotL * bounceColor * ggxTerm / (ggxProb * (1.0f - probDiffuse));
+    }
 };
