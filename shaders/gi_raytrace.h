@@ -51,6 +51,7 @@ struct AORayPayload
 struct IndirectRayPayload
 {
 	vec3 color;    // The (returned) color in the ray's direction
+	uint randSeed;
 };
 
 // Generates a seed for a random number generator from 2 inputs plus a backoff

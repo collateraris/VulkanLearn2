@@ -23,6 +23,7 @@ layout(set = 1, binding = 2) readonly buffer ObjectBuffer{
 	SObjectData objects[];
 } objectBuffer;
 
+
 layout(set = 2, binding = 0, rgba32f) uniform image2D outputImage;
 
 layout(set = 3, binding = 0) uniform sampler2D wposTex;
@@ -30,56 +31,8 @@ layout(set = 3, binding = 1) uniform sampler2D normalTex;
 layout(set = 3, binding = 2) uniform sampler2D uvTex;
 layout(set = 3, binding = 3) uniform sampler2D objIDTex;
 
-// A wrapper function that encapsulates shooting an ambient occlusion ray query
-float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float maxT, float defaultVal)
-{
-	aoRpl.aoValue = defaultVal;
 
-    uint  rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
-
-    traceRayEXT(topLevelAS, // acceleration structure
-            rayFlags,       // rayFlags
-            0xFF,           // cullMask
-            0,              // sbtRecordOffset
-            0,              // sbtRecordStride
-            1,              // missIndex
-            orig.xyz,       // ray origin
-            1e-3,           // ray min range
-            dir.xyz,         // ray direction
-            maxT,           // ray max range
-            1      // payload (location = 1)
-    );        
-
-	return aoRpl.aoValue;
-};
-
-float shadowRayVisibility( vec3 orig, vec3 dir, float defaultVal)
-{
-    return shootAmbientOcclusionRay(orig, dir, 10000000, defaultVal);
-};
-
-vec3 shootIndirectRay(vec3 orig, vec3 dir)
-{
-    indirectRpl.color = vec3(0., 0., 0.);
-
-    uint  rayFlags = gl_RayFlagsOpaqueEXT;
-
-    traceRayEXT(topLevelAS, // acceleration structure
-            rayFlags,       // rayFlags
-            0xFF,           // cullMask
-            0,              // sbtRecordOffset
-            0,              // sbtRecordStride
-            0,              // missIndex
-            orig.xyz,       // ray origin
-            1e-3,           // ray min range
-            dir.xyz,         // ray direction
-            1,//.0e38f,           // ray max range
-            0      // payload (location = 0)
-    );   
-
-	// Return the color we got from our ray
-	return indirectRpl.color;
-}
+#include "gi_raytrace_func.h"
 
 void main() 
 {
@@ -104,39 +57,12 @@ void main()
         if (shadeData.emissionTexIndex > 0)
             emission = texture(texSet[shadeData.emissionTexIndex], gbufferTexCoord).rgb;
 
-        shadeColor = emission;     
-
         float roughness = 1.;
-        if (shadeData.roughnessTexIndex > 0)
-            roughness = texture(texSet[shadeData.roughnessTexIndex], gbufferTexCoord).r;
+	    if (shadeData.roughnessTexIndex > 0)
+		    roughness = texture(texSet[shadeData.roughnessTexIndex], uv).r;    
 
-        float metalness = 0.;
-        if (shadeData.metalnessTexIndex > 0)
-            metalness = texture(texSet[shadeData.metalnessTexIndex], gbufferTexCoord).r;
+        shadeColor = emission;   
 
-        float metallic = metalness;        
-
-        vec3 lightDir = normalize(-sunInfo.direction.xyz);
-        vec3 viewDir = normalize(giParams.camPos.xyz - worldPos.xyz);
-        vec3 H = normalize(viewDir + lightDir);
-
-        float HdotV = max(dot(H, viewDir), 0.0);
-        float NdotV = max(dot(worldNorm.xyz, viewDir), 0.0);
-        float NdotL = max(dot(worldNorm.xyz, lightDir), 0.0);
-
-        vec3 F0 = vec3(0.04); 
-        F0      = mix(F0, albedo, metallic);
-        vec3 F  = fresnelSchlick(HdotV, F0);
-
-        float NDF = DistributionGGX(worldNorm, H, roughness);
-        float G = GeometrySmith(worldNorm, viewDir, lightDir, roughness);
-
-        vec3 specular = (NDF * G) * F / (4.0 * NdotV * NdotL + 0.001);
-
-        vec3 kS = F;
-        vec3 kD = vec3(1.0) - kS;
-        
-        kD *= 1.0 - metallic;	
         //AO
 		// Start accumulating from zero if we don't hit the background
         float ambientOcclusion = 0.0f;
@@ -155,21 +81,24 @@ void main()
 
         float aoColor = ambientOcclusion / float(giParams.numRays); 
 
-        //SHADOW
-        float shadowMult = shadowRayVisibility(worldPos.xyz, lightDir, giParams.shadowMult);
+        vec3 lightDir = normalize(-sunInfo.direction.xyz);
+	    vec3 viewDir = normalize(giParams.camPos.xyz - worldPos.xyz);
+        vec3 F0 = vec3(0.04); 
 
-        vec3 Lo = shadowMult * (kD * albedo * M_INV_PI + specular) * sunInfo.color.xyz * NdotL;
+        vec3 Lo = ggxDirect(shadeData, gbufferTexCoord, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, lightDir, viewDir, sunInfo.color.xyz, F0);
         vec3 ambient = vec3(0.03) * albedo * aoColor;
 
         shadeColor += ambient + Lo;
-        
-        //INDIRECT ILLUMINATION
+
+        //  //INDIRECT ILLUMINATION
         vec3 bounceDir = getCosHemisphereSample(randSeed, worldNorm.xyz);
 
         // Shoot our indirect global illumination ray
-		//vec3 bounceColor = shootIndirectRay(worldPos.xyz, bounceDir);
+		vec3 bounceColor = shootIndirectRay(worldPos.xyz, bounceDir, randSeed);
 
-        //shadeColor += bounceColor;
+        shadeColor = bounceColor;
+
+        //shadeColor = ggxIndirect(randSeed, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz,roughness, lightDir, viewDir, F0);
 	}
 
 

@@ -32,42 +32,15 @@ layout(set = 1, binding = 2) readonly buffer ObjectBuffer{
 	SObjectData objects[];
 } objectBuffer;
 
-// A wrapper function that encapsulates shooting an ambient occlusion ray query
-float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float maxT, float defaultVal)
-{
-	aoRpl.aoValue = defaultVal;
-
-    uint  rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
-
-    traceRayEXT(topLevelAS, // acceleration structure
-            rayFlags,       // rayFlags
-            0xFF,           // cullMask
-            0,              // sbtRecordOffset
-            0,              // sbtRecordStride
-            1,              // missIndex
-            orig.xyz,       // ray origin
-            1e-3,           // ray min range
-            dir.xyz,         // ray direction
-            maxT,           // ray max range
-            1      // payload (location = 1)
-    );        
-
-	return aoRpl.aoValue;
-};
-
-float shadowRayVisibility( vec3 orig, vec3 dir, float defaultVal)
-{
-    return shootAmbientOcclusionRay(orig, dir, 10000000, defaultVal);
-};
-
+#include "gi_raytrace_func.h"
 
 void main()
 {
-  SObjectData objData = objectBuffer.objects[gl_InstanceID];
+  SObjectData shadeData = objectBuffer.objects[gl_InstanceID];
   
-  SVertex v0 = Vertices[objData.meshIndex].vertices[gl_PrimitiveID * 3 + 0];
-  SVertex v1 = Vertices[objData.meshIndex].vertices[gl_PrimitiveID * 3 + 1];
-  SVertex v2 = Vertices[objData.meshIndex].vertices[gl_PrimitiveID * 3 + 2];
+  SVertex v0 = Vertices[shadeData.meshIndex].vertices[gl_PrimitiveID * 3 + 0];
+  SVertex v1 = Vertices[shadeData.meshIndex].vertices[gl_PrimitiveID * 3 + 1];
+  SVertex v2 = Vertices[shadeData.meshIndex].vertices[gl_PrimitiveID * 3 + 2];
 
   const vec3 barycentrics = vec3(1.0 - baryCoord.x - baryCoord.y, baryCoord.x, baryCoord.y);
 
@@ -90,14 +63,23 @@ void main()
   const vec3 nrm      = v0_nrm * barycentrics.x + v1_nrm * barycentrics.y + v2_nrm * barycentrics.z;
   const vec3 worldNormal = normalize(vec3(nrm * gl_WorldToObjectEXT));  // Transforming the normal to world space      
 
-  vec3 diffuse = texture(texSet[objData.diffuseTexIndex], texCoord).xyz;
+  vec3 albedo = texture(texSet[shadeData.diffuseTexIndex], texCoord).xyz;
+
+  vec3 emission = vec3(0., 0., 0);
+  if (shadeData.emissionTexIndex > 0)
+    emission = texture(texSet[shadeData.emissionTexIndex], texCoord).rgb;
+
+  float roughness = 1.;
+  if (shadeData.roughnessTexIndex > 0)
+    roughness = texture(texSet[shadeData.roughnessTexIndex], texCoord).r;  
 
   SLight sunInfo = lightsBuffer.lights[0];
-  vec3 toLight = normalize(-sunInfo.direction.xyz);
 
-  // Compute our lambertion term (L dot N)
-	float LdotN = clamp(dot(worldNormal, toLight), 0., 1.);
-  float shadowMult = shadowRayVisibility(worldPos.xyz, toLight, giParams.shadowMult);
+  vec3 shadeColor = emission;
 
-  indirectRpl.color = shadowMult * LdotN * diffuse * sunInfo.color.xyz * M_INV_PI;
+  vec3 lightDir = normalize(-sunInfo.direction.xyz);
+	vec3 viewDir = normalize(giParams.camPos.xyz - worldPos.xyz);
+  vec3 F0 = vec3(0.04); 
+
+  indirectRpl.color = shadeColor + ggxDirect(shadeData, texCoord, worldPos.xyz, worldNormal.xyz, giParams.camPos.xyz, albedo, roughness, lightDir, viewDir, sunInfo.color.xyz, F0);
 }
