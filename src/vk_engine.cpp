@@ -21,6 +21,10 @@
 
 #include <vk_assimp_loader.h>
 
+#include <sys_config/ConfigManager.h>
+#include <sys_config/vk_strings.h>
+using namespace vk_utils;
+
 //we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
 using namespace std;
 void VK_CHECK(VkResult result_) {
@@ -34,25 +38,20 @@ void VulkanEngine::init()
 	SDL_Init(SDL_INIT_VIDEO);
 
 	SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN);
+
+	_windowExtent.width = vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetWindowWidth();
+	_windowExtent.height = vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetWindowHeight();
 	
 	_window = SDL_CreateWindow(
-		"Vulkan Engine",
+		vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetTitle().c_str(),
 		SDL_WINDOWPOS_UNDEFINED,
 		SDL_WINDOWPOS_UNDEFINED,
 		_windowExtent.width,
 		_windowExtent.height,
 		window_flags
 	);
-	SceneConfig config;
-	config.fileName = "../../assets/builder/scene.gltf";
-	//config.fileName = "../../assets/sponza.obj";
-	//config.fileName = "../../assets/lost_empire.obj";
-	//config.fileName = "../../assets/monkey_smooth.obj";
-	//config.fileName = "F:/myrepo/Bistro_v5_2/Bistro_v5_2/BistroExterior.fbx";
-	//config.scaleFactor = 0.1;
-	glm::mat4 model = glm::mat4(1.0);
-	model = glm::rotate(model, glm::radians(-90.f), glm::vec3(1, 0, 0));
-	AsimpLoader::processScene(config, _scene, _resManager, model);
+	SceneConfig config = vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetCurrentScene();
+	AsimpLoader::processScene(config, _scene, _resManager, config.model);
 
 	_logger.init("vulkan.log");
 
@@ -952,7 +951,7 @@ std::string VulkanEngine::asset_path(std::string_view path)
 
 std::string VulkanEngine::shader_path(std::string_view path)
 {
-	return "../../shaders/" + std::string(path);
+	return vk_utils::SHADERS_PATH + std::string(path);
 }
 
 VkQueryPool VulkanEngine::createQueryPool(uint32_t queryCount)

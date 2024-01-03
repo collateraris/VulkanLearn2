@@ -1,0 +1,37 @@
+<?xml version="1.1" encoding="UTF-8" ?>
+<config>
+
+	<window
+		title="Vulkan Learning Game Engine"
+		width="1980"
+		height="1080"
+	></window>
+			
+	<current_scene
+		id="1"
+	></current_scene>
+
+	<scene_configs>
+		<scene id="0" 
+			path="builder/scene.gltf" 
+			scaleFactor = "1" 
+			needRotation = "1" 
+			radians = "-90" 
+			axisX = "1" 
+			axisY = "0" 
+			axisZ ="0"
+		></scene>
+		<scene id="1" 
+			path="sponza.obj" 
+			scaleFactor = "0.1" 
+			needRotation = "0" 
+		></scene>
+		<scene id="2" 
+			path="lost_empire.obj" 
+			scaleFactor = "1" 
+			needRotation = "0" 
+		></scene>				
+	</scene_configs>
+	
+
+</config>

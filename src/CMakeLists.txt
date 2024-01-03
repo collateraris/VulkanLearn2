@@ -63,7 +63,16 @@ add_executable(vulkan_guide
     graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h
     graphic_pipeline/vk_simple_accumulation_graphics_pipeline.cpp
     vk_light_manager.h
-    vk_light_manager.cpp)
+    vk_light_manager.cpp
+    sys_config/ConfigManager.h
+    sys_config/ConfigManager.cpp
+    sys_config/Config.h
+    sys_config/Config.cpp
+    sys_config/XPath.h
+    sys_config/XPath.cpp
+    sys_config/tinyxml2.h
+    sys_config/tinyxml2.cpp
+    sys_config/vk_strings.h)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
