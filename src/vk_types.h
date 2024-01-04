@@ -142,6 +142,7 @@ struct PACKED_STRUCT gpumat4
 struct SceneConfig
 {
 	std::string fileName;
+	std::string hdrCubemapPath;
 	float scaleFactor = 1.;
 	glm::mat4 model = glm::mat4(1.0);
 };

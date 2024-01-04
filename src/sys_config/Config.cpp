@@ -35,6 +35,7 @@ SceneConfig vk_utils::Config::GetCurrentScene()
     auto sceneConfig = sceneConfigs[id];
 
     config.fileName = vk_utils::ASSETS_PATH + sceneConfig.GetAttribute<std::string>("path");
+    config.hdrCubemapPath = vk_utils::ASSETS_PATH + sceneConfig.GetAttribute<std::string>("hdr");
     config.scaleFactor = sceneConfig.GetAttribute<float>("scaleFactor");
     bool bNeedRotation = sceneConfig.GetAttribute<int>("needRotation");
 

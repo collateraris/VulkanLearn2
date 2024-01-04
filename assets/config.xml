@@ -8,12 +8,13 @@
 	></window>
 			
 	<current_scene
-		id="1"
+		id="0"
 	></current_scene>
 
 	<scene_configs>
 		<scene id="0" 
-			path="builder/scene.gltf" 
+			path="builder/scene.gltf"
+			hdr="kloppenheim_06_puresky_2k.hdr" 
 			scaleFactor = "1" 
 			needRotation = "1" 
 			radians = "-90" 
@@ -22,12 +23,14 @@
 			axisZ ="0"
 		></scene>
 		<scene id="1" 
-			path="sponza.obj" 
+			path="sponza.obj"
+			hdr="kloppenheim_06_puresky_2k.hdr"  
 			scaleFactor = "0.1" 
 			needRotation = "0" 
 		></scene>
 		<scene id="2" 
-			path="lost_empire.obj" 
+			path="lost_empire.obj"
+			hdr="kloppenheim_06_puresky_2k.hdr" 			 
 			scaleFactor = "1" 
 			needRotation = "0" 
 		></scene>				
