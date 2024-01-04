@@ -33,3 +33,8 @@ void VulkanCommandPool::reset()
 {
 	vkResetCommandPool(_engine->_device, _pool, 0);
 }
+
+void VulkanCommandPool::free_command_buffer(VkCommandBuffer& cmd)
+{
+	vkFreeCommandBuffers(_engine->_device, _pool, 1, &cmd);
+}

@@ -15,6 +15,8 @@ public:
 
 	void reset();
 
+	void free_command_buffer(VkCommandBuffer& cmd);
+
 private:
 	VulkanEngine* _engine = nullptr;
 

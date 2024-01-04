@@ -15,7 +15,7 @@
 
 #define VK_ASSERT assert
 
-#define BIT(x) 1 << x
+#define BIT(x) 1u << x
 
 constexpr uint32_t VULKAN_NUM_ATTACHMENTS = 8;
 constexpr uint32_t VULKAN_MAX_LIGHT_COUNT = 1;
@@ -33,11 +33,19 @@ struct AllocatedImage {
     VmaAllocation _allocation = VK_NULL_HANDLE;
 };
 
+enum ETexFlags: uint32_t
+{
+	NO_MIPS = BIT(1),
+	HDR_CUBEMAP = BIT(2),
+};
+
 struct Texture {
 	AllocatedImage image;
 	VkImageView imageView = VK_NULL_HANDLE;
 	VkExtent3D extend;
 	VkImageCreateInfo createInfo;
+	uint32_t flags = 0;
+	uint32_t mipLevels = 0; 
 	bool bIsSwapChainImage = false;
 };
 

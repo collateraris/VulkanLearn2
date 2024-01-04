@@ -6,7 +6,8 @@ class VulkanEngine;
 
 namespace vkutil {
 
-	bool load_image_from_file(VulkanEngine& engine, const std::string& file, AllocatedImage& outImage, VkFormat& image_format);
+	bool load_image_from_file(VulkanEngine& engine, const std::string& file, Texture& outImage, VkFormat& image_format);
+	void generateMipmaps(VulkanEngine& engine, VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
 
 	uint32_t getImageMipLevels(uint32_t width, uint32_t height);
 

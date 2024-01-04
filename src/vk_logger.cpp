@@ -33,6 +33,12 @@ void VkLogger::init(const std::string& logFilePath)
     PLOG_DEBUG << "Hello VkLogger!\n";
 }
 
+void VkLogger::debug_log(std::string&& log)
+{
+	PLOG_DEBUG << log.c_str();
+	printf(log.c_str());
+}
+
 VkBool32 vk_logger_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*)
 {
 	auto ms = to_string_message_severity(messageSeverity);

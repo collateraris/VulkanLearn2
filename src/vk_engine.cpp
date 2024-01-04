@@ -936,9 +936,10 @@ void VulkanEngine::load_images()
 	{
 		Texture* tex = texPtr.get();
 		VkFormat image_format;
-		if (vkutil::load_image_from_file(*this, path, tex->image, image_format))
+		if (vkutil::load_image_from_file(*this, path, *tex, image_format))
 		{
 			VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(image_format, tex->image._image, VK_IMAGE_ASPECT_COLOR_BIT);
+			imageinfo.subresourceRange.levelCount = tex->mipLevels;
 			vkCreateImageView(_device, &imageinfo, nullptr, &tex->imageView);
 		}	
 	}

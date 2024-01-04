@@ -10,4 +10,5 @@ class VkLogger
 {
 public:
 	void init(const std::string& logFilePath);
+	void debug_log(std::string&& log);
 };
