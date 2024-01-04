@@ -165,6 +165,16 @@ VkImageCreateInfo vkinit::image_create_info(VkFormat format, VkImageUsageFlags u
 	return info;
 }
 
+VkImageCreateInfo vkinit::cubemap_image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent)
+{
+	VkImageCreateInfo info = vkinit::image_create_info(format, usageFlags, extent);
+	// Cube faces count as array layers in Vulkan
+	info.arrayLayers = 6;
+	// This flag is required for cube map images
+	info.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+	return info;
+}
+
 VkImageViewCreateInfo vkinit::imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags)
 {
 	//build a image-view for the depth image to use for rendering
@@ -179,6 +189,25 @@ VkImageViewCreateInfo vkinit::imageview_create_info(VkFormat format, VkImage ima
 	info.subresourceRange.levelCount = 1;
 	info.subresourceRange.baseArrayLayer = 0;
 	info.subresourceRange.layerCount = 1;
+	info.subresourceRange.aspectMask = aspectFlags;
+
+	return info;
+}
+
+VkImageViewCreateInfo vkinit::cubemap_imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags)
+{
+	//build a image-view for the depth image to use for rendering
+	VkImageViewCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	info.pNext = nullptr;
+
+	info.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+	info.image = image;
+	info.format = format;
+	info.subresourceRange.baseMipLevel = 0;
+	info.subresourceRange.levelCount = 1;
+	info.subresourceRange.baseArrayLayer = 0;
+	info.subresourceRange.layerCount = 6;
 	info.subresourceRange.aspectMask = aspectFlags;
 
 	return info;

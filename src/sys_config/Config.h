@@ -17,6 +17,7 @@ namespace vk_utils
         uint32_t GetWindowWidth();
         uint32_t GetWindowHeight();
         SceneConfig GetCurrentScene();
+        uint32_t GetEnvMapSize();
 
     private:
         std::string mFileName;

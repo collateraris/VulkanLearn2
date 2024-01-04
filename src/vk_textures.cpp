@@ -431,6 +431,13 @@ VulkanTextureBuilder& VulkanTextureBuilder::make_img_info(VkFormat format, VkIma
 	return *this;
 }
 
+VulkanTextureBuilder& VulkanTextureBuilder::make_cubemap_img_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent)
+{
+	_img_info = vkinit::cubemap_image_create_info(format, usageFlags, extent);
+	_extend = extent;
+	return *this;
+}
+
 VulkanTextureBuilder& VulkanTextureBuilder::fill_img_info(const std::function<void(VkImageCreateInfo& imgInfo)>& func)
 {
 	func(_img_info);
@@ -453,6 +460,12 @@ VulkanTextureBuilder& VulkanTextureBuilder::fill_img_allocinfo(const std::functi
 VulkanTextureBuilder& VulkanTextureBuilder::make_view_info(VkFormat format, VkImageAspectFlags aspectFlags)
 {
 	_view_info = vkinit::imageview_create_info(format, {}, aspectFlags);
+	return *this;
+}
+
+VulkanTextureBuilder& VulkanTextureBuilder::make_cubemap_view_info(VkFormat format, VkImageAspectFlags aspectFlags)
+{
+	_view_info = vkinit::cubemap_imageview_create_info(format, {}, aspectFlags);
 	return *this;
 }
 

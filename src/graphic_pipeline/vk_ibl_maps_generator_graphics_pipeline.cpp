@@ -4,6 +4,9 @@
 #include <vk_textures.h>
 #include <vk_initializers.h>
 
+#include <sys_config/ConfigManager.h>
+#include <sys_config/vk_strings.h>
+
 void VulkanIblMapsGeneratorGraphicsPipeline::init(VulkanEngine* engine, std::string hdrCubemapPath)
 {
 	_engine = engine;
@@ -14,6 +17,11 @@ void VulkanIblMapsGeneratorGraphicsPipeline::init(VulkanEngine* engine, std::str
 const Texture& VulkanIblMapsGeneratorGraphicsPipeline::getHDR() const
 {
 	return _hdr;
+}
+
+const Texture& VulkanIblMapsGeneratorGraphicsPipeline::getEnvCubemap() const
+{
+	return _environmentCube;
 }
 
 void VulkanIblMapsGeneratorGraphicsPipeline::loadEnvironment(std::string hdrCubemapPath)
@@ -29,5 +37,20 @@ void VulkanIblMapsGeneratorGraphicsPipeline::loadEnvironment(std::string hdrCube
 		}
 	}
 
+	_imageExtent = {
+		vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize(),
+		vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize(),
+		1
+	};
 
+	{
+		VulkanTextureBuilder texBuilder;
+		texBuilder.init(_engine);
+		_environmentCube = texBuilder.start()
+			.make_cubemap_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL; })
+			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+			.make_cubemap_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
+			.create_texture();
+	}
 }

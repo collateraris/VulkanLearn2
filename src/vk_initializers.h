@@ -30,7 +30,11 @@ namespace vkinit {
 
 	VkImageCreateInfo image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
 
+	VkImageCreateInfo cubemap_image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
+
 	VkImageViewCreateInfo imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags);
+
+	VkImageViewCreateInfo cubemap_imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags);
 
 	VkPipelineDepthStencilStateCreateInfo depth_stencil_create_info(bool bDepthTest, bool bDepthWrite, VkCompareOp compareOp);
 

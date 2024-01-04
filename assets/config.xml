@@ -11,6 +11,10 @@
 		id="1"
 	></current_scene>
 
+	<env_map
+		size="512"
+	></env_map>
+
 	<scene_configs>
 		<scene id="0" 
 			path="builder/scene.gltf"
