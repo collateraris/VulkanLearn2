@@ -62,6 +62,8 @@ add_executable(vulkan_guide
     graphic_pipeline/vk_gi_raytrace_graphics_pipeline.cpp
     graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h
     graphic_pipeline/vk_simple_accumulation_graphics_pipeline.cpp
+    graphic_pipeline/vk_ibl_maps_generator_graphics_pipeline.h
+    graphic_pipeline/vk_ibl_maps_generator_graphics_pipeline.cpp
     vk_light_manager.h
     vk_light_manager.cpp
     sys_config/ConfigManager.h

@@ -4,9 +4,10 @@
 #pragma once
 
 #define MESHSHADER_ON 0
-#define GI_RAYTRACER_ON 1 // NEED GBUFFER_ON
+#define GI_RAYTRACER_ON 0 // NEED GBUFFER_ON
 #define VBUFFER_ON 0
-#define GBUFFER_ON 1
+#define GBUFFER_ON 0
+#define IBL_GENERATOR_ON 1
 #define VULKAN_DEBUG_ON 1
 
 #include <volk.h>

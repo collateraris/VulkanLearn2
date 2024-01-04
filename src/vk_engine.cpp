@@ -84,7 +84,7 @@ void VulkanEngine::init()
 	load_meshes();
 
 	init_scene();
-#if MESHSHADER_ON || VBUFFER_ON || GBUFFER_ON || GI_RAYTRACER_ON
+#if MESHSHADER_ON || VBUFFER_ON || GBUFFER_ON || GI_RAYTRACER_ON || IBL_GENERATOR_ON
 	init_pipelines();
 #endif
 
@@ -122,6 +122,13 @@ void VulkanEngine::init()
 	_giRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer());
 	_simpleAccumGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
 	_gBufShadingGraphicsPipeline.init(this, _simpleAccumGraphicsPipeline.get_output());
+#endif
+
+#if IBL_GENERATOR_ON
+	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
+	_fullscreenGraphicsPipeline.init(this);
+	_fullscreenGraphicsPipeline.init_description_set(_iblGenGraphicsPipeline.getHDR());
+
 #endif
 
 
@@ -330,6 +337,9 @@ void VulkanEngine::draw()
 #endif			
 #if VBUFFER_ON
 			_visBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+#endif
+#if IBL_GENERATOR_ON
+			_fullscreenGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif
 		//draw_objects(cmd, _renderables.data(), _renderables.size());
 			ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);

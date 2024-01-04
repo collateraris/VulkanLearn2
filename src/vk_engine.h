@@ -29,6 +29,7 @@
 #include <graphic_pipeline/vk_gbuffer_shading_graphics_pipeline.h>
 #include <graphic_pipeline/vk_gi_raytrace_graphics_pipeline.h>
 #include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
+#include <graphic_pipeline/vk_ibl_maps_generator_graphics_pipeline.h>
 #include <vk_light_manager.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
@@ -166,6 +167,11 @@ public:
 
 #if GI_RAYTRACER_ON && GBUFFER_ON
 	VulkanGIShadowsRaytracingGraphicsPipeline _giRtGraphicsPipeline;
+#endif
+
+#if IBL_GENERATOR_ON
+	VulkanIblMapsGeneratorGraphicsPipeline _iblGenGraphicsPipeline;
+	VulkanFullScreenGraphicsPipeline _fullscreenGraphicsPipeline;
 #endif
 
 	VulkanLightManager _lightManager;

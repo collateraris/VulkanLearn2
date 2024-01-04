@@ -7,6 +7,7 @@
 #include <stb_image.h>
 
 void load_image_with_stbi(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight);
+void load_hdr_image_with_stbi(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight);
 
 void load_image_for_dds(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight);
 
@@ -18,14 +19,16 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file,
 
 	bool isDDS = file.substr(file.find_last_of(".") + 1).compare("dds") == 0;
 
-	if (isDDS)
-	load_image_for_dds(file.c_str(), pixel_ptr, image_format, imageSize, texWidth, texHeight);
-		else
-	load_image_with_stbi(file.c_str(), pixel_ptr, image_format, imageSize, texWidth, texHeight);
+	if (outImage.flags & ETexFlags::HDR_CUBEMAP)
+		load_image_with_stbi(file.c_str(), pixel_ptr, image_format, imageSize, texWidth, texHeight);
+	else if (isDDS)
+		load_image_for_dds(file.c_str(), pixel_ptr, image_format, imageSize, texWidth, texHeight);
+	else
+		load_image_with_stbi(file.c_str(), pixel_ptr, image_format, imageSize, texWidth, texHeight);
 
 	if (pixel_ptr == nullptr || imageSize <= 0 || texWidth <= 0 || texHeight <= 0)
 	{
-		std::cout << "Failed to load texture file " << file << std::endl;
+		engine._logger.debug_log(std::format("Failed to load texture file {}\n", file));
 		return false;
 	}
 
@@ -227,6 +230,27 @@ void vkutil::generateMipmaps(VulkanEngine& engine, VkImage image, VkFormat image
 			1, &barrier);
 
 	});
+}
+
+void load_hdr_image_with_stbi(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight)
+{
+	int texChannels;
+
+	stbi_set_flip_vertically_on_load(true);
+
+	float* pixels = stbi_loadf(file, &texWidth, &texHeight, &texChannels, 0);
+
+	stbi_set_flip_vertically_on_load(false);
+
+	if (!pixels) {
+		std::cout << "Failed to load texture file " << file << std::endl;
+		return;
+	}
+
+	pixel_ptr = pixels;
+	imageSize = texWidth * texHeight * 2 * 3;
+
+	image_format = VK_FORMAT_R16G16B16_SFLOAT;
 }
 
 void load_image_with_stbi(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight)

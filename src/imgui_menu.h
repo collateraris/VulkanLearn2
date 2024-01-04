@@ -196,6 +196,8 @@ static void EditSun(VulkanLightManager& lightManager, int current_frame_index)
     ImGui::End();
 }
 
+
+#if GI_RAYTRACER_ON && GBUFFER_ON
 static void EditGI(PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeline& giGP, VulkanSimpleAccumulationGraphicsPipeline& saGP, int current_frame_index, int frameNumber)
 {
     static bool p_open = true;
@@ -220,6 +222,7 @@ static void EditGI(PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeli
     giGP.copy_global_uniform_data(giParams, current_frame_index);
     ImGui::End();
 }
+#endif
 
 static void ShowVkMenu(VulkanEngine& engine)
 {
