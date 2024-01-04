@@ -118,7 +118,7 @@ vec3 ggxIndirect(uint randSeed, vec3 worldPos, vec3 worldNorm, vec3 camPos, vec3
 
 		// Accumulate the color: (NdotL * incomingLight * dif / pi) 
 		// Probability of sampling:  (NdotL / pi) * probDiffuse
-		return bounceColor * albedo / probDiffuse;
+		return bounceColor * albedo / max(1e-3, probDiffuse);
     }
     else
     {
@@ -146,6 +146,6 @@ vec3 ggxIndirect(uint randSeed, vec3 worldPos, vec3 worldNorm, vec3 camPos, vec3
 
         // Accumulate the color:  ggx-BRDF * incomingLight * NdotL / probability-of-sampling
         //    -> Should really simplify the math above.
-        return NdotL * bounceColor * ggxTerm / (ggxProb * (1.0f - probDiffuse));
+        return NdotL * bounceColor * ggxTerm / max(1e-3, (ggxProb * (1.0f - probDiffuse)));
     }
 };
