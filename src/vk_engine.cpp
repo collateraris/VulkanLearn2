@@ -119,17 +119,12 @@ void VulkanEngine::init()
 
 #if GBUFFER_ON
 	_gBufGenerateGraphicsPipeline.init(this);
-	_giRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer());
+	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
+	_giRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer(), _iblGenGraphicsPipeline.getEnvCubemap());
 	_simpleAccumGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
 	_gBufShadingGraphicsPipeline.init(this, _simpleAccumGraphicsPipeline.get_output());
 #endif
 
-#if IBL_GENERATOR_ON
-	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
-	_fullscreenGraphicsPipeline.init(this);
-	_fullscreenGraphicsPipeline.init_description_set(_iblGenGraphicsPipeline.getHDR());
-
-#endif
 
 
 	_camera = {};
@@ -337,9 +332,6 @@ void VulkanEngine::draw()
 #endif			
 #if VBUFFER_ON
 			_visBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-#endif
-#if IBL_GENERATOR_ON
-			_fullscreenGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif
 		//draw_objects(cmd, _renderables.data(), _renderables.size());
 			ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);

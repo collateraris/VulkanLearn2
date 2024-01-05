@@ -64,7 +64,7 @@ struct Mesh {
 	AllocatedBuffer _meshletsBuffer;
 	AllocatedBuffer _meshletdataBuffer;
 #endif
-#if VBUFFER_ON
+#if VBUFFER_ON || GI_RAYTRACER_ON
 	AllocatedBuffer _indicesBuffer;
 #endif
 #if GI_RAYTRACER_ON

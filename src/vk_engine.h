@@ -166,13 +166,10 @@ public:
 #endif
 
 #if GI_RAYTRACER_ON && GBUFFER_ON
+	VulkanIblMapsGeneratorGraphicsPipeline _iblGenGraphicsPipeline;
 	VulkanGIShadowsRaytracingGraphicsPipeline _giRtGraphicsPipeline;
 #endif
 
-#if IBL_GENERATOR_ON
-	VulkanIblMapsGeneratorGraphicsPipeline _iblGenGraphicsPipeline;
-	VulkanFullScreenGraphicsPipeline _fullscreenGraphicsPipeline;
-#endif
 
 	VulkanLightManager _lightManager;
 

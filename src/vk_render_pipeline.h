@@ -21,6 +21,7 @@ enum class EPipelineType : uint32_t
 	GBufferShading = 10,
 	GI_Raytracing = 11,
 	SimpleAccumulation = 12,
+	DrawHDRtoEnvMap  =13,
 	Max,
 };
 

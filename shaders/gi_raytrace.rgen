@@ -30,6 +30,7 @@ layout(set = 3, binding = 0) uniform sampler2D wposTex;
 layout(set = 3, binding = 1) uniform sampler2D normalTex;
 layout(set = 3, binding = 2) uniform sampler2D uvTex;
 layout(set = 3, binding = 3) uniform sampler2D objIDTex;
+layout(set = 3, binding = 4) uniform samplerCube samplerEnv;
 
 
 #include "gi_raytrace_func.h"
@@ -87,6 +88,10 @@ void main()
         //shadeColor = vec3(aoColor, aoColor, aoColor);
         //hadeColor = vec3(roughness, roughness, roughness);
 	}
+    else
+    {
+        shadeColor = textureLod(samplerEnv, vec3(uv, 1.f), 1.f).rgb;
+    }
 
 
     imageStore(outputImage, ivec2(gl_LaunchIDEXT.xy), vec4(shadeColor, 1.0f));

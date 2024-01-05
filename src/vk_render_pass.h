@@ -11,6 +11,7 @@ enum class ERenderPassType
 	VisBufferGenerate = 2,
 	GBufferGenerate = 3,
 	SimpleAccumulation = 4,
+	DrawIntoCubemap = 5,
 	Max,
 };
 
