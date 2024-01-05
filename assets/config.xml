@@ -14,6 +14,10 @@
 	<env_map
 		size="512"
 	></env_map>
+	
+	<irradiance_map
+		size="64"
+	></irradiance_map>
 
 	<scene_configs>
 		<scene id="0" 

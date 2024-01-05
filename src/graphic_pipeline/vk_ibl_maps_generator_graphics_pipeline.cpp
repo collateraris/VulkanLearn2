@@ -259,8 +259,15 @@ void init_render_pipeline(VulkanEngine* engine, EPipelineType rpType, std::strin
 		});
 }
 
+
 void VulkanIblMapsGeneratorGraphicsPipeline::drawCubemaps()
 {
+	drawHDRtoEnvMap();
+}
+
+void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
+{
+
 	init_render_pipeline(_engine, EPipelineType::DrawHDRtoEnvMap, "drawHDRtoEnvMap.frag.spv",
 		vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize());
 
@@ -275,14 +282,8 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawCubemaps()
 
 		});
 
-	drawHDRtoEnvMap();
-}
-
-void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
-{
-
-	VkDescriptorSetLayout          _descSetLayout;
-	VkDescriptorSet  _descSet;
+	VkDescriptorSetLayout          descSetLayout;
+	VkDescriptorSet  descSet;
 
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
 
@@ -302,7 +303,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
 
 	vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 		.bind_image(0, &hdrImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-		.build(_descSet, _descSetLayout);
+		.build(descSet, descSetLayout);
 
 	_engine->immediate_submit([&](VkCommandBuffer cmd) {
 
@@ -315,106 +316,14 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
 
 	});
 
-	// Render cubemap
-	VkClearValue clearValues[1];
-	clearValues[0].color = { { 0.0f, 0.0f, 0.2f, 0.0f } };
-
-	VkViewport viewport{};
-	viewport.width = (float)vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize();
-	viewport.height = (float)vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize();
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-
-	VkRect2D scissor{};
-	scissor.extent.width = vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize();
-	scissor.extent.height = vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize();
-
-	VkImageSubresourceRange subresourceRange{};
-	subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	subresourceRange.baseMipLevel = 0;
-	subresourceRange.levelCount = 1;
-	subresourceRange.layerCount = 6;
-
-	struct PushBlockEnvMap {
-		glm::mat4 mvp;
-	} pushBlockEnvMap;
 
 	for (uint32_t cubeFace = 0; cubeFace < 6; cubeFace++)
 	{
-		_engine->immediate_submit([&](VkCommandBuffer cmd) {
-
-			vkCmdSetViewport(cmd, 0, 1, &viewport);
-			vkCmdSetScissor(cmd, 0, 1, &scissor);
-
-			//start the main renderpass. 
-			//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-			uint32_t windowSize = vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize();
-			VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_engine->_renderPassManager.get_render_pass(ERenderPassType::DrawIntoCubemap)->get_render_pass(), VkExtent2D(windowSize, windowSize), _framebuffer);
-
-			//connect clear values
-			rpInfo.clearValueCount = 1;
-			rpInfo.pClearValues = clearValues;
-
-			vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::DrawHDRtoEnvMap));
-
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::DrawHDRtoEnvMap), 0, 1, &_descSet, 0, nullptr);
-
-			pushBlockEnvMap.mvp = glm::perspective((float)(M_PI / 2.0), 1.0f, 0.1f, 512.0f) * _viewMatrices[cubeFace];
-			vkCmdPushConstants(cmd, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::DrawHDRtoEnvMap), 
-				VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushBlockEnvMap), &pushBlockEnvMap);
-
-			drawCube(cmd);
-
-			vkCmdEndRenderPass(cmd);
-
-			{
-				std::array<VkImageMemoryBarrier, 1> offscreenBarriers =
-				{
-					vkinit::image_barrier(_offscreenRT.image._image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-				};
-
-				vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, offscreenBarriers.size(), offscreenBarriers.data());
-			}
-
-			// Copy region for transfer from framebuffer to cube face
-			VkImageCopy copyRegion{};
-
-			copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			copyRegion.srcSubresource.baseArrayLayer = 0;
-			copyRegion.srcSubresource.mipLevel = 0;
-			copyRegion.srcSubresource.layerCount = 1;
-			copyRegion.srcOffset = { 0, 0, 0 };
-
-			copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			copyRegion.dstSubresource.baseArrayLayer = cubeFace;
-			copyRegion.dstSubresource.mipLevel = 0;
-			copyRegion.dstSubresource.layerCount = 1;
-			copyRegion.dstOffset = { 0, 0, 0 };
-
-			copyRegion.extent.width = static_cast<uint32_t>(viewport.width);
-			copyRegion.extent.height = static_cast<uint32_t>(viewport.height);
-			copyRegion.extent.depth = 1;
-
-			vkCmdCopyImage(
-				cmd,
-				_offscreenRT.image._image,
-				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				_environmentCube.image._image,
-				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				1,
-				&copyRegion);
-
-			{
-				std::array<VkImageMemoryBarrier, 1> offscreenBarriers =
-				{
-					vkinit::image_barrier(_offscreenRT.image._image, VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-				};
-
-				vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, 0, 0, 0, offscreenBarriers.size(), offscreenBarriers.data());
-			}
-		});
+		drawIntoFaceCubemap(static_cast<uint32_t>(EPipelineType::DrawHDRtoEnvMap), 
+			vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize(),
+			cubeFace,
+			_environmentCube,
+			descSet);
 	}
 
 	_engine->immediate_submit([&](VkCommandBuffer cmd) {
@@ -426,6 +335,107 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
 
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, envMapBarriers.size(), envMapBarriers.data());
 
+	});
+}
+
+void VulkanIblMapsGeneratorGraphicsPipeline::drawIntoFaceCubemap(uint32_t pipType, uint32_t cubemapSize, uint32_t cubeFace, Texture& cubemapTex, VkDescriptorSet& descSet)
+{
+	// Render cubemap
+	VkClearValue clearValues[1];
+	clearValues[0].color = { { 0.0f, 0.0f, 0.2f, 0.0f } };
+
+	VkViewport viewport{};
+	viewport.width = (float)cubemapSize;
+	viewport.height = (float)cubemapSize;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+
+	VkRect2D scissor{};
+	scissor.extent.width = cubemapSize;
+	scissor.extent.height = cubemapSize;
+
+	VkImageSubresourceRange subresourceRange{};
+	subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	subresourceRange.baseMipLevel = 0;
+	subresourceRange.levelCount = 1;
+	subresourceRange.layerCount = 6;
+
+	struct PushBlockEnvMap {
+		glm::mat4 mvp;
+	} pushBlockEnvMap;
+
+	_engine->immediate_submit([&](VkCommandBuffer cmd) {
+
+		vkCmdSetViewport(cmd, 0, 1, &viewport);
+		vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+		//start the main renderpass. 
+		//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
+		VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_engine->_renderPassManager.get_render_pass(ERenderPassType::DrawIntoCubemap)->get_render_pass(), VkExtent2D(cubemapSize, cubemapSize), _framebuffer);
+
+		//connect clear values
+		rpInfo.clearValueCount = 1;
+		rpInfo.pClearValues = clearValues;
+
+		vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::DrawHDRtoEnvMap));
+
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(static_cast<EPipelineType>(pipType)), 0, 1, &descSet, 0, nullptr);
+
+		pushBlockEnvMap.mvp = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f) * _viewMatrices[cubeFace];
+		vkCmdPushConstants(cmd, _engine->_renderPipelineManager.get_pipelineLayout(static_cast<EPipelineType>(pipType)),
+			VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushBlockEnvMap), &pushBlockEnvMap);
+
+		drawCube(cmd);
+
+		vkCmdEndRenderPass(cmd);
+
+		{
+			std::array<VkImageMemoryBarrier, 1> offscreenBarriers =
+			{
+				vkinit::image_barrier(_offscreenRT.image._image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+			};
+
+			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, offscreenBarriers.size(), offscreenBarriers.data());
+		}
+
+		// Copy region for transfer from framebuffer to cube face
+		VkImageCopy copyRegion{};
+
+		copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		copyRegion.srcSubresource.baseArrayLayer = 0;
+		copyRegion.srcSubresource.mipLevel = 0;
+		copyRegion.srcSubresource.layerCount = 1;
+		copyRegion.srcOffset = { 0, 0, 0 };
+
+		copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		copyRegion.dstSubresource.baseArrayLayer = cubeFace;
+		copyRegion.dstSubresource.mipLevel = 0;
+		copyRegion.dstSubresource.layerCount = 1;
+		copyRegion.dstOffset = { 0, 0, 0 };
+
+		copyRegion.extent.width = static_cast<uint32_t>(viewport.width);
+		copyRegion.extent.height = static_cast<uint32_t>(viewport.height);
+		copyRegion.extent.depth = 1;
+
+		vkCmdCopyImage(
+			cmd,
+			_offscreenRT.image._image,
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			cubemapTex.image._image,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1,
+			&copyRegion);
+
+		{
+			std::array<VkImageMemoryBarrier, 1> offscreenBarriers =
+			{
+				vkinit::image_barrier(_offscreenRT.image._image, VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+			};
+
+			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, 0, 0, 0, offscreenBarriers.size(), offscreenBarriers.data());
+		}
 	});
 }
 

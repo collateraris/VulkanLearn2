@@ -59,6 +59,13 @@ uint32_t vk_utils::Config::GetEnvMapSize()
     return  envConfig.GetAttribute<uint32_t>("size");
 }
 
+uint32_t vk_utils::Config::GetIrradianceSize()
+{
+    XPath envConfig = GetRoot().GetPath("irradiance_map");
+
+    return  envConfig.GetAttribute<uint32_t>("size");
+}
+
 void Config::Load()
 {
     bool flag = (mDocument.LoadFile(mFileName.c_str()) == tinyxml2::XML_SUCCESS);
