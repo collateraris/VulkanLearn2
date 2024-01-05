@@ -30,6 +30,11 @@ const Texture& VulkanIblMapsGeneratorGraphicsPipeline::getEnvCubemap() const
 	return _environmentCube;
 }
 
+const Texture& VulkanIblMapsGeneratorGraphicsPipeline::getIrradianceCubemap() const
+{
+	return _irradianceCube;
+}
+
 void VulkanIblMapsGeneratorGraphicsPipeline::loadEnvironment(std::string hdrCubemapPath)
 {
 	{
@@ -54,6 +59,23 @@ void VulkanIblMapsGeneratorGraphicsPipeline::loadEnvironment(std::string hdrCube
 		texBuilder.init(_engine);
 		_environmentCube = texBuilder.start()
 			.make_cubemap_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
+			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+			.make_cubemap_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
+			.create_texture();
+	}
+
+	{
+		VkExtent3D irradMapExtent = {
+				vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetIrradianceSize(),
+				vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetIrradianceSize(),
+				1
+			};
+
+		VulkanTextureBuilder texBuilder;
+		texBuilder.init(_engine);
+		_irradianceCube = texBuilder.start()
+			.make_cubemap_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, irradMapExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_cubemap_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
@@ -263,6 +285,8 @@ void init_render_pipeline(VulkanEngine* engine, EPipelineType rpType, std::strin
 void VulkanIblMapsGeneratorGraphicsPipeline::drawCubemaps()
 {
 	drawHDRtoEnvMap();
+
+	drawEnvMapToIrradianceMap();
 }
 
 void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
@@ -270,17 +294,6 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
 
 	init_render_pipeline(_engine, EPipelineType::DrawHDRtoEnvMap, "drawHDRtoEnvMap.frag.spv",
 		vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize());
-
-	_engine->immediate_submit([&](VkCommandBuffer cmd) {
-
-		std::array<VkImageMemoryBarrier, 1> hdrBarriers =
-		{
-			vkinit::image_barrier(_environmentCube.image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-		};
-
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, hdrBarriers.size(), hdrBarriers.data());
-
-		});
 
 	VkDescriptorSetLayout          descSetLayout;
 	VkDescriptorSet  descSet;
@@ -338,6 +351,67 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
 	});
 }
 
+void VulkanIblMapsGeneratorGraphicsPipeline::drawEnvMapToIrradianceMap()
+{
+	init_render_pipeline(_engine, EPipelineType::DrawEnvMapToIrradianceMap, "irradiance_convolution.frag.spv",
+		vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetIrradianceSize());
+
+	VkDescriptorSetLayout          descSetLayout;
+	VkDescriptorSet  descSet;
+
+	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
+
+	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
+
+	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE;
+
+	samplerInfo.pNext = &createInfoReduction;
+
+	VkSampler sampler;
+	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
+
+	VkDescriptorImageInfo envMapImageBufferInfo;
+	envMapImageBufferInfo.sampler = sampler;
+	envMapImageBufferInfo.imageView = _environmentCube.imageView;
+	envMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+		.bind_image(0, &envMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+		.build(descSet, descSetLayout);
+
+	_engine->immediate_submit([&](VkCommandBuffer cmd) {
+
+		std::array<VkImageMemoryBarrier, 1> irradMapBarriers =
+		{
+			vkinit::image_barrier(_irradianceCube.image._image, 0, VK_ACCESS_TRANSFER_WRITE_BIT,  VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, irradMapBarriers.size(), irradMapBarriers.data());
+
+	});
+
+
+	for (uint32_t cubeFace = 0; cubeFace < 6; cubeFace++)
+	{
+		drawIntoFaceCubemap(static_cast<uint32_t>(EPipelineType::DrawEnvMapToIrradianceMap),
+			vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetIrradianceSize(),
+			cubeFace,
+			_irradianceCube,
+			descSet);
+	}
+
+	_engine->immediate_submit([&](VkCommandBuffer cmd) {
+
+		std::array<VkImageMemoryBarrier, 1> irradMapBarriers =
+		{
+			vkinit::image_barrier(_irradianceCube.image._image, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, irradMapBarriers.size(), irradMapBarriers.data());
+
+	});
+}
+
 void VulkanIblMapsGeneratorGraphicsPipeline::drawIntoFaceCubemap(uint32_t pipType, uint32_t cubemapSize, uint32_t cubeFace, Texture& cubemapTex, VkDescriptorSet& descSet)
 {
 	// Render cubemap
@@ -379,7 +453,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawIntoFaceCubemap(uint32_t pipTyp
 
 		vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::DrawHDRtoEnvMap));
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(static_cast<EPipelineType>(pipType)));
 
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(static_cast<EPipelineType>(pipType)), 0, 1, &descSet, 0, nullptr);
 

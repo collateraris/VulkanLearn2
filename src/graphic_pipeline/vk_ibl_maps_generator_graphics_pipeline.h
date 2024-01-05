@@ -11,12 +11,14 @@ public:
 
 	const Texture& getHDR() const;
 	const Texture& getEnvCubemap() const;
+	const Texture& getIrradianceCubemap() const;
 private:
 	void loadEnvironment(std::string filename);
 	void loadBoxMesh();
 	void createOffscreenFramebuffer();
 	void drawCubemaps();
 	void drawHDRtoEnvMap();
+	void drawEnvMapToIrradianceMap();
 	void drawIntoFaceCubemap(uint32_t pipType, uint32_t cubemapSize, uint32_t cubeFace, Texture& cubemapTex, VkDescriptorSet&  descSet);
 	void drawCube(VkCommandBuffer& cmd);
 

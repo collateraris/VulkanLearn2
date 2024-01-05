@@ -8,13 +8,13 @@
 	></window>
 			
 	<current_scene
-		id="1"
+		id="0"
 	></current_scene>
 
 	<env_map
 		size="512"
 	></env_map>
-	
+
 	<irradiance_map
 		size="64"
 	></irradiance_map>

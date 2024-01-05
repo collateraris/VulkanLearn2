@@ -120,7 +120,7 @@ void VulkanEngine::init()
 #if GBUFFER_ON
 	_gBufGenerateGraphicsPipeline.init(this);
 	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
-	_giRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer(), _iblGenGraphicsPipeline.getEnvCubemap());
+	_giRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer(), _iblGenGraphicsPipeline.getIrradianceCubemap());
 	_simpleAccumGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
 	_gBufShadingGraphicsPipeline.init(this, _simpleAccumGraphicsPipeline.get_output());
 #endif
