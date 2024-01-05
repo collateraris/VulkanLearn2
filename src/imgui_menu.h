@@ -212,6 +212,8 @@ static void EditGI(PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeli
     giParams.numRays = std::max(1, numRays);
     giParams.frameCount = frameNumber;
     giParams.camPos = glm::vec4(camera.position, 1.f);
+    giParams.viewInverse = glm::inverse(camera.get_view_matrix());
+    giParams.projInverse = glm::inverse(camera.get_projection_matrix());
 
     if (bChangedValue)
     {
