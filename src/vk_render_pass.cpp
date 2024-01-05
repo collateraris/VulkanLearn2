@@ -79,6 +79,7 @@ void VulkanRenderPass::init(VulkanEngine* engine, const RenderPassInfo& info)
 		color_attachments[i] = info.color_attachments[i]->createInfo.format;
 		Texture& image = *info.color_attachments[i];
 		auto& attachment = attachments[i];
+		attachment.flags = 0;
 		attachment.format = color_attachments[i];
 		attachment.samples = image.createInfo.samples;
 		attachment.loadOp = color_load_op(i);
@@ -107,6 +108,7 @@ void VulkanRenderPass::init(VulkanEngine* engine, const RenderPassInfo& info)
 	{
 		Texture& image = *info.depth_stencil;
 		auto& attachment = attachments[info.num_color_attachments];
+		attachment.flags = 0;
 		attachment.format = depth_stencil;
 		attachment.samples = image.createInfo.samples;
 		attachment.loadOp = ds_load_op;

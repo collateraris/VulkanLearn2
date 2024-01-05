@@ -63,41 +63,56 @@ void VulkanIblMapsGeneratorGraphicsPipeline::loadEnvironment(std::string hdrCube
 
 void VulkanIblMapsGeneratorGraphicsPipeline::loadBoxMesh()
 {
-	Scene _scene;
-	SceneConfig config;
-	config.fileName = vk_utils::BOX_MODEL;
-	AsimpLoader::processScene(config, _scene, _engine->_resManager, config.model);
+	std::vector<glm::vec3> vertices = {
+			// back face
+		{ -1.0f, -1.0f, -1.0f}, // bottom-left
+		{	 1.0f,  1.0f, -1.0f}, // top-right
+		{	 1.0f, -1.0f, -1.0f}, // bottom-right         
+		{	 1.0f,  1.0f, -1.0f}, // top-right
+		{	-1.0f, -1.0f, -1.0f}, // bottom-left
+		{	-1.0f,  1.0f, -1.0f}, // top-left
+			// front face
+		{	-1.0f, -1.0f,  1.0f}, // bottom-left
+		{	 1.0f, -1.0f,  1.0f}, // bottom-right
+		{	 1.0f,  1.0f,  1.0f}, // top-right
+		{	 1.0f,  1.0f,  1.0f}, // top-right
+		{	-1.0f,  1.0f,  1.0f}, // top-left
+		{	-1.0f, -1.0f,  1.0f}, // bottom-left
+			// left face
+		{	-1.0f,  1.0f,  1.0f}, // top-right
+		{	-1.0f,  1.0f, -1.0f}, // top-left
+		{	-1.0f, -1.0f, -1.0f}, // bottom-left
+		{	-1.0f, -1.0f, -1.0f}, // bottom-left
+		{	-1.0f, -1.0f,  1.0f}, // bottom-right
+		{	-1.0f,  1.0f,  1.0f}, // top-right
+			// right face
+		{	 1.0f,  1.0f,  1.0f}, // top-left
+		{	 1.0f, -1.0f, -1.0f}, // bottom-right
+		{	 1.0f,  1.0f, -1.0f}, // top-right         
+		{	 1.0f, -1.0f, -1.0f}, // bottom-right
+		{	 1.0f,  1.0f,  1.0f}, // top-left
+		{	 1.0f, -1.0f,  1.0f}, // bottom-left     
+			 // bottom face
+		{	 -1.0f, -1.0f, -1.0f}, // top-right
+		{	  1.0f, -1.0f, -1.0f}, // top-left
+		{	  1.0f, -1.0f,  1.0f}, // bottom-left
+		{	  1.0f, -1.0f,  1.0f}, // bottom-left
+		{	 -1.0f, -1.0f,  1.0f}, // bottom-right
+		{	 -1.0f, -1.0f, -1.0f}, // top-right
+			 // top face
+		{	 -1.0f,  1.0f, -1.0f}, // top-left
+		{	  1.0f,  1.0f , 1.0f}, // bottom-right
+		{	  1.0f,  1.0f, -1.0f}, // top-right     
+		{	  1.0f,  1.0f,  1.0f}, // bottom-right
+		{	 -1.0f,  1.0f, -1.0f}, // top-left
+		{	 -1.0f,  1.0f,  1.0f}  // bottom-left
+	};
 
-	std::unordered_map<int, std::unordered_map<int, std::vector<RenderObject>>> renderablesMap;
 
-	for (int nodeIndex = 1; nodeIndex < _scene._hierarchy.size(); nodeIndex++)
 	{
-		RenderObject map;
-		map.meshIndex = _scene._meshes[nodeIndex];
-		map.mesh = _engine->_resManager.meshList[map.meshIndex].get();
-		map.matDescIndex = _scene._matForNode[nodeIndex];
-		map.transformMatrix = _scene._localTransforms[nodeIndex];
+		size_t bufferSize = vertices.size() * sizeof(glm::vec3);
 
-		renderablesMap[map.meshIndex][map.matDescIndex].push_back(map);
-	}
-
-	_box.clear();
-	for (const auto& [meshIndex, matMap] : renderablesMap)
-		for (const auto& [matIndex, mapVector] : matMap)
-			for (const auto& map : mapVector)
-				_box.push_back(map);
-
-	RenderObject& cube = _box[0];
-
-	{
-		size_t bufferSize = cube.mesh->_vertices.size() * sizeof(Vertex);
-
-		cube.mesh->_vertexBuffer = _engine->create_buffer_n_copy_data(bufferSize, cube.mesh->_vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-	}
-	{
-		size_t bufferSize = cube.mesh->_indices.size() * sizeof(cube.mesh->_indices[0]);
-
-		cube.mesh->_indicesBuffer = _engine->create_buffer_n_copy_data(bufferSize, cube.mesh->_indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+		_boxVB = _engine->create_buffer_n_copy_data(bufferSize, vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 	}
 
 }
@@ -169,10 +184,6 @@ void VulkanIblMapsGeneratorGraphicsPipeline::createOffscreenFramebuffer()
 	}
 }
 
-void VulkanIblMapsGeneratorGraphicsPipeline::drawCubemaps()
-{
-	drawHDRtoEnvMap();
-}
 
 void init_render_pipeline(VulkanEngine* engine, EPipelineType rpType, std::string_view fragShader, uint32_t cubemapSize)
 {
@@ -190,11 +201,28 @@ void init_render_pipeline(VulkanEngine* engine, EPipelineType rpType, std::strin
 			VkPipelineLayout meshPipLayout = pipelineBuilder._pipelineLayout;
 
 			//vertex input controls how to read vertices from vertex buffers. We arent using it yet
-			pipelineBuilder.vertexDescription = Vertex::get_vertex_description();
-			pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
+			//we will have just 1 vertex buffer binding, with a per-vertex rate
+			VkVertexInputBindingDescription mainBinding = {};
+			mainBinding.binding = 0;
+			mainBinding.stride = sizeof(glm::vec3);
+			mainBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
+			pipelineBuilder.vertexDescription.bindings.push_back(mainBinding);
+
+			//Position will be stored at Location 0
+			VkVertexInputAttributeDescription positionAttribute = {};
+			positionAttribute.binding = 0;
+			positionAttribute.location = 0;
+			positionAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+			positionAttribute.offset = 0;
+
+			pipelineBuilder.vertexDescription.attributes.push_back(positionAttribute);
+			pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
+			//connect the pipeline builder vertex input info to the one we get from Vertex
 			pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = pipelineBuilder.vertexDescription.bindings.data();
-			pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = (uint32_t)pipelineBuilder.vertexDescription.bindings.size();
+			pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = pipelineBuilder.vertexDescription.bindings.size();
+			pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = pipelineBuilder.vertexDescription.attributes.data();
+			pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = (uint32_t)pipelineBuilder.vertexDescription.attributes.size();
 
 			//input assembly is the configuration for drawing triangle lists, strips, or individual points.
 			//we are just going to draw triangle list
@@ -231,10 +259,27 @@ void init_render_pipeline(VulkanEngine* engine, EPipelineType rpType, std::strin
 		});
 }
 
-void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
+void VulkanIblMapsGeneratorGraphicsPipeline::drawCubemaps()
 {
 	init_render_pipeline(_engine, EPipelineType::DrawHDRtoEnvMap, "drawHDRtoEnvMap.frag.spv",
 		vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize());
+
+	_engine->immediate_submit([&](VkCommandBuffer cmd) {
+
+		std::array<VkImageMemoryBarrier, 1> hdrBarriers =
+		{
+			vkinit::image_barrier(_environmentCube.image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, hdrBarriers.size(), hdrBarriers.data());
+
+		});
+
+	drawHDRtoEnvMap();
+}
+
+void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
+{
 
 	VkDescriptorSetLayout          _descSetLayout;
 	VkDescriptorSet  _descSet;
@@ -386,12 +431,8 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
 
 void VulkanIblMapsGeneratorGraphicsPipeline::drawCube(VkCommandBuffer& cmd)
 {
-	RenderObject& cube = _box[0];
-
 	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(cmd, 0, 1, &cube.mesh->_vertexBuffer._buffer, offsets);
+	vkCmdBindVertexBuffers(cmd, 0, 1, &_boxVB._buffer, offsets);
 
-	vkCmdBindIndexBuffer(cmd, cube.mesh->_indicesBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
-
-	vkCmdDrawIndexed(cmd, static_cast<uint32_t>(cube.mesh->_indices.size()), 1, 0, 0, 0);
+	vkCmdDraw(cmd, 36, 1, 0, 0);
 }

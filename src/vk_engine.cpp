@@ -655,8 +655,7 @@ void VulkanEngine::init_swapchain()
 	vkb::Swapchain vkbSwapchain = swapchainBuilder
 		.use_default_format_selection()
 		//use vsync present mode
-		.set_image_usage_flags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
-		| VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+		.set_image_usage_flags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT| VK_IMAGE_USAGE_TRANSFER_DST_BIT)
 		.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR)
 		.set_desired_extent(_windowExtent.width, _windowExtent.height)
 		.build()
