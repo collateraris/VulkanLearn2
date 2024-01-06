@@ -69,6 +69,10 @@ void main()
   if (shadeData.emissionTexIndex > 0)
     emission = texture(texSet[shadeData.emissionTexIndex], texCoord).rgb;
 
+  float metalness = 0.;
+  if (shadeData.metalnessTexIndex > 0)
+      metalness = 1. - texture(texSet[shadeData.metalnessTexIndex], texCoord).r;   
+
   float roughness = 1.;
   if (shadeData.roughnessTexIndex > 0)
     roughness = texture(texSet[shadeData.roughnessTexIndex], texCoord).r; 
@@ -89,5 +93,5 @@ void main()
 	vec3 viewDir = normalize(giParams.camPos.xyz - worldPos.xyz);
   vec3 F0 = vec3(0.04); 
 
-  indirectRpl.color = shadeColor + ggxDirect(indirectRpl.randSeed, shadeData, texCoord, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, lightDir, viewDir, sunInfo.color.xyz, F0);
+  indirectRpl.color = shadeColor + ggxDirect(indirectRpl.randSeed, shadeData, texCoord, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, metalness, lightDir, viewDir, sunInfo.color.xyz, F0);
 }

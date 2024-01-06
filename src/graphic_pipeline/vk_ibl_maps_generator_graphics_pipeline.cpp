@@ -27,12 +27,17 @@ const Texture& VulkanIblMapsGeneratorGraphicsPipeline::getHDR() const
 
 const Texture& VulkanIblMapsGeneratorGraphicsPipeline::getEnvCubemap() const
 {
-	return _environmentCube;
+	return _iblTex[EIblTex::ENV];
 }
 
 const Texture& VulkanIblMapsGeneratorGraphicsPipeline::getIrradianceCubemap() const
 {
-	return _irradianceCube;
+	return _iblTex[EIblTex::IRRADIANCE];
+}
+
+const std::array<Texture, 4>& VulkanIblMapsGeneratorGraphicsPipeline::getIblTex() const
+{
+	return _iblTex;
 }
 
 void VulkanIblMapsGeneratorGraphicsPipeline::loadEnvironment(std::string hdrCubemapPath)
@@ -57,7 +62,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::loadEnvironment(std::string hdrCube
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_environmentCube = texBuilder.start()
+		_iblTex[EIblTex::ENV] = texBuilder.start()
 			.make_cubemap_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
@@ -74,7 +79,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::loadEnvironment(std::string hdrCube
 
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_irradianceCube = texBuilder.start()
+		_iblTex[EIblTex::IRRADIANCE] = texBuilder.start()
 			.make_cubemap_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, irradMapExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
@@ -322,7 +327,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
 
 		std::array<VkImageMemoryBarrier, 1> envMapBarriers =
 		{
-			vkinit::image_barrier(_environmentCube.image._image, 0, VK_ACCESS_TRANSFER_WRITE_BIT,  VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+			vkinit::image_barrier(_iblTex[EIblTex::ENV].image._image, 0, VK_ACCESS_TRANSFER_WRITE_BIT,  VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
 		};
 
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, envMapBarriers.size(), envMapBarriers.data());
@@ -335,7 +340,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
 		drawIntoFaceCubemap(static_cast<uint32_t>(EPipelineType::DrawHDRtoEnvMap), 
 			vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize(),
 			cubeFace,
-			_environmentCube,
+			_iblTex[EIblTex::ENV],
 			descSet);
 	}
 
@@ -343,7 +348,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
 
 		std::array<VkImageMemoryBarrier, 1> envMapBarriers =
 		{
-			vkinit::image_barrier(_environmentCube.image._image, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+			vkinit::image_barrier(_iblTex[EIblTex::ENV].image._image, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
 		};
 
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, envMapBarriers.size(), envMapBarriers.data());
@@ -372,7 +377,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawEnvMapToIrradianceMap()
 
 	VkDescriptorImageInfo envMapImageBufferInfo;
 	envMapImageBufferInfo.sampler = sampler;
-	envMapImageBufferInfo.imageView = _environmentCube.imageView;
+	envMapImageBufferInfo.imageView = _iblTex[EIblTex::ENV].imageView;
 	envMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
@@ -383,7 +388,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawEnvMapToIrradianceMap()
 
 		std::array<VkImageMemoryBarrier, 1> irradMapBarriers =
 		{
-			vkinit::image_barrier(_irradianceCube.image._image, 0, VK_ACCESS_TRANSFER_WRITE_BIT,  VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+			vkinit::image_barrier(_iblTex[EIblTex::IRRADIANCE].image._image, 0, VK_ACCESS_TRANSFER_WRITE_BIT,  VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
 		};
 
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, irradMapBarriers.size(), irradMapBarriers.data());
@@ -396,7 +401,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawEnvMapToIrradianceMap()
 		drawIntoFaceCubemap(static_cast<uint32_t>(EPipelineType::DrawEnvMapToIrradianceMap),
 			vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetIrradianceSize(),
 			cubeFace,
-			_irradianceCube,
+			_iblTex[EIblTex::IRRADIANCE],
 			descSet);
 	}
 
@@ -404,7 +409,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawEnvMapToIrradianceMap()
 
 		std::array<VkImageMemoryBarrier, 1> irradMapBarriers =
 		{
-			vkinit::image_barrier(_irradianceCube.image._image, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+			vkinit::image_barrier(_iblTex[EIblTex::IRRADIANCE].image._image, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
 		};
 
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, irradMapBarriers.size(), irradMapBarriers.data());

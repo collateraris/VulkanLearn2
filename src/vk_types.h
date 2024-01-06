@@ -76,6 +76,15 @@ enum class EGbufferTex : uint8_t
 };
 
 
+enum EIblTex : uint8_t
+{
+	ENV = 0,
+	IRRADIANCE = 1,
+	PREFILTEREDENV = 2,
+	BRDFLUT = 3,
+};
+
+
 enum class MeshpassType : uint8_t {
 	None = 0,
 	Forward = 1,

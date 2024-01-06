@@ -50,14 +50,8 @@ vec3 shootIndirectRay(vec3 orig, vec3 dir, uint randSeed)
 	return indirectRpl.color;
 };
 
-vec3 ggxDirect(uint randSeed, SObjectData shadeData, vec2 uv, vec3 worldPos, vec3 worldNorm, vec3 camPos, vec3 albedo, float roughness, vec3 lightDir, vec3 viewDir, vec3 sunColor, inout vec3 F0)
+vec3 ggxDirect(uint randSeed, SObjectData shadeData, vec2 uv, vec3 worldPos, vec3 worldNorm, vec3 camPos, vec3 albedo, float roughness, float metallic, vec3 lightDir, vec3 viewDir, vec3 sunColor, inout vec3 F0)
 {
-	float metalness = 0.;
-	if (shadeData.metalnessTexIndex > 0)
-		metalness = 1. - texture(texSet[shadeData.metalnessTexIndex], uv).r;
-
-	float metallic = metalness;        
-
 	vec3 H = normalize(viewDir + lightDir);
 
 	float HdotV = clamp(dot(H, viewDir), 0.f, 1.f);
@@ -70,9 +64,7 @@ vec3 ggxDirect(uint randSeed, SObjectData shadeData, vec2 uv, vec3 worldPos, vec
 	float NDF = DistributionGGX(worldNorm, H, roughness);
 	float G = GeometrySmith(worldNorm, viewDir, lightDir, roughness);
 
-    // Evaluate the Cook-Torrance Microfacet BRDF model
-	//     Cancel out NdotL here & the next eq. to avoid catastrophic numerical precision issues.
-	vec3 specular = (NDF * G) * F / (4.0f * NdotV /* * NdotL */ + 0.001f);
+	vec3 specular = (NDF * G) * F / (4.0f * NdotV  * NdotL  + 0.001f);
 
 	vec3 kS = F;
 	vec3 kD = vec3(1.0f) - kS;
@@ -81,22 +73,7 @@ vec3 ggxDirect(uint randSeed, SObjectData shadeData, vec2 uv, vec3 worldPos, vec
 
 	float shadowMult = shadowRayVisibility(worldPos.xyz, lightDir, giParams.shadowMult);
 
-    //AO
-    // Start accumulating from zero if we don't hit the background
-    float ambientOcclusion = 0.0f;
-
-    for (int i = 0; i < giParams.numRays; i++)
-    {
-        // Sample cosine-weighted hemisphere around surface normal to pick a random ray direction
-        vec3 worldDir = getCosHemisphereSample(randSeed, worldNorm.xyz);
-
-        // Shoot our ambient occlusion ray and update the value we'll output with the result
-        ambientOcclusion += shootAmbientOcclusionRay(worldPos.xyz, worldDir, giParams.aoRadius, 0.f);
-    }
-
-    float aoColor = ambientOcclusion / float(giParams.numRays); 
-
-    vec3 Lo = (kD * albedo * aoColor * M_INV_PI + specular) * sunColor;
+    vec3 Lo = (kD * albedo * M_INV_PI + specular) * sunColor * NdotL;
 
 	return Lo;
 };

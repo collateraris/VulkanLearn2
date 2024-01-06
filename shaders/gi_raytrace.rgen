@@ -31,6 +31,7 @@ layout(set = 3, binding = 1) uniform sampler2D normalTex;
 layout(set = 3, binding = 2) uniform sampler2D uvTex;
 layout(set = 3, binding = 3) uniform sampler2D objIDTex;
 layout(set = 3, binding = 4) uniform samplerCube samplerEnv;
+layout(set = 3, binding = 5) uniform samplerCube irradianceMap;
 
 
 #include "gi_raytrace_func.h"
@@ -58,6 +59,10 @@ void main()
         if (shadeData.emissionTexIndex > 0)
             emission = texture(texSet[shadeData.emissionTexIndex], gbufferTexCoord).rgb;
 
+        float metalness = 0.;
+        if (shadeData.metalnessTexIndex > 0)
+            metalness = 1. - texture(texSet[shadeData.metalnessTexIndex], gbufferTexCoord).r;    
+
         float roughness = 1.;
 	    if (shadeData.roughnessTexIndex > 0)
 		    roughness = texture(texSet[shadeData.roughnessTexIndex], gbufferTexCoord).g; 
@@ -78,13 +83,36 @@ void main()
         vec3 lightDir = normalize(-sunInfo.direction.xyz);
 	    vec3 viewDir = normalize(giParams.camPos.xyz - worldPos.xyz);
         vec3 F0 = vec3(0.04); 
+ 
+        shadeColor += ggxDirect(randSeed, shadeData, gbufferTexCoord, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, metalness, lightDir, viewDir, sunInfo.color.xyz, F0);
 
-        shadeColor += ggxDirect(randSeed, shadeData, gbufferTexCoord, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, lightDir, viewDir, sunInfo.color.xyz, F0);
+        //AO
+        // Start accumulating from zero if we don't hit the background
+        float ambientOcclusion = 0.0f;
 
+        for (int i = 0; i < giParams.numRays; i++)
+        {
+            // Sample cosine-weighted hemisphere around surface normal to pick a random ray direction
+            vec3 worldDir = getCosHemisphereSample(randSeed, worldNorm.xyz);
 
+            // Shoot our ambient occlusion ray and update the value we'll output with the result
+            ambientOcclusion += shootAmbientOcclusionRay(worldPos.xyz, worldDir, giParams.aoRadius, 0.f);
+        }
+
+        float aoColor = ambientOcclusion / float(giParams.numRays);
+
+        // ambient lighting (we now use IBL as the ambient term)
+        vec3 kS = fresnelSchlickRoughness(max(dot(worldNorm, viewDir), 0.0), F0, roughness);
+        vec3 kD = 1.0 - kS;
+        kD *= 1.0 - metalness;	  
+        vec3 irradiance = texture(irradianceMap, worldNorm).rgb;
+        vec3 diffuse      = irradiance * albedo;
+        vec3 ambient = (kD * diffuse) * aoColor;
+
+        shadeColor += ambient;
         //INDIRECT ILLUMINATIO
 
-        shadeColor += ggxIndirect(randSeed, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, lightDir, viewDir, F0);
+        //shadeColor += ggxIndirect(randSeed, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, lightDir, viewDir, F0);
         //shadeColor = vec3(aoColor, aoColor, aoColor);
         //hadeColor = vec3(roughness, roughness, roughness);
 	}

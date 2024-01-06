@@ -37,7 +37,7 @@ public:
 		uint32_t  numRays;
 	};
 	VulkanGIShadowsRaytracingGraphicsPipeline() = default;
-	void init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const Texture& envMap);
+	void init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap);
 	void copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams& aoData, int current_frame_index);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
@@ -50,7 +50,7 @@ private:
 
 	void create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList);
 	void create_tlas(const std::vector<RenderObject>& renderables);
-	void init_description_set(const std::array<Texture, 4>& gbuffer, const Texture& envMap);
+	void init_description_set(const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap);
 	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList);
 
 	VulkanRaytracerBuilder::BlasInput create_blas_input(Mesh& mesh);

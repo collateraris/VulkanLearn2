@@ -11,7 +11,7 @@
 #include <vk_raytracer_builder.h>
 #include <vk_initializers.h>
 
-void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const Texture& envMap)
+void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap)
 {
 	_engine = engine;
 
@@ -51,7 +51,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const
 	{
 		create_blas(_engine->_resManager.meshList);
 		create_tlas(_engine->_renderables);
-		init_description_set(gbuffer, envMap);
+		init_description_set(gbuffer, iblMap);
 		init_bindless(_engine->_resManager.meshList, _engine->_resManager.textureList);
 	}
 
@@ -284,7 +284,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::create_tlas(const std::vector<Re
 		});
 }
 
-void VulkanGIShadowsRaytracingGraphicsPipeline::init_description_set(const std::array<Texture, 4>& gbuffer, const Texture& envMap)
+void VulkanGIShadowsRaytracingGraphicsPipeline::init_description_set(const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap)
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
@@ -321,8 +321,13 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_description_set(const std::
 
 		VkDescriptorImageInfo envMapImageBufferInfo;
 		envMapImageBufferInfo.sampler = sampler;
-		envMapImageBufferInfo.imageView = envMap.imageView;
+		envMapImageBufferInfo.imageView = iblMap[EIblTex::ENV].imageView;
 		envMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkDescriptorImageInfo irradMapImageBufferInfo;
+		irradMapImageBufferInfo.sampler = sampler;
+		irradMapImageBufferInfo.imageView = iblMap[EIblTex::IRRADIANCE].imageView;
+		irradMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			.bind_image(0, &wposImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
@@ -330,6 +335,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_description_set(const std::
 			.bind_image(2, &uvImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.bind_image(3, &objIDImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.bind_image(4, &envMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(5, &irradMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.build(_gBuffDescSet[i], _gBuffDescSetLayout);
 	}
 }

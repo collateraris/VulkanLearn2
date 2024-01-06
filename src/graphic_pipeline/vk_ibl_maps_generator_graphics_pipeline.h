@@ -12,6 +12,8 @@ public:
 	const Texture& getHDR() const;
 	const Texture& getEnvCubemap() const;
 	const Texture& getIrradianceCubemap() const;
+	const std::array<Texture, 4>& getIblTex() const;
+
 private:
 	void loadEnvironment(std::string filename);
 	void loadBoxMesh();
@@ -33,10 +35,7 @@ private:
 	AllocatedBuffer _boxVB;
 
 	Texture _hdr;
-	Texture _environmentCube;
-	Texture _lutBrdf;
-	Texture _irradianceCube;
-	Texture _prefilteredCube;
+	std::array<Texture, 4> _iblTex;
 
 	const std::vector<glm::mat4> _viewMatrices = {
 		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
