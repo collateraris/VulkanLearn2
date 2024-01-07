@@ -22,6 +22,7 @@ private:
 	void drawHDRtoEnvMap();
 	void drawEnvMapToIrradianceMap();
 	void drawEnvMapToPrefilteredMap();
+	void drawBRDFLUT();
 	void drawIntoFaceCubemap(uint32_t pipType, uint32_t cubemapSize, uint32_t cubeFace, Texture& cubemapTex, VkDescriptorSet&  descSet, std::function<void(VkCommandBuffer& cmd)>&& pushConst, uint32_t mipLevel = 0, uint32_t numMips = 1);
 	void drawCube(VkCommandBuffer& cmd);
 
@@ -29,9 +30,11 @@ private:
 
 	VkExtent3D _imageExtent;
 	VkFormat   _colorFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
+	VkFormat   _brdflutFormat{ VK_FORMAT_R16G16_SFLOAT };
 
 	Texture _offscreenRT;
 	VkFramebuffer _framebuffer;
+	VkFramebuffer _brdflutFramebuffer;
 
 	AllocatedBuffer _boxVB;
 

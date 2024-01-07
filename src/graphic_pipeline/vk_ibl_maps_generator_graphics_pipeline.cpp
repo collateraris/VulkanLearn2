@@ -18,6 +18,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::init(VulkanEngine* engine, std::str
 	loadBoxMesh();
 	createOffscreenFramebuffer();
 	drawCubemaps();
+	drawBRDFLUT();
 }
 
 const Texture& VulkanIblMapsGeneratorGraphicsPipeline::getHDR() const
@@ -57,7 +58,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::loadEnvironment(std::string hdrCube
 		vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize(),
 		vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetEnvMapSize(),
 		1
-	};
+	}; 
 
 	{
 		VulkanTextureBuilder texBuilder;
@@ -520,6 +521,177 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawEnvMapToPrefilteredMap()
 		};
 
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, irradMapBarriers.size(), irradMapBarriers.data());
+
+	});
+}
+
+void VulkanIblMapsGeneratorGraphicsPipeline::drawBRDFLUT()
+{
+	{
+		VulkanTextureBuilder texBuilder;
+		texBuilder.init(_engine);
+		_iblTex[EIblTex::BRDFLUT] = texBuilder.start()
+			.make_img_info(_brdflutFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, _imageExtent)
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) {imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;})
+			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+			.make_view_info(_brdflutFormat, VK_IMAGE_ASPECT_COLOR_BIT)
+			.create_texture();
+	}
+
+	//create render pass
+	{
+		RenderPassInfo default_rp;
+		default_rp.op_flags = RENDER_PASS_OP_CLEAR_DEPTH_STENCIL_BIT;
+		default_rp.clear_attachments = BIT(0);
+		default_rp.store_attachments = BIT(0);
+		default_rp.num_color_attachments = 1;
+		default_rp.color_attachments[0] = &_offscreenRT;
+		default_rp.depth_stencil = nullptr;
+
+		RenderPassInfo::Subpass subpass = {};
+		subpass.num_color_attachments = 1;
+		subpass.depth_stencil_mode = RenderPassInfo::DepthStencil::None;
+		subpass.color_attachments[0] = 0;
+
+		default_rp.num_subpasses = 1;
+		default_rp.subpasses = &subpass;
+
+		_engine->_renderPassManager.get_render_pass(ERenderPassType::BRDFLUT)->init(_engine, default_rp);
+	}
+
+	{
+		VkFramebufferCreateInfo fb_info = {};
+		fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		fb_info.pNext = nullptr;
+
+		fb_info.renderPass = _engine->_renderPassManager.get_render_pass(ERenderPassType::BRDFLUT)->get_render_pass();
+		fb_info.width = _imageExtent.width;
+		fb_info.height = _imageExtent.height;
+		fb_info.layers = 1;
+
+		std::array<VkImageView, 1> attachments;
+		attachments[0] = _iblTex[EIblTex::BRDFLUT].imageView;
+
+		fb_info.pAttachments = attachments.data();
+		fb_info.attachmentCount = attachments.size();
+		vkCreateFramebuffer(_engine->_device, &fb_info, nullptr, &_brdflutFramebuffer);
+	}
+
+	{
+		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::DrawBRDFLUT,
+			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
+				ShaderEffect defaultEffect;
+				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("fullscreen.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
+				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("integrate_brdf.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
+
+				defaultEffect.reflect_layout(_engine->_device, nullptr, 0);
+				//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
+				GraphicPipelineBuilder pipelineBuilder;
+
+				pipelineBuilder.setShaders(&defaultEffect);
+
+				VkPipelineLayout meshPipLayout = pipelineBuilder._pipelineLayout;
+
+				//vertex input controls how to read vertices from vertex buffers. We arent using it yet
+				pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
+
+				//input assembly is the configuration for drawing triangle lists, strips, or individual points.
+				//we are just going to draw triangle list
+				pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+
+				//build viewport and scissor from the swapchain extents
+				pipelineBuilder._viewport.x = 0.0f;
+				pipelineBuilder._viewport.y = 0.0f;
+				pipelineBuilder._viewport.width = (float)_imageExtent.width;
+				pipelineBuilder._viewport.height = (float)_imageExtent.height;
+				pipelineBuilder._viewport.minDepth = 0.0f;
+				pipelineBuilder._viewport.maxDepth = 1.0f;
+
+				pipelineBuilder._scissor.offset = { 0, 0 };
+				pipelineBuilder._scissor.extent = VkExtent2D(_imageExtent.width, _imageExtent.height);
+
+				//configure the rasterizer to draw filled triangles
+				pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
+				pipelineBuilder._rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT;
+				pipelineBuilder._rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+				//we dont use multisampling, so just run the default one
+				pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
+
+				//a single blend attachment with no blending and writing to RGBA
+				pipelineBuilder._colorBlendAttachment.push_back(vkinit::color_blend_attachment_state());
+
+				//default depthtesting
+				pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
+
+				pipelineBuilder.vertexDescription = Vertex::get_vertex_description();
+				pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
+				//connect the pipeline builder vertex input info to the one we get from Vertex
+				pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+				pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = 0;
+
+				pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = nullptr;
+				pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = 0;
+
+				pipelineBuilder.attachment_count = 1;
+				{
+					auto colorBlend = vkinit::color_blend_attachment_state();
+					colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT;
+					pipelineBuilder._colorBlendAttachment.push_back(vkinit::color_blend_attachment_state());
+				}
+
+				VkPipeline meshPipeline = pipelineBuilder.build_graphic_pipeline(_engine->_device,
+					_engine->_renderPassManager.get_render_pass(ERenderPassType::BRDFLUT)->get_render_pass());
+
+				pipeline = meshPipeline;
+				pipelineLayout = meshPipLayout;
+			});
+	}
+
+	// Render cubemap
+	VkClearValue clearValues[1];
+	clearValues[0].color = { { 0.0f, 0.0f, 0.f, 0.0f } };
+
+	VkViewport viewport{};
+	viewport.width = (float)_imageExtent.width;
+	viewport.height = (float)_imageExtent.height;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+
+	VkRect2D scissor{};
+	scissor.extent.width = _imageExtent.width;
+	scissor.extent.height = _imageExtent.height;
+
+	_engine->immediate_submit([&](VkCommandBuffer cmd) {
+		
+		vkCmdSetViewport(cmd, 0, 1, &viewport);
+		vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+		//start the main renderpass. 
+		//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
+		VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_engine->_renderPassManager.get_render_pass(ERenderPassType::BRDFLUT)->get_render_pass(), VkExtent2D(_imageExtent.width, _imageExtent.height), _brdflutFramebuffer);
+
+		//connect clear values
+		rpInfo.clearValueCount = 1;
+		rpInfo.pClearValues = clearValues;
+
+		vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::DrawBRDFLUT));
+		vkCmdDraw(cmd, 3, 1, 0, 0);
+
+		vkCmdEndRenderPass(cmd);
+	});
+
+	_engine->immediate_submit([&](VkCommandBuffer cmd) {
+
+		std::array<VkImageMemoryBarrier, 1> brdflutMapBarriers =
+		{
+			vkinit::image_barrier(_iblTex[EIblTex::BRDFLUT].image._image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, brdflutMapBarriers.size(), brdflutMapBarriers.data());
 
 	});
 }

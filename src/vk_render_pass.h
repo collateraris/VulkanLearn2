@@ -12,6 +12,7 @@ enum class ERenderPassType
 	GBufferGenerate = 3,
 	SimpleAccumulation = 4,
 	DrawIntoCubemap = 5,
+	BRDFLUT = 6,
 	Max,
 };
 

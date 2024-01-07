@@ -32,6 +32,7 @@ layout(set = 3, binding = 2) uniform sampler2D uvTex;
 layout(set = 3, binding = 3) uniform sampler2D objIDTex;
 layout(set = 3, binding = 4) uniform samplerCube irradianceMap;
 layout(set = 3, binding = 5) uniform samplerCube prefilteredMap;
+layout(set = 3, binding = 6) uniform sampler2D   brdfLUT;
 
 
 #include "gi_raytrace_func.h"

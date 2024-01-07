@@ -19,7 +19,7 @@ void VulkanFullScreenGraphicsPipeline::init(VulkanEngine* engine)
 					defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("fullscreen.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
 					defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("fullscreen.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
 
-					defaultEffect.reflect_layout(engine->_device, nullptr, 0);
+					defaultEffect.reflect_layout(_engine->_device, nullptr, 0);
 					//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
 					GraphicPipelineBuilder pipelineBuilder;
 
