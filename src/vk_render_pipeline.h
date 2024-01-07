@@ -23,6 +23,7 @@ enum class EPipelineType : uint32_t
 	SimpleAccumulation = 12,
 	DrawHDRtoEnvMap  =13,
 	DrawEnvMapToIrradianceMap = 14,
+	DrawEnvMapToPrefilteredMap = 15,
 	Max,
 };
 

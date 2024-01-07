@@ -21,7 +21,8 @@ private:
 	void drawCubemaps();
 	void drawHDRtoEnvMap();
 	void drawEnvMapToIrradianceMap();
-	void drawIntoFaceCubemap(uint32_t pipType, uint32_t cubemapSize, uint32_t cubeFace, Texture& cubemapTex, VkDescriptorSet&  descSet);
+	void drawEnvMapToPrefilteredMap();
+	void drawIntoFaceCubemap(uint32_t pipType, uint32_t cubemapSize, uint32_t cubeFace, Texture& cubemapTex, VkDescriptorSet&  descSet, std::function<void(VkCommandBuffer& cmd)>&& pushConst, uint32_t mipLevel = 0, uint32_t numMips = 1);
 	void drawCube(VkCommandBuffer& cmd);
 
 	VulkanEngine* _engine = nullptr;

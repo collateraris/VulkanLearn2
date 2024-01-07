@@ -319,23 +319,23 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_description_set(const std::
 		objIDImageBufferInfo.imageView = gbuffer[int(EGbufferTex::OBJ_ID)].imageView;
 		objIDImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-		VkDescriptorImageInfo envMapImageBufferInfo;
-		envMapImageBufferInfo.sampler = sampler;
-		envMapImageBufferInfo.imageView = iblMap[EIblTex::ENV].imageView;
-		envMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
 		VkDescriptorImageInfo irradMapImageBufferInfo;
 		irradMapImageBufferInfo.sampler = sampler;
 		irradMapImageBufferInfo.imageView = iblMap[EIblTex::IRRADIANCE].imageView;
 		irradMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkDescriptorImageInfo prefilteredMapImageBufferInfo;
+		prefilteredMapImageBufferInfo.sampler = sampler;
+		prefilteredMapImageBufferInfo.imageView = iblMap[EIblTex::PREFILTEREDENV].imageView;
+		prefilteredMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			.bind_image(0, &wposImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.bind_image(1, &normalImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.bind_image(2, &uvImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.bind_image(3, &objIDImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.bind_image(4, &envMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.bind_image(5, &irradMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(4, &irradMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(5, &prefilteredMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.build(_gBuffDescSet[i], _gBuffDescSetLayout);
 	}
 }

@@ -30,8 +30,8 @@ layout(set = 3, binding = 0) uniform sampler2D wposTex;
 layout(set = 3, binding = 1) uniform sampler2D normalTex;
 layout(set = 3, binding = 2) uniform sampler2D uvTex;
 layout(set = 3, binding = 3) uniform sampler2D objIDTex;
-layout(set = 3, binding = 4) uniform samplerCube samplerEnv;
-layout(set = 3, binding = 5) uniform samplerCube irradianceMap;
+layout(set = 3, binding = 4) uniform samplerCube irradianceMap;
+layout(set = 3, binding = 5) uniform samplerCube prefilteredMap;
 
 
 #include "gi_raytrace_func.h"
@@ -125,7 +125,7 @@ void main()
         vec4 target    = giParams.projInverse * vec4(d.x, d.y, 1, 1);
         vec4 direction = giParams.viewInverse * vec4(normalize(target.xyz), 0);
         vec3 dir = normalize(direction.xyz);
-        shadeColor = texture(samplerEnv, dir).rgb;
+        shadeColor = texture(prefilteredMap, dir).rgb;
     }
 
 
