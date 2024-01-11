@@ -48,9 +48,29 @@ struct AORayPayload
 // The payload used for our indirect global illumination rays
 struct IndirectRayPayload
 {
-	vec3 color;    // The (returned) color in the ray's direction
-	uint randSeed;
-	uint hit;
+	int objectId;
+	vec2 texCoord;
+	vec3 worldPos;
+	vec3 worldNorm;
+};
+
+struct DirectInputData
+{
+	int objectId;
+	vec2 texCoord;
+	vec3 worldPos;
+	vec3 worldNorm;	
+};
+
+struct DirectOutputData
+{
+	float metalness;
+	float roughness;	
+	vec3 worldNorm; // after normal mapping
+	vec3 albedo;
+	vec3 F0;
+	vec3 Lo;
 };
 
 #include "ggx_brdf.h"
+#include "restir.h"

@@ -45,85 +45,105 @@ void main()
 
     SLight sunInfo = lightsBuffer.lights[0];
 
-    vec3 shadeColor = vec3(1., 0., 1.);
+    vec3 shadeColor = vec3(0., 0., 0.);
 
     if (worldPos.w != 0.0f)
 	{
         float objIDf = texture(objIDTex, uv).r;
-        uint objID = uint(objIDf);
-        SObjectData shadeData = objectBuffer.objects[objID];
-        vec2 gbufferTexCoord = texture(uvTex, uv).rg;
-
-        vec3 albedo = texture(texSet[shadeData.diffuseTexIndex], gbufferTexCoord).rgb;
-
-        vec3 emission = vec3(0., 0., 0);
-        if (shadeData.emissionTexIndex > 0)
-            emission = texture(texSet[shadeData.emissionTexIndex], gbufferTexCoord).rgb;
-
-        float metalness = 0.;
-        if (shadeData.metalnessTexIndex > 0)
-            metalness = 1. - texture(texSet[shadeData.metalnessTexIndex], gbufferTexCoord).r;    
-
-        float roughness = 1.;
-	    if (shadeData.roughnessTexIndex > 0)
-		    roughness = texture(texSet[shadeData.roughnessTexIndex], gbufferTexCoord).g; 
-
-        if (shadeData.normalTexIndex > 0)
-        {
-            mat3 TBN = getTBN(worldNorm);
-            vec3 normal = texture(texSet[shadeData.normalTexIndex], gbufferTexCoord).rgb;
-            normal = normalize(normal * 2.0 - 1.0);   
-            worldNorm = normalize(TBN * normal);
-        }  
-
-        shadeColor = emission;   
+        vec2 gbufferTexCoord = texture(uvTex, uv).rg;   
 
         // Initialize a random seed, per-pixel, based on a screen position and temporally varying count
 	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, giParams.frameCount);
 
         vec3 lightDir = normalize(-sunInfo.direction.xyz);
-	    vec3 viewDir = normalize(giParams.camPos.xyz - worldPos.xyz);
-        vec3 F0 = vec3(0.04); 
- 
-        shadeColor += ggxDirect(randSeed, shadeData, gbufferTexCoord, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, metalness, lightDir, viewDir, sunInfo.color.xyz, F0);
 
-        //AO
-        // Start accumulating from zero if we don't hit the background
-        float ambientOcclusion = 0.0f;
+        DirectInputData inputData;
+        inputData.objectId = int(objIDf);
+        inputData.texCoord = gbufferTexCoord;
+        inputData.worldPos = worldPos.xyz;
+        inputData.worldNorm = worldNorm.xyz;
 
-        for (int i = 0; i < giParams.numRays; i++)
-        {
-            // Sample cosine-weighted hemisphere around surface normal to pick a random ray direction
-            vec3 worldDir = getCosHemisphereSample(randSeed, worldNorm.xyz);
-
-            // Shoot our ambient occlusion ray and update the value we'll output with the result
-            ambientOcclusion += shootAmbientOcclusionRay(worldPos.xyz, worldDir, giParams.aoRadius, 0.f);
-        }
-
-        float aoColor = ambientOcclusion / float(giParams.numRays);
-
-        vec3 R = reflect(-viewDir, worldNorm);   
-
-        const float MAX_REFLECTION_LOD = 9;
-        vec3 prefilteredColor = textureLod(prefilteredMap, R,  roughness * MAX_REFLECTION_LOD).rgb;
-
-        float NdotV = max(dot(worldNorm, viewDir), 0.0);
-
-        // ambient lighting (we now use IBL as the ambient term)
-        vec3 kS = fresnelSchlickRoughness(NdotV, F0, roughness);
-        vec2 envBRDF  = texture(brdfLUT, vec2(NdotV, roughness)).rg;
-        vec3 specular = prefilteredColor * (kS * envBRDF.x + envBRDF.y);
-        vec3 kD = 1.0 - kS;
-        kD *= 1.0 - metalness;	  
-        vec3 irradiance = texture(irradianceMap, worldNorm).rgb;
-        vec3 diffuse      = irradiance * albedo;
-        vec3 ambient = (kD * diffuse + specular);// * aoColor;
+        DirectOutputData outputCurrentData = ggxDirect(inputData, giParams.camPos.xyz, lightDir, sunInfo.color.xyz);
         
-        //INDIRECT ILLUMINATIO
+        shadeColor = outputCurrentData.Lo;
 
-        shadeColor += ggxIndirect(randSeed, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, ambient, roughness, metalness, lightDir, viewDir, F0);
-        //shadeColor = vec3(aoColor, aoColor, aoColor);
-        //hadeColor = vec3(roughness, roughness, roughness);
+        const uint INDIRECT_BOUND = 3;
+        //INDIRECT ILLUMINATION
+        for (int i = 0; i < INDIRECT_BOUND; i++)
+        {       
+            vec3 viewDir = normalize(giParams.camPos.xyz - worldPos.xyz);
+            vec3 H = getGGXMicrofacet(randSeed, outputCurrentData.roughness, outputCurrentData.worldNorm);
+
+            vec3 R = normalize(2.f * dot(viewDir, H) * H - viewDir);
+
+            float  NdotH = clamp(dot(outputCurrentData.worldNorm, H), 0.f, 1.f);
+            float  RdotH = clamp(dot(R, H), 0.f, 1.f);
+
+            // What's the probability of sampling vector H from getGGXMicrofacet()?
+            float  D = ggxNormalDistribution(NdotH, outputCurrentData.roughness);          // The GGX normal distribution
+            float  ggxProb = D * NdotH / (4.f * RdotH);
+
+            IndirectRayPayload indirPayload =  shootIndirectRay(worldPos.xyz, R);
+
+            if (indirPayload.objectId < 0)
+            {
+                //hit miss
+                const float MAX_REFLECTION_LOD = 9;
+                vec3 prefilteredColor = textureLod(prefilteredMap, R,  outputCurrentData.roughness * MAX_REFLECTION_LOD).rgb;
+
+                float NdotV = max(dot(outputCurrentData.worldNorm, viewDir), 0.0);
+
+                // ambient lighting (we now use IBL as the ambient term)
+                vec3 kS = fresnelSchlickRoughness(NdotV, outputCurrentData.F0, outputCurrentData.roughness);
+                vec2 envBRDF  = texture(brdfLUT, vec2(NdotV, outputCurrentData.roughness)).rg;
+                vec3 specular = prefilteredColor * (kS * envBRDF.x + envBRDF.y);
+                vec3 kD = 1.0 - kS;
+                kD *= 1.0 - outputCurrentData.metalness;	  
+                vec3 irradiance = texture(irradianceMap, outputCurrentData.worldNorm).rgb;
+                vec3 diffuse      = irradiance * outputCurrentData.albedo;
+                vec3 ambient = (kD * diffuse + specular);
+
+                shadeColor += ambient;
+
+                break;
+            }
+            else
+            {
+                //closest hit
+                DirectInputData input2Data;
+                input2Data.objectId = indirPayload.objectId;
+                input2Data.texCoord = indirPayload.texCoord;
+                input2Data.worldPos = indirPayload.worldPos;
+                input2Data.worldNorm = indirPayload.worldNorm;
+
+                DirectOutputData outputBoundData = ggxDirect(input2Data, giParams.camPos.xyz, lightDir, sunInfo.color.xyz);
+
+                // Compute some dot products needed for shading
+                float  NdotR = clamp(dot(outputCurrentData.worldNorm, R), 0.f, 1.f);
+                float  NdotV = clamp(dot(outputCurrentData.worldNorm, viewDir), 0.f, 1.f);
+
+                // Evaluate our BRDF using a microfacet BRDF model
+                float  G = IndirectGeometrySmith(outputCurrentData.worldNorm, viewDir, R, outputCurrentData.roughness);   // Use Schlick's masking term approx
+                vec3 F = fresnelSchlickRoughness(RdotH, outputCurrentData.F0, outputCurrentData.roughness);  // Use Schlick's approx to Fresnel
+                vec3 specular = D * G * F / (4.f * NdotR * NdotV + 0.001); // The Cook-Torrance microfacet BRDF
+
+                vec3 kS = F;
+                vec3 kD = 1.0 - kS;
+                kD *= 1.0 - outputCurrentData.metalness;
+
+                vec3 irradiance = outputBoundData.Lo;
+                vec3 diffuse      = irradiance * outputCurrentData.albedo;
+                shadeColor += NdotR * (kD * diffuse + specular) / max(1e-3, ggxProb);
+
+                //for next bound
+                worldPos.xyz = indirPayload.worldPos;
+                outputCurrentData.worldNorm = outputBoundData.worldNorm;
+                outputCurrentData.roughness = outputBoundData.roughness;
+                outputCurrentData.metalness = outputBoundData.metalness;
+                outputCurrentData.albedo = outputBoundData.albedo;
+                outputCurrentData.F0 = outputBoundData.F0;               
+            }
+        }
 	}
     else
     {

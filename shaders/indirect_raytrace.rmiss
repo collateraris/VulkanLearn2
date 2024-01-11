@@ -8,6 +8,5 @@ layout(location = 1) rayPayloadInEXT IndirectRayPayload indirectRpl;
 
 void main()
 {    
-    indirectRpl.color = vec3(0., 0., 0.);
-    indirectRpl.hit = 0;
+    indirectRpl.objectId = -1;
 }

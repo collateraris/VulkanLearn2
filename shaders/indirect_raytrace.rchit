@@ -61,37 +61,10 @@ void main()
   vec3 v2_nrm = vec3(v2.positionXYZ_normalX.w, v2.normalYZ_texCoordUV.x, v2.normalYZ_texCoordUV.y); 
 
   const vec3 nrm      = v0_nrm * barycentrics.x + v1_nrm * barycentrics.y + v2_nrm * barycentrics.z;
-  vec3 worldNorm = normalize(vec3(nrm * gl_WorldToObjectEXT));  // Transforming the normal to world space      
+  vec3 worldNorm = normalize(vec3(nrm * gl_WorldToObjectEXT));  // Transforming the normal to world space
 
-  vec3 albedo = texture(texSet[shadeData.diffuseTexIndex], texCoord).xyz;
-
-  vec3 emission = vec3(0., 0., 0);
-  if (shadeData.emissionTexIndex > 0)
-    emission = texture(texSet[shadeData.emissionTexIndex], texCoord).rgb;
-
-  float metalness = 0.;
-  if (shadeData.metalnessTexIndex > 0)
-      metalness = 1. - texture(texSet[shadeData.metalnessTexIndex], texCoord).r;   
-
-  float roughness = 1.;
-  if (shadeData.roughnessTexIndex > 0)
-    roughness = texture(texSet[shadeData.roughnessTexIndex], texCoord).r; 
-
-  if (shadeData.normalTexIndex > 0)
-  {
-      mat3 TBN = getTBN(worldNorm);
-      vec3 normal = texture(texSet[shadeData.normalTexIndex], texCoord).rgb;
-      normal = normalize(normal * 2.0 - 1.0);   
-      worldNorm = normalize(TBN * normal);
-  } 
-
-  SLight sunInfo = lightsBuffer.lights[0];
-
-  vec3 shadeColor = emission;
-
-  vec3 lightDir = normalize(-sunInfo.direction.xyz);
-	vec3 viewDir = normalize(giParams.camPos.xyz - worldPos.xyz);
-  vec3 F0 = vec3(0.04); 
-  indirectRpl.hit = 1;
-  indirectRpl.color = shadeColor + ggxDirect(indirectRpl.randSeed, shadeData, texCoord, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, metalness, lightDir, viewDir, sunInfo.color.xyz, F0);
+	indirectRpl.objectId = gl_InstanceID;
+	indirectRpl.worldPos = worldPos;
+	indirectRpl.worldNorm = worldNorm;
+	indirectRpl.texCoord = texCoord;
 }
