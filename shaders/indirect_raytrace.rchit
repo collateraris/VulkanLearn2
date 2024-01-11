@@ -92,6 +92,6 @@ void main()
   vec3 lightDir = normalize(-sunInfo.direction.xyz);
 	vec3 viewDir = normalize(giParams.camPos.xyz - worldPos.xyz);
   vec3 F0 = vec3(0.04); 
-
+  indirectRpl.hit = 1;
   indirectRpl.color = shadeColor + ggxDirect(indirectRpl.randSeed, shadeData, texCoord, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, metalness, lightDir, viewDir, sunInfo.color.xyz, F0);
 }

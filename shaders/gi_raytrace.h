@@ -50,6 +50,7 @@ struct IndirectRayPayload
 {
 	vec3 color;    // The (returned) color in the ray's direction
 	uint randSeed;
+	uint hit;
 };
 
 #include "ggx_brdf.h"

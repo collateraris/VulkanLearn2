@@ -26,10 +26,11 @@ float shadowRayVisibility( vec3 orig, vec3 dir, float defaultVal)
     return shootAmbientOcclusionRay(orig, dir, 10000000, defaultVal);
 };
 
-vec3 shootIndirectRay(vec3 orig, vec3 dir, uint randSeed)
+vec3 shootIndirectRay(vec3 orig, vec3 dir, uint randSeed, out uint hit)
 {
     indirectRpl.color = vec3(0., 0., 0.);
     indirectRpl.randSeed = randSeed;
+    indirectRpl.hit = 0;
 
     uint  rayFlags = gl_RayFlagsOpaqueEXT;
 
@@ -44,7 +45,8 @@ vec3 shootIndirectRay(vec3 orig, vec3 dir, uint randSeed)
             dir.xyz,         // ray direction
             1,//.0e38f,           // ray max range
             0      // payload (location = 0)
-    );   
+    );
+    hit = indirectRpl.hit;   
 
 	// Return the color we got from our ray
 	return indirectRpl.color;
@@ -78,24 +80,25 @@ vec3 ggxDirect(uint randSeed, SObjectData shadeData, vec2 uv, vec3 worldPos, vec
 	return Lo;
 };
 
-vec3 ggxIndirect(uint randSeed, vec3 worldPos, vec3 worldNorm, vec3 camPos, vec3 albedo, float roughness, vec3 lightDir, vec3 viewDir, in vec3 F0)
+vec3 ggxIndirect(uint randSeed, vec3 worldPos, vec3 worldNorm, vec3 camPos, vec3 albedo, vec3 ambient, float roughness, float metallic, vec3 lightDir, vec3 viewDir, in vec3 F0)
 {
 	// We have to decide whether we sample our diffuse or specular/ggx lobe.
 	float probDiffuse = probabilityToSampleDiffuse(albedo, F0);
 	bool chooseDiffuse = (nextRand(randSeed) < probDiffuse);
 
 	// We'll need NdotV for both diffuse and specular...
-	float NdotV = clamp(dot(worldNorm, viewDir), 0.f, 1.f);
+	float NdotV = clamp(dot(worldNorm, viewDir), 0.f, 1.f);	
 
     if (chooseDiffuse)
     {
         // Shoot a randomly selected cosine-sampled diffuse ray.
 		vec3 L = getCosHemisphereSample(randSeed, worldNorm);
-		vec3 bounceColor = shootIndirectRay(worldPos.xyz, L, randSeed);
+        uint hit = 0;
+		vec3 bounceColor = shootIndirectRay(worldPos.xyz, L, randSeed, hit);
 
 		// Accumulate the color: (NdotL * incomingLight * dif / pi) 
 		// Probability of sampling:  (NdotL / pi) * probDiffuse
-		return bounceColor * albedo / max(1e-3, probDiffuse);
+		return (hit * bounceColor * albedo / max(1e-3, probDiffuse)) + (1 - hit) * ambient;
     }
     else
     {
@@ -105,7 +108,8 @@ vec3 ggxIndirect(uint randSeed, vec3 worldPos, vec3 worldNorm, vec3 camPos, vec3
         vec3 L = normalize(2.f * dot(viewDir, H) * H - viewDir);
 
         //   Shoot our indirect global illumination ray
-        vec3 bounceColor = shootIndirectRay(worldPos.xyz, L, randSeed);  
+        uint hit = 0;
+        vec3 bounceColor = shootIndirectRay(worldPos.xyz, L, randSeed, hit);  
 
         // // Compute some dot products needed for shading
         float  NdotL = clamp(dot(worldNorm, L), 0.f, 1.f);
@@ -121,8 +125,12 @@ vec3 ggxIndirect(uint randSeed, vec3 worldPos, vec3 worldNorm, vec3 camPos, vec3
         // What's the probability of sampling vector H from getGGXMicrofacet()?
         float  ggxProb = D * NdotH / (4.f * LdotH);
 
+        vec3 kS = F;
+        vec3 kD = 1.0 - kS;
+        kD *= 1.0 - metallic;
+
         // Accumulate the color:  ggx-BRDF * incomingLight * NdotL / probability-of-sampling
         //    -> Should really simplify the math above.
-        return NdotL * bounceColor * ggxTerm / max(1e-3, (ggxProb * (1.0f - probDiffuse)));
+        return (hit * NdotL * (kD * bounceColor + ggxTerm) / max(1e-3, (ggxProb * (1.0f - probDiffuse)))) + (1 - hit) * ambient;
     }
 };

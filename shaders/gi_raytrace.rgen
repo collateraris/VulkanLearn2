@@ -117,13 +117,11 @@ void main()
         kD *= 1.0 - metalness;	  
         vec3 irradiance = texture(irradianceMap, worldNorm).rgb;
         vec3 diffuse      = irradiance * albedo;
-        vec3 ambient = (kD * diffuse + specular) * aoColor;
+        vec3 ambient = (kD * diffuse + specular);// * aoColor;
         
-
-        shadeColor += ambient;
         //INDIRECT ILLUMINATIO
 
-        //shadeColor += ggxIndirect(randSeed, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, roughness, lightDir, viewDir, F0);
+        shadeColor += ggxIndirect(randSeed, worldPos.xyz, worldNorm.xyz, giParams.camPos.xyz, albedo, ambient, roughness, metalness, lightDir, viewDir, F0);
         //shadeColor = vec3(aoColor, aoColor, aoColor);
         //hadeColor = vec3(roughness, roughness, roughness);
 	}
