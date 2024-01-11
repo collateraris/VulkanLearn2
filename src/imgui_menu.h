@@ -205,11 +205,11 @@ static void EditGI(PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeli
     static VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams giParams = {.aoRadius = 0.5, .shadowMult = 0.05, .numRays = 1};
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
     ImGui::Begin("Edit GI", &p_open);
-    bChangedValue |= ImGui::InputFloat("AO Radius", &giParams.aoRadius);
-    static int numRays = 1;
-    bChangedValue |= ImGui::InputInt("AO numRays", &numRays);
+    //bChangedValue |= ImGui::InputFloat("AO Radius", &giParams.aoRadius);
+    static int numRays = 0;
+    bChangedValue |= ImGui::InputInt("Indirect numRays", &numRays);
     bChangedValue |= ImGui::InputFloat("shadow Mult", &giParams.shadowMult);
-    giParams.numRays = std::max(1, numRays);
+    giParams.numRays = std::max(0, numRays);
     giParams.frameCount = frameNumber;
     giParams.camPos = glm::vec4(camera.position, 1.f);
     giParams.viewInverse = glm::inverse(camera.get_view_matrix());

@@ -23,7 +23,7 @@ float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float maxT, float defaultVa
 
 float shadowRayVisibility( vec3 orig, vec3 dir, float defaultVal)
 {
-    return shootAmbientOcclusionRay(orig, dir, 10000000, defaultVal);
+    return shootAmbientOcclusionRay(orig, dir, 1.0e38f, defaultVal);
 };
 
 IndirectRayPayload shootIndirectRay(vec3 orig, vec3 dir)
@@ -39,7 +39,7 @@ IndirectRayPayload shootIndirectRay(vec3 orig, vec3 dir)
             orig.xyz,       // ray origin
             1e-3,           // ray min range
             dir.xyz,         // ray direction
-            1,//.0e38f,           // ray max range
+            1.0e38f,           // ray max range
             0      // payload (location = 0)
     );   
 
@@ -103,8 +103,8 @@ DirectOutputData ggxDirect(DirectInputData inputData, vec3 camPos, vec3 lightDir
 	
 	kD *= 1.0f - metalness;
 
-	//float shadowMult = shadowRayVisibility(worldPos.xyz, lightDir, giParams.shadowMult);
-
+	float shadowMult = shadowRayVisibility(worldPos.xyz, lightDir, giParams.shadowMult);
+ //vec3(shadowMult, shadowMult, shadowMult) ;//
     vec3 Lo =  shadeColor + (kD * albedo * M_INV_PI + specular) * sunColor * NdotL;
 
 	return packDirectOutputData(worldNorm, albedo, F0, Lo, metalness, roughness);

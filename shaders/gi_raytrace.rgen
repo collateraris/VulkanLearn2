@@ -63,7 +63,7 @@ void main()
         
         shadeColor = unpackLo_DirectOutputData(outputCurrentData);
 
-        const uint INDIRECT_BOUND = giParams.numRays;
+        uint INDIRECT_BOUND = giParams.numRays;
         //INDIRECT ILLUMINATION
         for (int i = 0; i < INDIRECT_BOUND; i++)
         {   
