@@ -8,5 +8,5 @@ layout(location = 1) rayPayloadInEXT IndirectRayPayload indirectRpl;
 
 void main()
 {    
-    indirectRpl.objectId = -1;
+    indirectRpl.worldNormGeometryXYZ_ObjectId = vec4(0.f, 0.f, 0.f, -1.f);
 }

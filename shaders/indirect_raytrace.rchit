@@ -63,8 +63,14 @@ void main()
   const vec3 nrm      = v0_nrm * barycentrics.x + v1_nrm * barycentrics.y + v2_nrm * barycentrics.z;
   vec3 worldNorm = normalize(vec3(nrm * gl_WorldToObjectEXT));  // Transforming the normal to world space
 
-	indirectRpl.objectId = gl_InstanceID;
-	indirectRpl.worldPos = worldPos;
-	indirectRpl.worldNorm = worldNorm;
-	indirectRpl.texCoord = texCoord;
+  const vec3 e0 = v2_pos - v0_pos;
+  const vec3 e1 = v1_pos - v0_pos;
+  const vec3 e0t = gl_ObjectToWorldEXT * vec4(e0,0);
+  const vec3 e1t = gl_ObjectToWorldEXT * vec4(e1,0);  
+
+  vec3 worldNormGeometry = normalize(vec3(cross(e0, e1) * gl_WorldToObjectEXT));
+
+  indirectRpl.positionXYZ_normalShadX = vec4(worldPos, worldNorm.x);
+  indirectRpl.normalShadYZ_texCoordUV = vec4(worldNorm.yz, texCoord);
+  indirectRpl.worldNormGeometryXYZ_ObjectId = vec4(worldNormGeometry, float(gl_InstanceID));
 }
