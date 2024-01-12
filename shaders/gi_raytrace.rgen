@@ -43,7 +43,6 @@ void main()
     vec4 worldPos = texture(wposTex, uv).rgba;
     vec3 worldNorm = normalize(texture(normalTex, uv).rgb);
 
-    SLight sunInfo = lightsBuffer.lights[0];
 
     vec3 shadeColor = vec3(0., 0., 0.);
 
@@ -55,11 +54,9 @@ void main()
         // Initialize a random seed, per-pixel, based on a screen position and temporally varying count
 	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, giParams.frameCount);
 
-        vec3 lightDir = normalize(-sunInfo.direction.xyz);
-
         DirectInputData inputData = packDirectInputData(objIDf, worldPos.xyz, worldNorm, gbufferTexCoord);
 
-        DirectOutputData outputCurrentData = ggxDirect(inputData, giParams.camPos.xyz, lightDir, sunInfo.color.xyz);
+        DirectOutputData outputCurrentData = ggxDirect(randSeed, giParams.lightsCount, inputData, giParams.camPos.xyz);
         
         shadeColor = unpackLo_DirectOutputData(outputCurrentData);
 
@@ -124,7 +121,7 @@ void main()
                     shading_nrm, 
                     unpackUV_IndirectRayPayload(indirPayload));
 
-                DirectOutputData outputBoundData = ggxDirect(input2Data, giParams.camPos.xyz, lightDir, sunInfo.color.xyz);
+                DirectOutputData outputBoundData = ggxDirect(randSeed, giParams.lightsCount, input2Data, giParams.camPos.xyz);
 
                 // Compute some dot products needed for shading
                 float  NdotR = clamp(dot(outputCurrentData_worldNorm, R), 0.f, 1.f);

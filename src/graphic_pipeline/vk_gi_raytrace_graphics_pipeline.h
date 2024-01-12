@@ -31,9 +31,9 @@ public:
 		glm::mat4 viewInverse;
 		glm::mat4 projInverse;
 		glm::vec4 camPos;
-		float aoRadius;
 		uint32_t  frameCount;
 		float shadowMult;
+		uint32_t lightsCount;
 		uint32_t  numRays;
 	};
 	VulkanGIShadowsRaytracingGraphicsPipeline() = default;

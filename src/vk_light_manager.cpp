@@ -12,7 +12,7 @@ glm::vec3 randomColor()
 
 		float val = rand() % 256; // Set val equal to a random number between 0 and 6.
 
-		color[i] = val / 255.;
+		color[i] = val * 100.;
 	}
 
 	return color;
@@ -94,17 +94,22 @@ const AllocatedBuffer& VulkanLightManager::get_light_buffer(int current_frame_in
 	return _lightsBuffer[current_frame_index];
 }
 
+const std::vector<std::unique_ptr<VulkanLightManager::Light>>& VulkanLightManager::get_lights() const
+{
+	return _lightsOnScene;
+}
+
 void VulkanLightManager::generateUniformGrid(glm::vec3 maxCube, glm::vec3 minCube, uint32_t lightNumber)
 {
 	float stepX = std::abs(maxCube.x - minCube.x) / static_cast<float>(lightNumber);
 	float stepY = std::abs(maxCube.y - minCube.y) / static_cast<float>(lightNumber);
 	float stepZ = std::abs(maxCube.z - minCube.z) / static_cast<float>(lightNumber);
 
-	for (float posx = minCube.x; posx <= maxCube.x; posx+= stepX)
+	for (float posx = minCube.x; posx < maxCube.x; posx+= stepX)
 	{
-		for (float posy = minCube.y; posy <= maxCube.y; posy += stepY)
+		for (float posy = minCube.y; posy < maxCube.y; posy += stepY)
 		{
-			for (float posz = minCube.z; posz <= maxCube.z; posz += stepZ)
+			for (float posz = minCube.z; posz < maxCube.z; posz += stepZ)
 			{
 				_lightsOnScene.emplace_back(std::make_unique<Light>());
 

@@ -37,6 +37,7 @@ public:
 	void create_light_buffer(int current_frame_index);
 	void update_light_buffer(int current_frame_index);
 	const AllocatedBuffer& get_light_buffer(int current_frame_index) const;
+	const std::vector<std::unique_ptr<VulkanLightManager::Light>>& get_lights() const;
 
 	void generateUniformGrid(glm::vec3 maxCube, glm::vec3 minCube, uint32_t lightNumber);
 

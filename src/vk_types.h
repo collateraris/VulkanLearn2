@@ -18,7 +18,7 @@
 #define BIT(x) 1u << x
 
 constexpr uint32_t VULKAN_NUM_ATTACHMENTS = 8;
-constexpr uint32_t VULKAN_MAX_LIGHT_COUNT = 1;
+constexpr uint32_t VULKAN_MAX_LIGHT_COUNT = 30 * 30 * 30;
 
 //we will add our main reusable types here
 

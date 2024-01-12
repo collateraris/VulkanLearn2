@@ -198,14 +198,13 @@ static void EditSun(VulkanLightManager& lightManager, int current_frame_index)
 
 
 #if GI_RAYTRACER_ON && GBUFFER_ON
-static void EditGI(PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeline& giGP, VulkanSimpleAccumulationGraphicsPipeline& saGP, int current_frame_index, int frameNumber)
+static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeline& giGP, VulkanSimpleAccumulationGraphicsPipeline& saGP, int current_frame_index, int frameNumber)
 {
     static bool p_open = true;
     static bool bChangedValue = true;
-    static VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams giParams = {.aoRadius = 0.5, .shadowMult = 0.0, .numRays = 1};
+    static VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams giParams = {.shadowMult = 0.0, .numRays = 1};
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
     ImGui::Begin("Edit GI", &p_open);
-    //bChangedValue |= ImGui::InputFloat("AO Radius", &giParams.aoRadius);
     static int numRays = 0;
     bChangedValue |= ImGui::InputInt("Indirect numRays", &numRays);
     bChangedValue |= ImGui::InputFloat("shadow Mult", &giParams.shadowMult);
@@ -214,6 +213,7 @@ static void EditGI(PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeli
     giParams.camPos = glm::vec4(camera.position, 1.f);
     giParams.viewInverse = glm::inverse(camera.get_view_matrix());
     giParams.projInverse = glm::inverse(camera.get_projection_matrix());
+    giParams.lightsCount = lightManager.get_lights().size();
 
     if (bChangedValue)
     {
@@ -232,7 +232,7 @@ static void ShowVkMenu(VulkanEngine& engine)
 
     ImguiAppLog::EditSun(engine._lightManager, engine.get_current_frame_index());
 #if GI_RAYTRACER_ON && GBUFFER_ON
-    ImguiAppLog::EditGI(engine._camera, engine._giRtGraphicsPipeline, engine._simpleAccumGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
+    ImguiAppLog::EditGI(engine._lightManager, engine._camera, engine._giRtGraphicsPipeline, engine._simpleAccumGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
 #endif
 }
 

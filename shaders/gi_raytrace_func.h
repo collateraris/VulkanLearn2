@@ -1,5 +1,5 @@
 // A wrapper function that encapsulates shooting an ambient occlusion ray query
-float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float maxT, float defaultVal)
+float shadowRayVisibility( vec3 orig, vec3 dir, float maxT, float defaultVal)
 {
 	aoRpl.aoValue = defaultVal;
 
@@ -19,11 +19,6 @@ float shootAmbientOcclusionRay( vec3 orig, vec3 dir, float maxT, float defaultVa
     );        
 
 	return aoRpl.aoValue;
-};
-
-float shadowRayVisibility( vec3 orig, vec3 dir, float defaultVal)
-{
-    return shootAmbientOcclusionRay(orig, dir, 1.0e38f, defaultVal);
 };
 
 IndirectRayPayload shootIndirectRay(vec3 orig, vec3 dir)
@@ -47,7 +42,13 @@ IndirectRayPayload shootIndirectRay(vec3 orig, vec3 dir)
 	return indirectRpl;
 };
 
-DirectOutputData ggxDirect(DirectInputData inputData, vec3 camPos, vec3 lightDir, vec3 sunColor)
+float getDistanceFalloff(float distSquared)
+{
+    float falloff = 1 / ((0.01 * 0.01) + distSquared); // The 0.01 is to avoid infs when the light source is close to the shading point
+    return falloff;
+};
+
+DirectOutputData ggxDirect(uint randSeed, uint lightsCount, DirectInputData inputData, vec3 camPos)
 {
     int objectId = unpackObjID_DirectInputData(inputData);
     vec2 texCoord = unpackUV_DirectInputData(inputData);
@@ -80,6 +81,23 @@ DirectOutputData ggxDirect(DirectInputData inputData, vec3 camPos, vec3 lightDir
 
     vec3 viewDir = normalize(camPos.xyz - worldPos.xyz);
 
+    // Pick a random light from our scene to shoot a shadow ray towards
+    //skip sun light - number #0
+	uint lightToSample = max( 1u, min( uint(nextRand(randSeed) * lightsCount),
+                             lightsCount - 1u ));
+
+    SLight lightInfo = lightsBuffer.lights[lightToSample];
+
+    vec3 lightDir = lightInfo.position.xyz - worldPos.xyz;
+     // Avoid NaN
+    float distSquared = dot(lightDir, lightDir);
+    float lightDistance = (distSquared > 1e-5f) ? length(lightDir) : 0.f;
+    lightDir = (distSquared > 1e-5f) ? normalize(lightDir) : vec3(0.f, 0.f, 0.f);
+    
+    // Calculate the falloff
+    float falloff = getDistanceFalloff(distSquared);
+    vec3 lightColor = lightInfo.color.xyz * falloff;
+
 	vec3 H = normalize(viewDir + lightDir);
 
 	float HdotV = clamp(dot(H, viewDir), 0.f, 1.f);
@@ -101,8 +119,8 @@ DirectOutputData ggxDirect(DirectInputData inputData, vec3 camPos, vec3 lightDir
 	
 	kD *= 1.0f - metalness;
 
-	float shadowMult = shadowRayVisibility(worldPos.xyz, lightDir, giParams.shadowMult);
-    vec3 Lo =  emission + shadowMult * (kD * albedo * M_INV_PI + specular) * sunColor * NdotL;
+	float shadowMult = float(lightsCount) * shadowRayVisibility(worldPos.xyz, lightDir, lightDistance, giParams.shadowMult);
+    vec3 Lo =  emission + shadowMult * (kD * albedo * M_INV_PI + specular) * lightColor * NdotL;
 
 	return packDirectOutputData(worldNorm, albedo, F0, Lo, metalness, roughness);
 };
