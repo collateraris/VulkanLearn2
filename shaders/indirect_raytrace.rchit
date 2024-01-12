@@ -32,8 +32,6 @@ layout(set = 1, binding = 2) readonly buffer ObjectBuffer{
 	SObjectData objects[];
 } objectBuffer;
 
-#include "gi_raytrace_func.h"
-
 void main()
 {
   SObjectData shadeData = objectBuffer.objects[gl_InstanceID];

@@ -48,7 +48,7 @@ foreach(GLSL_SRC ${GLSL_SOURCE_FILES})
   ##execute glslang command to compile that specific shader
   add_custom_command(
     OUTPUT ${SPIRV}
-    COMMAND ${GLSLC} --target-spv=spv1.4 ${GLSL_SRC} -o ${SPIRV}
+    COMMAND ${GLSLC} --target-spv=spv1.6 ${GLSL_SRC} -o ${SPIRV}
     DEPENDS ${GLSL_SRC})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(GLSL_SRC)

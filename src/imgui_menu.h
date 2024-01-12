@@ -202,7 +202,7 @@ static void EditGI(PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeli
 {
     static bool p_open = true;
     static bool bChangedValue = true;
-    static VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams giParams = {.aoRadius = 0.5, .shadowMult = 0.05, .numRays = 1};
+    static VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams giParams = {.aoRadius = 0.5, .shadowMult = 0.0, .numRays = 1};
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
     ImGui::Begin("Edit GI", &p_open);
     //bChangedValue |= ImGui::InputFloat("AO Radius", &giParams.aoRadius);

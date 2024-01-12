@@ -104,8 +104,7 @@ DirectOutputData ggxDirect(DirectInputData inputData, vec3 camPos, vec3 lightDir
 	kD *= 1.0f - metalness;
 
 	float shadowMult = shadowRayVisibility(worldPos.xyz, lightDir, giParams.shadowMult);
- //vec3(shadowMult, shadowMult, shadowMult) ;//
-    vec3 Lo =  shadeColor + (kD * albedo * M_INV_PI + specular) * sunColor * NdotL;
+    vec3 Lo =  shadowMult * (shadeColor + (kD * albedo * M_INV_PI + specular) * sunColor * NdotL);
 
 	return packDirectOutputData(worldNorm, albedo, F0, Lo, metalness, roughness);
 };
