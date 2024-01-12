@@ -29,5 +29,8 @@ public:
 	std::vector<std::unique_ptr<MaterialDesc>> matDescList; 
 	std::vector<Texture*> textureList;
 
+	glm::vec3 maxCube = { std::numeric_limits<float>::min(), std::numeric_limits<float>::min(), std::numeric_limits<float>::min()};
+	glm::vec3 minCube = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
+
 	uint32_t storeTexture(std::string& name);
 };

@@ -60,9 +60,7 @@ DirectOutputData ggxDirect(DirectInputData inputData, vec3 camPos, vec3 lightDir
 
     vec3 emission = vec3(0., 0., 0);
     if (shadeData.emissionTexIndex > 0)
-        emission = texture(texSet[shadeData.emissionTexIndex], texCoord).rgb;
-
-    vec3 shadeColor = emission;    
+        emission = texture(texSet[shadeData.emissionTexIndex], texCoord).rgb;    
 
     float metalness = 0.;
     if (shadeData.metalnessTexIndex > 0)
@@ -104,7 +102,7 @@ DirectOutputData ggxDirect(DirectInputData inputData, vec3 camPos, vec3 lightDir
 	kD *= 1.0f - metalness;
 
 	float shadowMult = shadowRayVisibility(worldPos.xyz, lightDir, giParams.shadowMult);
-    vec3 Lo =  shadowMult * (shadeColor + (kD * albedo * M_INV_PI + specular) * sunColor * NdotL);
+    vec3 Lo =  emission + shadowMult * (kD * albedo * M_INV_PI + specular) * sunColor * NdotL;
 
 	return packDirectOutputData(worldNorm, albedo, F0, Lo, metalness, roughness);
 };

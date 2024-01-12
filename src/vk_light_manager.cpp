@@ -1,12 +1,26 @@
 #include <vk_light_manager.h>
 
 #include <vk_engine.h>
+#include <time.h>
+
+glm::vec3 randomColor()
+{
+	glm::vec3 color;
+	for (int i = 0; i < 3; i++)
+	{
+		srand(time(NULL)); // Seed random number generator. Only do this once.
+
+		float val = rand() % 256; // Set val equal to a random number between 0 and 6.
+
+		color[i] = val / 255.;
+	}
+
+	return color;
+}
 
 void VulkanLightManager::init(VulkanEngine* engine)
 {
 	_engine = engine;
-
-	get_sun_light();
 }
 
 void VulkanLightManager::load_config(std::string&& path)
@@ -33,19 +47,22 @@ VulkanLightManager::Light* VulkanLightManager::add_light(VulkanLightManager::Lig
 	return light;
 }
 
+void VulkanLightManager::add_sun_light()
+{
+	add_light({ .type = static_cast<uint32_t>(ELightType::Sun) });
+}
+
 VulkanLightManager::Light* VulkanLightManager::get_sun_light()
 {
-	if (_lightsOnScene.empty())
-	{
-		add_light({ .type = static_cast<uint32_t>(ELightType::Sun) });
-		for (int i = 0; i < FRAME_OVERLAP; i++)
-			create_light_buffer(i);
-	}
-
 	//fist index is sun
 	return _lightsOnScene[0].get();
 }
 
+void VulkanLightManager::create_light_buffers()
+{
+	for (int i = 0; i < FRAME_OVERLAP; i++)
+		create_light_buffer(i);
+}
 
 void VulkanLightManager::create_light_buffer(int current_frame_index)
 {
@@ -75,4 +92,27 @@ void VulkanLightManager::update_light_buffer(int current_frame_index)
 const AllocatedBuffer& VulkanLightManager::get_light_buffer(int current_frame_index) const
 {
 	return _lightsBuffer[current_frame_index];
+}
+
+void VulkanLightManager::generateUniformGrid(glm::vec3 maxCube, glm::vec3 minCube, uint32_t lightNumber)
+{
+	float stepX = std::abs(maxCube.x - minCube.x) / static_cast<float>(lightNumber);
+	float stepY = std::abs(maxCube.y - minCube.y) / static_cast<float>(lightNumber);
+	float stepZ = std::abs(maxCube.z - minCube.z) / static_cast<float>(lightNumber);
+
+	for (float posx = minCube.x; posx <= maxCube.x; posx+= stepX)
+	{
+		for (float posy = minCube.y; posy <= maxCube.y; posy += stepY)
+		{
+			for (float posz = minCube.z; posz <= maxCube.z; posz += stepZ)
+			{
+				_lightsOnScene.emplace_back(std::make_unique<Light>());
+
+				Light* light = _lightsOnScene.back().get();
+				light->position = glm::vec4(posx, posy, posz, 1.f);
+				light->type = static_cast<uint32_t>(ELightType::Point);
+				light->color = glm::vec4(randomColor(),1.f);
+			}
+		}
+	}
 }

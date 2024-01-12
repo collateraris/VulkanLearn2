@@ -124,6 +124,14 @@ void collectAIMesh(const aiMesh* amesh, const SceneConfig& config, ResourceManag
 		meshData.positionXYZ_normalX = glm::vec4(v.x * config.scaleFactor, v.y * config.scaleFactor, v.z * config.scaleFactor, n.x);
 		meshData.normalYZ_texCoordUV = glm::vec4(n.y, n.z, t.x, 1. - t.y);
 
+		resManager.maxCube.x = std::max(resManager.maxCube.x, meshData.positionXYZ_normalX.x);
+		resManager.maxCube.y = std::max(resManager.maxCube.y, meshData.positionXYZ_normalX.y);
+		resManager.maxCube.z = std::max(resManager.maxCube.z, meshData.positionXYZ_normalX.z);
+
+		resManager.minCube.x = std::min(resManager.minCube.x, meshData.positionXYZ_normalX.x);
+		resManager.minCube.y = std::min(resManager.minCube.y, meshData.positionXYZ_normalX.y);
+		resManager.minCube.z = std::min(resManager.minCube.z, meshData.positionXYZ_normalX.z);
+
 		newMesh->_vertices.push_back(meshData);
 	}
 

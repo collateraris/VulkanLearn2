@@ -6,6 +6,7 @@ enum class ELightType : uint32_t
 {
 	None = 0,
 	Sun = 1,
+	Point = 2,
 };
 
 
@@ -30,10 +31,14 @@ public:
 	void save_config(std::string&& path);
 
 	VulkanLightManager::Light* add_light(VulkanLightManager::Light&& lightInfo);
+	void add_sun_light();
 	VulkanLightManager::Light* get_sun_light();
+	void create_light_buffers();
 	void create_light_buffer(int current_frame_index);
 	void update_light_buffer(int current_frame_index);
 	const AllocatedBuffer& get_light_buffer(int current_frame_index) const;
+
+	void generateUniformGrid(glm::vec3 maxCube, glm::vec3 minCube, uint32_t lightNumber);
 
 private:
 
