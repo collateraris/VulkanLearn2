@@ -48,7 +48,8 @@ float getDistanceFalloff(float distSquared)
     return falloff;
 };
 
-DirectOutputData ggxDirect(uint lightToSample, DirectInputData inputData, vec3 camPos, out float shadowColor)
+
+DirectOutputData ggxDirect(uint lightToSample, DirectInputData inputData, vec3 camPos, bool withShadow)
 {
     int objectId = unpackObjID_DirectInputData(inputData);
     vec2 texCoord = unpackUV_DirectInputData(inputData);
@@ -114,7 +115,9 @@ DirectOutputData ggxDirect(uint lightToSample, DirectInputData inputData, vec3 c
 	
 	kD *= 1.0f - metalness;
 
-	shadowColor = shadowRayVisibility(worldPos.xyz, lightDir, lightDistance, giParams.shadowMult);
+	float shadowColor = 1.f;
+    if (withShadow)
+        shadowColor = shadowRayVisibility(worldPos.xyz, lightDir, lightDistance, giParams.shadowMult);
     vec3 Lo =  emission + shadowColor * (kD * albedo * M_INV_PI + specular) * lightColor * NdotL;
 
 	return packDirectOutputData(worldNorm, albedo, F0, Lo, metalness, roughness);

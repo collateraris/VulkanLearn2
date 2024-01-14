@@ -141,10 +141,10 @@ void VulkanReSTIRInitPlusTemporalPass::init_description_set_global_buffer(std::a
 		//reservoirPrevImageBufferInfo.imageView = _reservoirPrevTex.imageView;
 		//reservoirPrevImageBufferInfo.imageLayout = _reservoirPrevTex.createInfo.initialLayout;
 
-		//VkDescriptorImageInfo reservoirCurrImageBufferInfo;
-		//reservoirCurrImageBufferInfo.sampler = VK_NULL_HANDLE;
-		//reservoirCurrImageBufferInfo.imageView = _reservoirCurrTex.imageView;
-		//reservoirCurrImageBufferInfo.imageLayout = _reservoirCurrTex.createInfo.initialLayout;
+		VkDescriptorImageInfo reservoirCurrImageBufferInfo;
+		reservoirCurrImageBufferInfo.sampler = VK_NULL_HANDLE;
+		reservoirCurrImageBufferInfo.imageView = _reservoirCurrTex.imageView;
+		reservoirCurrImageBufferInfo.imageLayout = _reservoirCurrTex.createInfo.initialLayout;
 
 		VkDescriptorImageInfo indirectOutputBufferInfo;
 		indirectOutputBufferInfo.sampler = VK_NULL_HANDLE;
@@ -153,8 +153,8 @@ void VulkanReSTIRInitPlusTemporalPass::init_description_set_global_buffer(std::a
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			//.bind_image(0, &reservoirPrevImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			//.bind_image(1, &reservoirCurrImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.bind_image(0, &indirectOutputBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(0, &reservoirCurrImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(1, &indirectOutputBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.build(_rtDescSet[i], _rtDescSetLayout);
 
 		//set 1

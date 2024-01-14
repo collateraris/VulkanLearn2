@@ -23,7 +23,8 @@ layout(set = 1, binding = 2) readonly buffer ObjectBuffer{
 	SObjectData objects[];
 } objectBuffer;
 
-layout(set = 2, binding = 0, rgba32f) uniform image2D indirectOutput;
+layout(set = 2, binding = 0, rgba32f) uniform image2D reservoirCurr;
+layout(set = 2, binding = 1, rgba32f) uniform image2D indirectOutput;
 
 layout(set = 3, binding = 0) uniform sampler2D wposTex;
 layout(set = 3, binding = 1) uniform sampler2D normalTex;
@@ -60,15 +61,13 @@ void main()
         uint lightToSample = 1;
         float shadowColor = 0.f;
 
-		// Generate Initial Candidates - Algorithm 3 of ReSTIR paper
+		// Generate Initial Candidates
 		for (int i = 0; i < min(giParams.lightsCount, 32); i++) {
             lightToSample = max( 1u, min( uint(nextRand(randSeed) * giParams.lightsCount),
                         giParams.lightsCount - 1u ));
 
-            DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, shadowColor);
+            DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, false);
 
-            vec4 reservoir = vec4(0.f, 0.f, 0.f, 0.f);
-            float p_hat;
             // p_hat of the light is f * Le * G / pdf
             p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
             reservoir = updateReservoir(randSeed, reservoir, lightToSample, p_hat);
@@ -76,17 +75,35 @@ void main()
 
 		// Evaluate visibility for initial candidate and set r.W value
 		lightToSample = uint(reservoir.y);
-        DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, shadowColor);
+        DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, false);
 
         // p_hat of the light is f * Le * G / pdf
         p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
 		reservoir.w = (1.f / max(p_hat, 0.0001f)) * (reservoir.x / max(reservoir.z, 0.0001f));
 
-		if (shadowColor < 0.001f) {
-			reservoir.w = 0.f;
-		}
+        {
+            SLight lightInfo = lightsBuffer.lights[lightToSample];
 
-       indirectColor = float(giParams.lightsCount) * unpackLo_DirectOutputData(outputCurrentData);
+            vec3 lightDir = lightInfo.position.xyz - worldPos.xyz;
+            // Avoid NaN
+            float distSquared = dot(lightDir, lightDir);
+            float lightDistance = (distSquared > 1e-5f) ? length(lightDir) : 0.f;
+            lightDir = (distSquared > 1e-5f) ? normalize(lightDir) : vec3(0.f, 0.f, 0.f);
+
+            float shadowColor = shadowRayVisibility(worldPos.xyz, lightDir, lightDistance, giParams.shadowMult);
+            if (shadowColor < 0.001f) {
+                reservoir.w = 0.f;
+            }
+        }
+
+        imageStore(reservoirCurr, ivec2(gl_LaunchIDEXT.xy), reservoir);
+
+        //DRAW WITH ReSTIR result
+        {
+            lightToSample = uint(reservoir.y);
+            DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, true);
+            indirectColor += float(giParams.lightsCount) * unpackLo_DirectOutputData(outputCurrentData) * reservoir.w;
+        }
 
         uint INDIRECT_BOUND = giParams.numRays;
         //INDIRECT ILLUMINATION
@@ -149,7 +166,7 @@ void main()
                     shading_nrm, 
                     unpackUV_IndirectRayPayload(indirPayload));
 
-                DirectOutputData outputBoundData = ggxDirect(lightToSample, input2Data, giParams.camPos.xyz,shadowColor);
+                DirectOutputData outputBoundData = ggxDirect(lightToSample, input2Data, giParams.camPos.xyz, true);
 
                 // Compute some dot products needed for shading
                 float  NdotR = clamp(dot(outputCurrentData_worldNorm, R), 0.f, 1.f);
