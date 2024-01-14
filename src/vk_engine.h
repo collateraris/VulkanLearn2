@@ -168,6 +168,7 @@ public:
 #if GI_RAYTRACER_ON && GBUFFER_ON
 	VulkanIblMapsGeneratorGraphicsPipeline _iblGenGraphicsPipeline;
 	VulkanGIShadowsRaytracingGraphicsPipeline _giRtGraphicsPipeline;
+    VkPhysicalDeviceRayTracingPipelinePropertiesKHR _rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
 #endif
 
 

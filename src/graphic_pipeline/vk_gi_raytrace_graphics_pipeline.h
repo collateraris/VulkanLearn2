@@ -6,6 +6,7 @@
 #include <vk_raytracer_builder.h>
 #include <vk_render_pass.h>
 #include <vk_mesh.h>
+#include <graphic_pipeline/vk_restir_init_plus_temporal_pass.h>
 
 class VulkanEngine;
 class VulkanFrameBuffer;
@@ -50,44 +51,18 @@ private:
 
 	void create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList);
 	void create_tlas(const std::vector<RenderObject>& renderables);
-	void init_description_set(const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap);
-	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList);
+	void init_global_buffers(const std::vector<RenderObject>& renderables);
 
 	VulkanRaytracerBuilder::BlasInput create_blas_input(Mesh& mesh);
 
 	VulkanEngine* _engine = nullptr;
 
-	VkExtent3D _imageExtent;
-	Texture _colorTexture;
-	VkFormat      _colorFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
-	Texture _depthTexture;
-	VkFormat      _depthFormat{ VK_FORMAT_D32_SFLOAT };
-
-	VkPhysicalDeviceRayTracingPipelinePropertiesKHR _rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
-
-	AllocatedBuffer                 _rtSBTBuffer;
-
-	VkStridedDeviceAddressRegionKHR _rgenRegion{};
-	VkStridedDeviceAddressRegionKHR _missRegion{};
-	VkStridedDeviceAddressRegionKHR _hitRegion{};
-	VkStridedDeviceAddressRegionKHR _callRegion{};
-
-	VkDescriptorSetLayout          _rtDescSetLayout;
-	std::array<VkDescriptorSet, 2>  _rtDescSet;
-
 	std::array<AllocatedBuffer, 2> _globalUniformsBuffer;
 	AllocatedBuffer _objectBuffer;
 
-	VkDescriptorSetLayout          _globalUniformsDescSetLayout;
-	std::array<VkDescriptorSet, 2>  _globalUniformsDescSet;
-
-	VkDescriptorSetLayout _gBuffDescSetLayout;
-	std::array<VkDescriptorSet, 2> _gBuffDescSet;
-
-	VkDescriptorSet _bindlessSet;
-	VkDescriptorSetLayout _bindlessSetLayout;
-
 	VulkanRaytracerBuilder _rtBuilder;
+
+	std::unique_ptr<VulkanReSTIRInitPlusTemporalPass> _restirGP;
 };
 
 #endif

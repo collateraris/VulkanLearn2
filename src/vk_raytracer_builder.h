@@ -39,6 +39,12 @@ public:
 
     VkAccelerationStructureKHR get_acceleration_structure() const;
 
+    static AllocatedBuffer create_SBTBuffer(VulkanEngine* engine, uint32_t missCount, uint32_t hitCount, EPipelineType pipType,
+        VkStridedDeviceAddressRegionKHR& rgenRegion,
+        VkStridedDeviceAddressRegionKHR& missRegion,
+        VkStridedDeviceAddressRegionKHR& hitRegion,
+        VkStridedDeviceAddressRegionKHR& callRegion);
+
 protected:
 
     std::vector<AccelerationStruct> _blas;  // Bottom-level acceleration structure

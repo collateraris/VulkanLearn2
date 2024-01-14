@@ -196,3 +196,69 @@ VkAccelerationStructureKHR VulkanRaytracerBuilder::get_acceleration_structure() 
 {
     return _tlas.accel;
 }
+
+AllocatedBuffer VulkanRaytracerBuilder::create_SBTBuffer(VulkanEngine* engine, uint32_t missCount, uint32_t hitCount, EPipelineType pipType,
+    VkStridedDeviceAddressRegionKHR& rgenRegion,
+    VkStridedDeviceAddressRegionKHR& missRegion,
+    VkStridedDeviceAddressRegionKHR& hitRegion,
+    VkStridedDeviceAddressRegionKHR& callRegion)
+{
+    auto     handleCount = 1 + missCount + hitCount;
+    uint32_t handleSize = engine->_rtProperties.shaderGroupHandleSize;
+
+    // The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
+    uint32_t handleSizeAligned = vkutil::align_up(handleSize, engine->_rtProperties.shaderGroupHandleAlignment);
+
+    rgenRegion.stride = vkutil::align_up(handleSizeAligned, engine->_rtProperties.shaderGroupBaseAlignment);
+    rgenRegion.size = rgenRegion.stride;  // The size member of pRayGenShaderBindingTable must be equal to its stride member
+    missRegion.stride = handleSizeAligned;
+    missRegion.size = vkutil::align_up(missCount * handleSizeAligned, engine->_rtProperties.shaderGroupBaseAlignment);
+    hitRegion.stride = handleSizeAligned;
+    hitRegion.size = vkutil::align_up(hitCount * handleSizeAligned, engine->_rtProperties.shaderGroupBaseAlignment);
+
+    // Get the shader group handles
+    uint32_t             dataSize = handleCount * handleSize;
+    std::vector<uint8_t> handles(dataSize);
+    auto result = vkGetRayTracingShaderGroupHandlesKHR(engine->_device, engine->_renderPipelineManager.get_pipeline(pipType), 0, handleCount, dataSize, handles.data());
+
+    // Allocate a buffer for storing the SBT.
+    VkDeviceSize sbtSize = rgenRegion.size + missRegion.size + hitRegion.size;
+    AllocatedBuffer rtSBTBuffer = engine->create_staging_buffer(sbtSize,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
+        | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR);
+
+    // Find the SBT addresses of each group
+    VkBufferDeviceAddressInfo info{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, rtSBTBuffer._buffer };
+    VkDeviceAddress           sbtAddress = vkGetBufferDeviceAddress(engine->_device, &info);
+    rgenRegion.deviceAddress = sbtAddress;
+    missRegion.deviceAddress = sbtAddress + rgenRegion.size;
+    hitRegion.deviceAddress = sbtAddress + rgenRegion.size + missRegion.size;
+
+    // Helper to retrieve the handle data
+    auto getHandle = [&](int i) { return handles.data() + i * handleSize; };
+
+    engine->map_buffer(engine->_allocator, rtSBTBuffer._allocation, [&](void*& data) {
+        uint8_t* pSBTBuffer = reinterpret_cast<uint8_t*>(data);
+        uint8_t* pData = pSBTBuffer;
+        uint32_t handleIdx{ 0 };
+        // Raygen
+        memcpy(pData, getHandle(handleIdx++), handleSize);
+        // Miss
+        pData = pSBTBuffer + rgenRegion.size;
+        for (uint32_t i = 0; i < missCount; i++)
+        {
+            memcpy(pData, getHandle(handleIdx++), handleSize);
+            pData += missRegion.stride;
+        }
+        // Hit
+        pData = pSBTBuffer + rgenRegion.size + missRegion.size;
+        for (uint32_t i = 0; i < hitCount; i++)
+        {
+            memcpy(pData, getHandle(handleIdx++), handleSize);
+            pData += hitRegion.stride;
+        }
+
+    });
+
+    return rtSBTBuffer;
+}

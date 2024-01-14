@@ -48,7 +48,7 @@ float getDistanceFalloff(float distSquared)
     return falloff;
 };
 
-DirectOutputData ggxDirect(uint randSeed, uint lightsCount, DirectInputData inputData, vec3 camPos)
+DirectOutputData ggxDirect(uint lightToSample, DirectInputData inputData, vec3 camPos, out float shadowColor)
 {
     int objectId = unpackObjID_DirectInputData(inputData);
     vec2 texCoord = unpackUV_DirectInputData(inputData);
@@ -80,11 +80,6 @@ DirectOutputData ggxDirect(uint randSeed, uint lightsCount, DirectInputData inpu
     }  
 
     vec3 viewDir = normalize(camPos.xyz - worldPos.xyz);
-
-    // Pick a random light from our scene to shoot a shadow ray towards
-    //skip sun light - number #0
-	uint lightToSample = max( 1u, min( uint(nextRand(randSeed) * lightsCount),
-                             lightsCount - 1u ));
 
     SLight lightInfo = lightsBuffer.lights[lightToSample];
 
@@ -119,8 +114,8 @@ DirectOutputData ggxDirect(uint randSeed, uint lightsCount, DirectInputData inpu
 	
 	kD *= 1.0f - metalness;
 
-	float shadowMult = float(lightsCount) * shadowRayVisibility(worldPos.xyz, lightDir, lightDistance, giParams.shadowMult);
-    vec3 Lo =  emission + shadowMult * (kD * albedo * M_INV_PI + specular) * lightColor * NdotL;
+	shadowColor = shadowRayVisibility(worldPos.xyz, lightDir, lightDistance, giParams.shadowMult);
+    vec3 Lo =  emission + shadowColor * (kD * albedo * M_INV_PI + specular) * lightColor * NdotL;
 
 	return packDirectOutputData(worldNorm, albedo, F0, Lo, metalness, roughness);
 };

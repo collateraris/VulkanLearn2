@@ -648,6 +648,14 @@ void VulkanEngine::init_vulkan()
 
 	_gpuProperties = vkbDevice.physical_device.properties;
 
+#if GI_RAYTRACER_ON
+	{
+		VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+		prop2.pNext = &_rtProperties;
+		vkGetPhysicalDeviceProperties2(_chosenPhysicalDeviceGPU, &prop2);
+	}
+#endif	
+
 	std::cout << "The GPU has a minimum buffer alignment of " << _gpuProperties.limits.minUniformBufferOffsetAlignment << std::endl;
 }
 

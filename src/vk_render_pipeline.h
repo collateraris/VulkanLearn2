@@ -6,28 +6,6 @@ class ShaderCache;
 class VulkanRenderPassManager;
 class VulkanEngine;
 
-enum class EPipelineType : uint32_t
-{
-	NoInit = 0,
-	Bindless_TaskMeshIndirectForward = 1,
-	DrawIndirectForward = 2,
-	PyramidDepthReduce = 3,
-	ComputePrepassForTaskMeshIndirect = 4,
-	BaseRaytracer = 5,
-	FullScreen = 6,
-	VbufferGenerate = 7,
-	VBufferShading = 8,
-	GBufferGenerate = 9,
-	GBufferShading = 10,
-	GI_Raytracing = 11,
-	SimpleAccumulation = 12,
-	DrawHDRtoEnvMap  =13,
-	DrawEnvMapToIrradianceMap = 14,
-	DrawEnvMapToPrefilteredMap = 15,
-	DrawBRDFLUT = 16,
-	Max,
-};
-
 class VulkanRenderPipeline
 {
 public:
