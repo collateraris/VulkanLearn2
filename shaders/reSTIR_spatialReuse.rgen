@@ -1,0 +1,117 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_nonuniform_qualifier:enable
+#extension GL_GOOGLE_include_directive : enable
+
+#include "gi_raytrace.h"
+
+layout(location = 0) rayPayloadEXT IndirectRayPayload indirectRpl;
+layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
+
+layout(set = 0, binding = 1) uniform sampler2D texSet[];
+layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
+
+layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams; };
+
+layout(set = 1, binding = 1) readonly buffer _Lights{
+
+	SLight lights[];
+} lightsBuffer;
+
+layout(set = 1, binding = 2) readonly buffer ObjectBuffer{
+
+	SObjectData objects[];
+} objectBuffer;
+
+layout(set = 2, binding = 0) uniform sampler2D reservoirCurr;
+layout(set = 2, binding = 1, rgba32f) uniform image2D spatialReuse;
+
+layout(set = 3, binding = 0) uniform sampler2D wposTex;
+layout(set = 3, binding = 1) uniform sampler2D normalTex;
+layout(set = 3, binding = 2) uniform sampler2D uvTex;
+layout(set = 3, binding = 3) uniform sampler2D objIDTex;
+layout(set = 3, binding = 4) uniform samplerCube irradianceMap;
+layout(set = 3, binding = 5) uniform samplerCube prefilteredMap;
+layout(set = 3, binding = 6) uniform sampler2D   brdfLUT;
+
+
+#include "gi_raytrace_func.h"
+
+void main() 
+{
+    const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
+    vec4 worldPos = texture(wposTex, uv).rgba;
+    vec3 worldNorm = normalize(texture(normalTex, uv).rgb);
+
+    vec4 reservoirNew = vec4(0.f, 0.f, 0.f, 0.f);
+
+    if (worldPos.w != 0.0f)
+	{
+        float objIDf = texture(objIDTex, uv).r;
+        vec2 gbufferTexCoord = texture(uvTex, uv).rg;   
+
+        // Initialize a random seed, per-pixel, based on a screen position and temporally varying count
+	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, giParams.frameCount);
+
+        DirectInputData inputData = packDirectInputData(objIDf, worldPos.xyz, worldNorm, gbufferTexCoord);
+
+        vec4 reservoir = texture(reservoirCurr, ivec2(gl_LaunchIDEXT.xy)).rgba;
+        uint lightToSample = uint(reservoir.y);
+        DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, false);
+        // p_hat of the light is f * Le * G / pdf
+        float p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
+        // // reservoir.w = weight
+	    //reservoir.z = r.M
+        reservoirNew = updateReservoir(randSeed, reservoirNew, lightToSample, p_hat * reservoir.w * reservoir.z);
+
+        float lightSamplesCount = reservoir.z;
+
+        uvec2 neighborOffset;
+		uvec2	neighborIndex;
+		vec4 neighborReservoir;
+
+		int neighborsCount = 15;
+		int neighborsRange = 5; // Want to sample neighbors within [-neighborsRange, neighborsRange] offset
+
+		for (int i = 0; i < neighborsCount; i++) {
+			// Reservoir reminder:
+			// .x: weight sum
+			// .y: chosen light for the pixel
+			// .z: the number of samples seen for this current light
+			// .w: the final adjusted weight for the current pixel following the formula in algorithm 3 (r.W)
+
+			// Generate a random number from range [0, 2 * neighborsRange] then offset in negative direction 
+			// by spatialNeighborCount to get range [-neighborsRange, neighborsRange]. 
+			// Need to take care of out of bound case hence the max and min
+			neighborOffset.x = int(nextRand(randSeed) * neighborsRange * 2.f) - neighborsRange;
+			neighborOffset.y = int(nextRand(randSeed) * neighborsRange * 2.f) - neighborsRange;
+
+			neighborIndex.x = max(0, min(gl_LaunchSizeEXT.x - 1, gl_LaunchIDEXT.x + neighborOffset.x));
+			neighborIndex.y = max(0, min(gl_LaunchSizeEXT.y - 1, gl_LaunchIDEXT.y + neighborOffset.y));
+
+			neighborReservoir = texture(reservoirCurr, ivec2(neighborIndex)).rgba;
+            lightToSample = uint(neighborReservoir.y);
+
+            DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, false);
+            // p_hat of the light is f * Le * G / pdf
+            float p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
+
+			reservoirNew = updateReservoir(randSeed, reservoirNew, lightToSample, p_hat * neighborReservoir.w * neighborReservoir.z);
+
+			lightSamplesCount += neighborReservoir.z;
+		} 
+
+ 		// Update the correct number of candidates considered for this pixel
+		reservoirNew.z = lightSamplesCount;              
+
+        // Evaluate visibility for initial candidate and set r.W value
+		lightToSample = uint(reservoirNew.y);
+        outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, false);
+
+        // p_hat of the light is f * Le * G / pdf
+        p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
+		reservoirNew.w = (1.f / max(p_hat, 0.0001f)) * (reservoirNew.x / max(reservoirNew.z, 0.0001f));
+	}
+
+    imageStore(spatialReuse, ivec2(gl_LaunchIDEXT.xy), reservoirNew);
+}

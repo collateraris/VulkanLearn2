@@ -12,7 +12,9 @@
 #include <vk_raytracer_builder.h>
 #include <vk_initializers.h>
 
-void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap, VkAccelerationStructureKHR  tlas)
+void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap, VkAccelerationStructureKHR  tlas,
+	std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer, 
+	const Texture& indirectInput, const Texture& reservoirPrev, const Texture& reservoirSpatial)
 {
 	_engine = engine;
 
@@ -25,31 +27,9 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine, const 
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_reservoirPrevTex = texBuilder.start()
+		_outputTex = texBuilder.start()
 			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		_reservoirCurrTex = texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		_indirectOutputTex = texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL; })
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
 			.create_texture();
@@ -58,13 +38,15 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine, const 
 	{
 		init_description_set(gbuffer, iblMap);
 		init_bindless(_engine->_resManager.meshList, _engine->_resManager.textureList, tlas);
+		init_description_set_global_buffer(globalUniformsBuffer, objectBuffer,
+			indirectInput, reservoirPrev, reservoirSpatial);
 	}
 
 	{
 		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::ReSTIR_UpdateReservoir_PlusShade,
 			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
 				ShaderEffect defaultEffect;
-				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("gi_raytrace.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
+				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("reSTIR_updateReservoir_PlusShade.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
 				uint32_t rayIndirectMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("ao_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayIndirectClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
@@ -132,29 +114,46 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine, const 
 		_callRegion);
 }
 
-void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffer(std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer)
+void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffer(std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer, const Texture& indirectInput, const Texture& reservoirPrev, const Texture& reservoirSpatial)
 {
+	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
+
+	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
+
+	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
+
+	samplerInfo.pNext = &createInfoReduction;
+
+	VkSampler sampler;
+	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
+
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
-		//VkDescriptorImageInfo reservoirPrevImageBufferInfo;
-		//reservoirPrevImageBufferInfo.sampler = VK_NULL_HANDLE;
-		//reservoirPrevImageBufferInfo.imageView = _reservoirPrevTex.imageView;
-		//reservoirPrevImageBufferInfo.imageLayout = _reservoirPrevTex.createInfo.initialLayout;
+		VkDescriptorImageInfo indirectInputImageBufferInfo;
+		indirectInputImageBufferInfo.sampler = sampler;
+		indirectInputImageBufferInfo.imageView = indirectInput.imageView;
+		indirectInputImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-		//VkDescriptorImageInfo reservoirCurrImageBufferInfo;
-		//reservoirCurrImageBufferInfo.sampler = VK_NULL_HANDLE;
-		//reservoirCurrImageBufferInfo.imageView = _reservoirCurrTex.imageView;
-		//reservoirCurrImageBufferInfo.imageLayout = _reservoirCurrTex.createInfo.initialLayout;
+		VkDescriptorImageInfo reservoirSpatialImageBufferInfo;
+		reservoirSpatialImageBufferInfo.sampler = sampler;
+		reservoirSpatialImageBufferInfo.imageView = reservoirSpatial.imageView;
+		reservoirSpatialImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-		VkDescriptorImageInfo indirectOutputBufferInfo;
-		indirectOutputBufferInfo.sampler = VK_NULL_HANDLE;
-		indirectOutputBufferInfo.imageView = _indirectOutputTex.imageView;
-		indirectOutputBufferInfo.imageLayout = _indirectOutputTex.createInfo.initialLayout;
+		VkDescriptorImageInfo reservoirPrevImageBufferInfo;
+		reservoirPrevImageBufferInfo.sampler = VK_NULL_HANDLE;
+		reservoirPrevImageBufferInfo.imageView = reservoirPrev.imageView;
+		reservoirPrevImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+		VkDescriptorImageInfo outputBufferInfo;
+		outputBufferInfo.sampler = VK_NULL_HANDLE;
+		outputBufferInfo.imageView = _outputTex.imageView;
+		outputBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			//.bind_image(0, &reservoirPrevImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			//.bind_image(0, &reservoirCurrImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.bind_image(0, &indirectOutputBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(0, &indirectInputImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(1, &reservoirSpatialImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(2, &reservoirPrevImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(3, &outputBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.build(_rtDescSet[i], _rtDescSetLayout);
 
 		//set 1
@@ -307,7 +306,7 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::draw(VulkanCommandBuffer* cmd, in
 	}
 
 	VkClearValue clear_value = { 0., 0., 0., 0. };
-	cmd->clear_image(_indirectOutputTex, clear_value);
+	cmd->clear_image(_outputTex, clear_value);
 
 	{
 		std::array<VkImageMemoryBarrier, 1> outBarriers =
@@ -334,27 +333,12 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::draw(VulkanCommandBuffer* cmd, in
 
 const Texture& VulkanReSTIRUpdateReservoirPlusShadePass::get_output() const
 {
-	return _indirectOutputTex;
+	return _outputTex;
 }
 
 void VulkanReSTIRUpdateReservoirPlusShadePass::barrier_for_frag_read(VulkanCommandBuffer* cmd)
 {
-	std::array<VkImageMemoryBarrier, 1> aoBarriers =
-	{
-		vkinit::image_barrier(get_output().image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-	};
-
-	vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, aoBarriers.size(), aoBarriers.data());
-}
-
-void VulkanReSTIRUpdateReservoirPlusShadePass::barrier_for_gi_raytracing(VulkanCommandBuffer* cmd)
-{
-	std::array<VkImageMemoryBarrier, 1> aoBarriers =
-	{
-		vkinit::image_barrier(get_output().image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
-	};
-
-	vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, aoBarriers.size(), aoBarriers.data());
+	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 }
 
 #endif

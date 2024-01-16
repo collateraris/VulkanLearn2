@@ -23,8 +23,9 @@ layout(set = 1, binding = 2) readonly buffer ObjectBuffer{
 	SObjectData objects[];
 } objectBuffer;
 
-layout(set = 2, binding = 0, rgba32f) uniform image2D reservoirCurr;
-layout(set = 2, binding = 1, rgba32f) uniform image2D indirectOutput;
+layout(set = 2, binding = 0) uniform sampler2D reservoirPrev;
+layout(set = 2, binding = 1, rgba32f) uniform image2D reservoirCurr;
+layout(set = 2, binding = 2, rgba32f) uniform image2D indirectOutput;
 
 layout(set = 3, binding = 0) uniform sampler2D wposTex;
 layout(set = 3, binding = 1) uniform sampler2D normalTex;
@@ -99,11 +100,11 @@ void main()
         imageStore(reservoirCurr, ivec2(gl_LaunchIDEXT.xy), reservoir);
 
         //DRAW WITH ReSTIR result
-        {
-            lightToSample = uint(reservoir.y);
-            DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, true);
-            indirectColor += float(giParams.lightsCount) * unpackLo_DirectOutputData(outputCurrentData) * reservoir.w;
-        }
+        // {
+        //     lightToSample = uint(reservoir.y);
+        //     DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, true);
+        //     indirectColor += float(giParams.lightsCount) * unpackLo_DirectOutputData(outputCurrentData) * reservoir.w;
+        // }
 
         uint INDIRECT_BOUND = giParams.numRays;
         //INDIRECT ILLUMINATION

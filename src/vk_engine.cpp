@@ -124,8 +124,7 @@ void VulkanEngine::init()
 	_gBufGenerateGraphicsPipeline.init(this);
 	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
 	_giRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer(), _iblGenGraphicsPipeline.getIblTex());
-	_simpleAccumGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
-	_gBufShadingGraphicsPipeline.init(this, _simpleAccumGraphicsPipeline.get_output());
+	_gBufShadingGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
 #endif
 
 
@@ -228,7 +227,7 @@ void VulkanEngine::draw()
 
 #if GI_RAYTRACER_ON && GBUFFER_ON
 			{
-				_simpleAccumGraphicsPipeline.try_reset_accumulation(_camera);
+				_giRtGraphicsPipeline.try_reset_accumulation(_camera);
 			}
 #endif
 
@@ -248,8 +247,6 @@ void VulkanEngine::draw()
 		_gBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 		_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_shading(&get_current_frame()._mainCommandBuffer);
 		_giRtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-		_giRtGraphicsPipeline.barrier_for_frag_read(&get_current_frame()._mainCommandBuffer);
-		_simpleAccumGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif
 
 #if VBUFFER_ON
@@ -331,7 +328,7 @@ void VulkanEngine::draw()
 			vkCmdSetScissor(cmd, 0, 1, &scissor);
 			vkCmdSetDepthBias(cmd, 0, 0, 0);
 #if GBUFFER_ON
-			_gBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+			//_gBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif			
 #if VBUFFER_ON
 			_visBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
@@ -356,7 +353,6 @@ void VulkanEngine::draw()
 #if GBUFFER_ON
 		{
 			_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_generate(&get_current_frame()._mainCommandBuffer);
-			_giRtGraphicsPipeline.barrier_for_gi_raytracing(&get_current_frame()._mainCommandBuffer);
 		}
 #endif
 		//_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });
@@ -1284,6 +1280,33 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
 
 	//execute the function
 	function(cmd);
+
+	VK_CHECK(vkEndCommandBuffer(cmd));
+
+	VkSubmitInfo submit = vkinit::submit_info(&cmd);
+
+	//submit command buffer to the queue and execute it.
+	// _uploadFence will now block until the graphic commands finish execution
+	VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, _uploadContext._uploadFence));
+
+	vkWaitForFences(_device, 1, &_uploadContext._uploadFence, true, 9999999999);
+	vkResetFences(_device, 1, &_uploadContext._uploadFence);
+
+	// reset the command buffers inside the command pool
+	_uploadContext._commandPool.reset();
+}
+
+void VulkanEngine::immediate_submit2(std::function<void(VulkanCommandBuffer& cmd)>&& function)
+{
+	VkCommandBuffer cmd = _uploadContext._commandBuffer.get_cmd();
+
+	//begin the command buffer recording. We will use this command buffer exactly once before resetting, so we tell vulkan that
+	VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+
+	//execute the function
+	function(_uploadContext._commandBuffer);
 
 	VK_CHECK(vkEndCommandBuffer(cmd));
 

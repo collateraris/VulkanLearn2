@@ -17,26 +17,24 @@ class VulkanReSTIRUpdateReservoirPlusShadePass
 public:
 
 	VulkanReSTIRUpdateReservoirPlusShadePass() = default;
-	void init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap, VkAccelerationStructureKHR  tlas);
-	void init_description_set_global_buffer(std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer);
+	void init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap, VkAccelerationStructureKHR  tlas, 
+		std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer, 
+		const Texture& indirectInput, const Texture& reservoirPrev, const Texture& reservoirSpatial);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
 	const Texture& get_output() const;
 
 	void barrier_for_frag_read(VulkanCommandBuffer* cmd);
-	void barrier_for_gi_raytracing(VulkanCommandBuffer* cmd);
 
 private:
-
+	void init_description_set_global_buffer(std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer, const Texture& indirectInput, const Texture& reservoirPrev, const Texture& reservoirSpatial);
 	void init_description_set(const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap);
 	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList, VkAccelerationStructureKHR  tlas);
 
 	VulkanEngine* _engine = nullptr;
 
 	VkExtent3D _imageExtent;
-	Texture _reservoirPrevTex;
-	Texture _reservoirCurrTex;
-	Texture _indirectOutputTex;
+	Texture _outputTex;
 	VkFormat      _colorFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
 
 	AllocatedBuffer                 _rtSBTBuffer;

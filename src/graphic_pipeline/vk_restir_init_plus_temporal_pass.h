@@ -20,10 +20,16 @@ public:
 	void init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap, VkAccelerationStructureKHR  tlas, std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
-	const Texture& get_output() const;
+	const Texture& get_indirectOutput() const;
+	const Texture& get_reservoirCurrTex() const;
+	const Texture& get_reservoirPrevTex() const;
 
-	void barrier_for_frag_read(VulkanCommandBuffer* cmd);
-	void barrier_for_gi_raytracing(VulkanCommandBuffer* cmd);
+	void indirectOutput_barrier_for_raytrace_read(VulkanCommandBuffer* cmd);
+	void indirectOutput_barrier_for_raytrace_write(VulkanCommandBuffer* cmd);
+	void reservoirPrevTex_barrier_for_raytrace_read(VulkanCommandBuffer* cmd);
+	void reservoirPrevTex_barrier_for_raytrace_write(VulkanCommandBuffer* cmd);
+	void reservoirCurrTex_barrier_for_raytrace_read(VulkanCommandBuffer* cmd);
+	void reservoirCurrTex_barrier_for_raytrace_write(VulkanCommandBuffer* cmd);
 
 private:
 

@@ -10,6 +10,7 @@
 #include <vk_shaders.h>
 #include <vk_raytracer_builder.h>
 #include <vk_initializers.h>
+#include <vk_camera.h>
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap)
 {
@@ -21,8 +22,18 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const
 		init_global_buffers(_engine->_renderables);
 	}
 
-	_restirGP = std::make_unique<VulkanReSTIRInitPlusTemporalPass>();
-	_restirGP->init(engine, gbuffer, iblMap, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer);
+	_restirInitTemporalGP = std::make_unique<VulkanReSTIRInitPlusTemporalPass>();
+	_restirInitTemporalGP->init(engine, gbuffer, iblMap, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer);
+
+	_restirSpacialGP = std::make_unique<VulkanReSTIRSpaceReusePass>();
+	_restirSpacialGP->init(engine, gbuffer, iblMap, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer, _restirInitTemporalGP->get_reservoirCurrTex());
+
+	_restirUpdateShadeGP = std::make_unique<VulkanReSTIRUpdateReservoirPlusShadePass>();
+	_restirUpdateShadeGP->init(engine, gbuffer, iblMap, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer,
+		_restirInitTemporalGP->get_indirectOutput(), _restirInitTemporalGP->get_reservoirPrevTex(), _restirSpacialGP->get_reservoirSpacial());
+
+	_accumulationGP = std::make_unique<VulkanSimpleAccumulationGraphicsPipeline>();
+	_accumulationGP->init(engine, _restirUpdateShadeGP->get_output());
 }
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList)
@@ -105,24 +116,40 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::copy_global_uniform_data(VulkanG
 		});
 }
 
+
+
 void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
-	_restirGP->draw(cmd, current_frame_index);
+	_restirInitTemporalGP->draw(cmd, current_frame_index);
+
+	_restirInitTemporalGP->reservoirCurrTex_barrier_for_raytrace_read(cmd);
+	_restirSpacialGP->draw(cmd, current_frame_index);
+
+	__debugbreak();
+
+	//_restirInitTemporalGP->indirectOutput_barrier_for_raytrace_read(cmd);
+	//_restirSpacialGP->reservoirSpacial_barrier_for_raytrace_read(cmd);
+	//_restirInitTemporalGP->reservoirPrevTex_barrier_for_raytrace_write(cmd);
+	//_restirUpdateShadeGP->draw(cmd, current_frame_index);
+	//_restirInitTemporalGP->reservoirPrevTex_barrier_for_raytrace_read(cmd);
+
+	//_restirUpdateShadeGP->barrier_for_frag_read(cmd);
+	//_accumulationGP->draw(cmd, current_frame_index);
 }
 
 const Texture& VulkanGIShadowsRaytracingGraphicsPipeline::get_output() const
 {
-	return _restirGP->get_output();
+	return _accumulationGP->get_output();
 }
 
-void VulkanGIShadowsRaytracingGraphicsPipeline::barrier_for_frag_read(VulkanCommandBuffer* cmd)
+void VulkanGIShadowsRaytracingGraphicsPipeline::reset_accumulation()
 {
-	_restirGP->barrier_for_frag_read(cmd);
+	_accumulationGP->reset_accumulation();
 }
 
-void VulkanGIShadowsRaytracingGraphicsPipeline::barrier_for_gi_raytracing(VulkanCommandBuffer* cmd)
+void VulkanGIShadowsRaytracingGraphicsPipeline::try_reset_accumulation(PlayerCamera& camera)
 {
-	_restirGP->barrier_for_gi_raytracing(cmd);
+	_accumulationGP->try_reset_accumulation(camera);
 }
 
 VulkanRaytracerBuilder::BlasInput VulkanGIShadowsRaytracingGraphicsPipeline::create_blas_input(Mesh& mesh)

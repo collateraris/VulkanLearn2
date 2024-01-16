@@ -483,6 +483,7 @@ Texture VulkanTextureBuilder::create_texture()
 	tex.extend = _extend;
 	tex.createInfo = _img_info;
 	tex.mipLevels = _img_info.mipLevels;
+	tex.currImageLayout = _img_info.initialLayout;
 
 	return tex;
 }

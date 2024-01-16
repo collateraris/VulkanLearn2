@@ -47,6 +47,9 @@ struct Texture {
 	uint32_t flags = 0;
 	uint32_t mipLevels = 0; 
 	bool bIsSwapChainImage = false;
+	VkAccessFlagBits currAccessFlag = VK_ACCESS_NONE;
+	VkImageLayout currImageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	VkPipelineStageFlagBits currPipStage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
 };
 
 struct Resources

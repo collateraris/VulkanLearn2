@@ -162,7 +162,6 @@ public:
 #if GBUFFER_ON
 	VulkanGbufferGenerateGraphicsPipeline _gBufGenerateGraphicsPipeline;
 	VulkanGbufferShadingGraphicsPipeline _gBufShadingGraphicsPipeline;
-	VulkanSimpleAccumulationGraphicsPipeline _simpleAccumGraphicsPipeline;
 #endif
 
 #if GI_RAYTRACER_ON && GBUFFER_ON
@@ -222,6 +221,8 @@ public:
 	UploadContext _uploadContext;
 
 	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
+
+	void immediate_submit2(std::function<void(VulkanCommandBuffer& cmd)>&& function);
 
 	VmaAllocator _allocator; //vma lib allocator
 

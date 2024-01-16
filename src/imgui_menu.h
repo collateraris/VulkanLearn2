@@ -198,7 +198,7 @@ static void EditSun(VulkanLightManager& lightManager, int current_frame_index)
 
 
 #if GI_RAYTRACER_ON && GBUFFER_ON
-static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeline& giGP, VulkanSimpleAccumulationGraphicsPipeline& saGP, int current_frame_index, int frameNumber)
+static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeline& giGP, int current_frame_index, int frameNumber)
 {
     static bool p_open = true;
     static bool bChangedValue = true;
@@ -218,7 +218,7 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, Vulka
     if (bChangedValue)
     {
         bChangedValue = false;
-        saGP.reset_accumulation();
+        giGP.reset_accumulation();
     }
   
     giGP.copy_global_uniform_data(giParams, current_frame_index);
@@ -232,7 +232,7 @@ static void ShowVkMenu(VulkanEngine& engine)
 
     ImguiAppLog::EditSun(engine._lightManager, engine.get_current_frame_index());
 #if GI_RAYTRACER_ON && GBUFFER_ON
-    ImguiAppLog::EditGI(engine._lightManager, engine._camera, engine._giRtGraphicsPipeline, engine._simpleAccumGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
+    ImguiAppLog::EditGI(engine._lightManager, engine._camera, engine._giRtGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
 #endif
 }
 

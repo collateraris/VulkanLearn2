@@ -245,4 +245,6 @@ namespace vkutil
 		sync1.src_stages |= convert_vk_src_stage2(src_stages);
 		sync1.dst_stages |= convert_vk_dst_stage2(dst_stages);
 	}
+
+	void image_pipeline_barrier(const VkCommandBuffer& cmd, Texture& image, VkAccessFlagBits nextAccessFlag, VkImageLayout nextImageLayout, VkPipelineStageFlagBits nextPipStage, VkImageAspectFlagBits aspect = VK_IMAGE_ASPECT_COLOR_BIT);
 }

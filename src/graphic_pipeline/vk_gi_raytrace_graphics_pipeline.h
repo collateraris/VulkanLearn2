@@ -7,11 +7,15 @@
 #include <vk_render_pass.h>
 #include <vk_mesh.h>
 #include <graphic_pipeline/vk_restir_init_plus_temporal_pass.h>
+#include <graphic_pipeline/vk_restir_spacial_reuse_pass.h>
+#include <graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.h>
+#include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
 
 class VulkanEngine;
 class VulkanFrameBuffer;
 class VulkanCommandBuffer;
 class RenderObject;
+struct PlayerCamera;
 
 class VulkanGIShadowsRaytracingGraphicsPipeline
 {
@@ -44,8 +48,8 @@ public:
 
 	const Texture& get_output() const;
 
-	void barrier_for_frag_read(VulkanCommandBuffer* cmd);
-	void barrier_for_gi_raytracing(VulkanCommandBuffer* cmd);
+	void reset_accumulation();
+	void try_reset_accumulation(PlayerCamera& camera);
 
 private:
 
@@ -62,7 +66,10 @@ private:
 
 	VulkanRaytracerBuilder _rtBuilder;
 
-	std::unique_ptr<VulkanReSTIRInitPlusTemporalPass> _restirGP;
+	std::unique_ptr<VulkanReSTIRInitPlusTemporalPass> _restirInitTemporalGP;
+	std::unique_ptr<VulkanReSTIRSpaceReusePass> _restirSpacialGP;
+	std::unique_ptr<VulkanReSTIRUpdateReservoirPlusShadePass> _restirUpdateShadeGP;
+	std::unique_ptr<VulkanSimpleAccumulationGraphicsPipeline> _accumulationGP;
 };
 
 #endif
