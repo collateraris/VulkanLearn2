@@ -322,12 +322,6 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
 
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
 
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-
-	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE;
-
-	samplerInfo.pNext = &createInfoReduction;
-
 	VkSampler sampler;
 	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
 
@@ -392,12 +386,6 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawEnvMapToIrradianceMap()
 
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
 
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-
-	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE;
-
-	samplerInfo.pNext = &createInfoReduction;
-
 	VkSampler sampler;
 	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
 
@@ -460,12 +448,6 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawEnvMapToPrefilteredMap()
 	VkDescriptorSet  descSet;
 
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
-
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-
-	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE;
-
-	samplerInfo.pNext = &createInfoReduction;
 
 	VkSampler sampler;
 	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);

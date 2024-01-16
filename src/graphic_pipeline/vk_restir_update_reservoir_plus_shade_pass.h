@@ -25,6 +25,7 @@ public:
 	const Texture& get_output() const;
 
 	void barrier_for_frag_read(VulkanCommandBuffer* cmd);
+	void barrier_for_raytrace_write(VulkanCommandBuffer* cmd);
 
 private:
 	void init_description_set_global_buffer(std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer, const Texture& indirectInput, const Texture& reservoirPrev, const Texture& reservoirSpatial);

@@ -109,12 +109,6 @@ void VulkanReSTIRSpaceReusePass::init_description_set_global_buffer(std::array<A
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-
-	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
-
-	samplerInfo.pNext = &createInfoReduction;
-
 	VkSampler sampler;
 	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
 
@@ -126,7 +120,7 @@ void VulkanReSTIRSpaceReusePass::init_description_set_global_buffer(std::array<A
 		reservoirCurrImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo reservoirSpacialImageBufferInfo;
-		reservoirSpacialImageBufferInfo.sampler = VK_NULL_HANDLE;
+		reservoirSpacialImageBufferInfo.sampler = sampler;
 		reservoirSpacialImageBufferInfo.imageView = _reservoirSpacial.imageView;
 		reservoirSpacialImageBufferInfo.imageLayout = _reservoirSpacial.createInfo.initialLayout;
 
@@ -164,12 +158,6 @@ void VulkanReSTIRSpaceReusePass::init_description_set_global_buffer(std::array<A
 void VulkanReSTIRSpaceReusePass::init_description_set(const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap)
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
-
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-
-	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
-
-	samplerInfo.pNext = &createInfoReduction;
 
 	VkSampler sampler;
 	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);

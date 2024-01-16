@@ -81,12 +81,6 @@ void VulkanFullScreenGraphicsPipeline::init_description_set(const Texture& input
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-
-	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
-
-	samplerInfo.pNext = &createInfoReduction;
-
 	VkSampler sampler;
 	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
 

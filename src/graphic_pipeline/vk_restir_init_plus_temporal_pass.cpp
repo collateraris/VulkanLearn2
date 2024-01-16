@@ -148,12 +148,6 @@ void VulkanReSTIRInitPlusTemporalPass::init_description_set_global_buffer(std::a
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-
-	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
-
-	samplerInfo.pNext = &createInfoReduction;
-
 	VkSampler sampler;
 	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
 
@@ -165,12 +159,12 @@ void VulkanReSTIRInitPlusTemporalPass::init_description_set_global_buffer(std::a
 		reservoirPrevImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo reservoirCurrImageBufferInfo;
-		reservoirCurrImageBufferInfo.sampler = VK_NULL_HANDLE;
+		reservoirCurrImageBufferInfo.sampler = sampler;
 		reservoirCurrImageBufferInfo.imageView = _reservoirCurrTex.imageView;
 		reservoirCurrImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		VkDescriptorImageInfo indirectOutputBufferInfo;
-		indirectOutputBufferInfo.sampler = VK_NULL_HANDLE;
+		indirectOutputBufferInfo.sampler = sampler;
 		indirectOutputBufferInfo.imageView = _indirectOutputTex.imageView;
 		indirectOutputBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
@@ -209,12 +203,6 @@ void VulkanReSTIRInitPlusTemporalPass::init_description_set_global_buffer(std::a
 void VulkanReSTIRInitPlusTemporalPass::init_description_set(const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap)
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
-
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-
-	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
-
-	samplerInfo.pNext = &createInfoReduction;
 
 	VkSampler sampler;
 	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);

@@ -39,8 +39,6 @@ private:
 	VkFormat      _outputFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
 	Texture _lastFrameTexture;
 	VkFormat      _lastFrameFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
-	Texture _depthTexture;
-	VkFormat      _depthFormat{ VK_FORMAT_D32_SFLOAT };
 
 	VkFramebuffer _simpleAccumFramebuffer;
 

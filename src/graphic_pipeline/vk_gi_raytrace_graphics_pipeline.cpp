@@ -124,17 +124,19 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, i
 
 	_restirInitTemporalGP->reservoirCurrTex_barrier_for_raytrace_read(cmd);
 	_restirSpacialGP->draw(cmd, current_frame_index);
+	_restirInitTemporalGP->reservoirCurrTex_barrier_for_raytrace_write(cmd);
 
-	__debugbreak();
+	_restirInitTemporalGP->indirectOutput_barrier_for_raytrace_read(cmd);
+	_restirSpacialGP->reservoirSpacial_barrier_for_raytrace_read(cmd);
+	_restirInitTemporalGP->reservoirPrevTex_barrier_for_raytrace_write(cmd);
+	_restirUpdateShadeGP->draw(cmd, current_frame_index);
+	_restirInitTemporalGP->reservoirPrevTex_barrier_for_raytrace_read(cmd);
+	_restirInitTemporalGP->indirectOutput_barrier_for_raytrace_write(cmd);
+	_restirSpacialGP->reservoirSpacial_barrier_for_raytrace_write(cmd);
 
-	//_restirInitTemporalGP->indirectOutput_barrier_for_raytrace_read(cmd);
-	//_restirSpacialGP->reservoirSpacial_barrier_for_raytrace_read(cmd);
-	//_restirInitTemporalGP->reservoirPrevTex_barrier_for_raytrace_write(cmd);
-	//_restirUpdateShadeGP->draw(cmd, current_frame_index);
-	//_restirInitTemporalGP->reservoirPrevTex_barrier_for_raytrace_read(cmd);
-
-	//_restirUpdateShadeGP->barrier_for_frag_read(cmd);
-	//_accumulationGP->draw(cmd, current_frame_index);
+	_restirUpdateShadeGP->barrier_for_frag_read(cmd);
+	_accumulationGP->draw(cmd, current_frame_index);
+	_restirUpdateShadeGP->barrier_for_raytrace_write(cmd);
 }
 
 const Texture& VulkanGIShadowsRaytracingGraphicsPipeline::get_output() const

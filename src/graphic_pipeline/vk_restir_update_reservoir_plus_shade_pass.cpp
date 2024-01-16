@@ -118,12 +118,6 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffe
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-
-	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
-
-	samplerInfo.pNext = &createInfoReduction;
-
 	VkSampler sampler;
 	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
 
@@ -140,12 +134,12 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffe
 		reservoirSpatialImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo reservoirPrevImageBufferInfo;
-		reservoirPrevImageBufferInfo.sampler = VK_NULL_HANDLE;
+		reservoirPrevImageBufferInfo.sampler = sampler;
 		reservoirPrevImageBufferInfo.imageView = reservoirPrev.imageView;
 		reservoirPrevImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		VkDescriptorImageInfo outputBufferInfo;
-		outputBufferInfo.sampler = VK_NULL_HANDLE;
+		outputBufferInfo.sampler = sampler;
 		outputBufferInfo.imageView = _outputTex.imageView;
 		outputBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
@@ -185,12 +179,6 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffe
 void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set(const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap)
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
-
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-
-	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
-
-	samplerInfo.pNext = &createInfoReduction;
 
 	VkSampler sampler;
 	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
@@ -339,6 +327,11 @@ const Texture& VulkanReSTIRUpdateReservoirPlusShadePass::get_output() const
 void VulkanReSTIRUpdateReservoirPlusShadePass::barrier_for_frag_read(VulkanCommandBuffer* cmd)
 {
 	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+}
+
+void VulkanReSTIRUpdateReservoirPlusShadePass::barrier_for_raytrace_write(VulkanCommandBuffer* cmd)
+{
+	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
 }
 
 #endif

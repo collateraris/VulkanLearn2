@@ -27,7 +27,7 @@ void VulkanSimpleAccumulationGraphicsPipeline::init(VulkanEngine* engine, const 
 		texBuilder.init(_engine);
 		_outputTexture = texBuilder.start()
 			.make_img_info(_outputFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |VK_IMAGE_USAGE_TRANSFER_SRC_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_outputFormat, VK_IMAGE_ASPECT_COLOR_BIT)
 			.create_texture();
@@ -38,20 +38,9 @@ void VulkanSimpleAccumulationGraphicsPipeline::init(VulkanEngine* engine, const 
 		texBuilder.init(_engine);
 		_lastFrameTexture = texBuilder.start()
 			.make_img_info(_lastFrameFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL; })
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_lastFrameFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		_depthTexture = texBuilder.start()
-			.make_img_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
 			.create_texture();
 	}
 
@@ -106,6 +95,7 @@ void VulkanSimpleAccumulationGraphicsPipeline::init(VulkanEngine* engine, const 
 				pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
 
 				//a single blend attachment with no blending and writing to RGBA
+				pipelineBuilder.attachment_count = 1;
 				pipelineBuilder._colorBlendAttachment.push_back(vkinit::color_blend_attachment_state());
 
 				//default depthtesting
@@ -140,18 +130,14 @@ void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, in
 	VkClearValue clearValue;
 	clearValue.color = { { 1.0f, 1.0f, 1.f, 1.0f } };
 
-	//clear depth at 1
-	VkClearValue depthClear;
-	depthClear.depthStencil.depth = 1.f;
-
 	//start the main renderpass. 
 	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
 	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_engine->_renderPassManager.get_render_pass(ERenderPassType::SimpleAccumulation)->get_render_pass(), VkExtent2D(_imageExtent.width, _imageExtent.height), _simpleAccumFramebuffer);
 
 	//connect clear values
-	rpInfo.clearValueCount = 2;
+	rpInfo.clearValueCount = 1;
 
-	VkClearValue clearValues[] = { clearValue,depthClear };
+	VkClearValue clearValues[] = { clearValue};
 
 	rpInfo.pClearValues = &clearValues[0];
 
@@ -252,11 +238,11 @@ void VulkanSimpleAccumulationGraphicsPipeline::init_render_pass()
 	default_rp.store_attachments = BIT(0);
 	default_rp.num_color_attachments = 1;
 	default_rp.color_attachments[0] = &_outputTexture;
-	default_rp.depth_stencil = &_depthTexture;
+	default_rp.depth_stencil = nullptr;
 
 	RenderPassInfo::Subpass subpass = {};
 	subpass.num_color_attachments = 1;
-	subpass.depth_stencil_mode = RenderPassInfo::DepthStencil::ReadWrite;
+	subpass.depth_stencil_mode = RenderPassInfo::DepthStencil::None;
 	subpass.color_attachments[0] = 0;
 
 	default_rp.num_subpasses = 1;
@@ -274,12 +260,11 @@ void VulkanSimpleAccumulationGraphicsPipeline::init_render_pass()
 		fb_info.height = _imageExtent.height;
 		fb_info.layers = 1;
 
-		VkImageView attachments[2];
+		VkImageView attachments[1];
 		attachments[0] = _outputTexture.imageView;
-		attachments[1] = _depthTexture.imageView;
 
 		fb_info.pAttachments = attachments;
-		fb_info.attachmentCount = 2;
+		fb_info.attachmentCount = 1;
 		vkCreateFramebuffer(_engine->_device, &fb_info, nullptr, &_simpleAccumFramebuffer);
 	}
 }
@@ -287,12 +272,6 @@ void VulkanSimpleAccumulationGraphicsPipeline::init_render_pass()
 void VulkanSimpleAccumulationGraphicsPipeline::init_description_set(const Texture& currentTex)
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
-
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-
-	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
-
-	samplerInfo.pNext = &createInfoReduction;
 
 	VkSampler sampler;
 	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);

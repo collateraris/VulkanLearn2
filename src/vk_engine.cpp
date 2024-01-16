@@ -328,7 +328,7 @@ void VulkanEngine::draw()
 			vkCmdSetScissor(cmd, 0, 1, &scissor);
 			vkCmdSetDepthBias(cmd, 0, 0, 0);
 #if GBUFFER_ON
-			//_gBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+			_gBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif			
 #if VBUFFER_ON
 			_visBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
@@ -580,6 +580,8 @@ void VulkanEngine::init_vulkan()
 	acceleration_structure_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
 	acceleration_structure_features.pNext = nullptr;
 	acceleration_structure_features.accelerationStructure = true;
+	acceleration_structure_features.descriptorBindingAccelerationStructureUpdateAfterBind = true;
+
 
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rt_features = {};
 	rt_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
