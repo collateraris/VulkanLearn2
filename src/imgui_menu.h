@@ -202,6 +202,7 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, Vulka
 {
     static bool p_open = true;
     static bool bChangedValue = true;
+    static glm::mat4 prevCameraMatrix;
     static VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams giParams = {.shadowMult = 0.0, .numRays = 1};
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
     ImGui::Begin("Edit GI", &p_open);
@@ -213,12 +214,15 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, Vulka
     giParams.camPos = glm::vec4(camera.position, 1.f);
     giParams.viewInverse = glm::inverse(camera.get_view_matrix());
     giParams.projInverse = glm::inverse(camera.get_projection_matrix());
+    giParams.prevProjView = prevCameraMatrix;
+    prevCameraMatrix = camera.get_projection_matrix() * camera.get_view_matrix();
     giParams.lightsCount = lightManager.get_lights().size();
 
     if (bChangedValue)
     {
         bChangedValue = false;
         giGP.reset_accumulation();
+        giParams.prevProjView = prevCameraMatrix;
     }
   
     giGP.copy_global_uniform_data(giParams, current_frame_index);

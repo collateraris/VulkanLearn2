@@ -2,6 +2,7 @@ struct SGlobalGIParams
 {
 	mat4 viewInverse;
 	mat4 projInverse;
+	mat4 prevProjView;
 	vec4 camPos;
 	uint  frameCount;
 	float shadowMult;

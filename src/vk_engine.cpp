@@ -89,7 +89,7 @@ void VulkanEngine::init()
 #endif
 
 	_lightManager.init(this);
-	_lightManager.add_sun_light();
+	//_lightManager.add_sun_light();
 	_lightManager.generateUniformGrid(_resManager.maxCube, _resManager.minCube, 5);
 	_lightManager.create_light_buffers();
 

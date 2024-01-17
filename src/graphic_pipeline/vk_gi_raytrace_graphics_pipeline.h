@@ -35,6 +35,7 @@ public:
 	{
 		glm::mat4 viewInverse;
 		glm::mat4 projInverse;
+		glm::mat4 prevProjView;
 		glm::vec4 camPos;
 		uint32_t  frameCount;
 		float shadowMult;

@@ -12,7 +12,7 @@ glm::vec3 randomColor()
 
 		float val = rand() % 256; // Set val equal to a random number between 0 and 6.
 
-		color[i] = val /25.f;
+		color[i] = val /255.f;
 	}
 
 	return color;
