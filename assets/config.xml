@@ -33,7 +33,7 @@
 		<scene id="1" 
 			path="sponza.obj"
 			hdr="kloppenheim_06_puresky_2k.hdr"  
-			scaleFactor = "0.1" 
+			scaleFactor = "1" 
 			needRotation = "0" 
 		></scene>
 		<scene id="2" 

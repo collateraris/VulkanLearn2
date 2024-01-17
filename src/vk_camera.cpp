@@ -98,7 +98,7 @@ void PlayerCamera::process_input_event(SDL_Event* ev)
 
 void PlayerCamera::update_camera(float deltaSeconds)
 {
-	const float cam_vel = 0.001f + bSprint * 0.01;
+	const float cam_vel = 0.001f + bSprint * 0.1;
 	glm::vec3 forward = { 0,0,cam_vel };
 	glm::vec3 right = { cam_vel,0,0 };
 	glm::vec3 up = { 0,cam_vel,0 };

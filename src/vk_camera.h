@@ -14,8 +14,8 @@ struct PlayerCamera {
 
 	glm::mat4 lastViewMatrix;
 
-	float farDistance = 1000.0f;
-	float nearDistance = 0.1f;
+	float farDistance = 10000.0f;
+	float nearDistance = 0.01f;
 
 	float pitch{ 0 }; //up-down rotation
 	float yaw{ 0 }; //left-right rotation
