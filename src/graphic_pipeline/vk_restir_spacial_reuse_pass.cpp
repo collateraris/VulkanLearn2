@@ -122,7 +122,7 @@ void VulkanReSTIRSpaceReusePass::init_description_set_global_buffer(std::array<A
 		VkDescriptorImageInfo reservoirSpacialImageBufferInfo;
 		reservoirSpacialImageBufferInfo.sampler = sampler;
 		reservoirSpacialImageBufferInfo.imageView = _reservoirSpacial.imageView;
-		reservoirSpacialImageBufferInfo.imageLayout = _reservoirSpacial.createInfo.initialLayout;
+		reservoirSpacialImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			.bind_image(0, &reservoirCurrImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)

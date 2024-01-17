@@ -45,10 +45,10 @@ void main()
     vec4 worldPos = texture(wposTex, uv).rgba;
     vec3 worldNorm = normalize(texture(normalTex, uv).rgb);
 
-    vec4 reservoir =  texture(reservoirSpatial, ivec2(gl_LaunchIDEXT.xy)).rgba;
+    vec4 reservoir =  texture(reservoirSpatial, uv).rgba;
 	imageStore(reservoirPrev, ivec2(gl_LaunchIDEXT.xy), reservoir);
 
-	vec4 indirectColor = texture(indirectInput, ivec2(gl_LaunchIDEXT.xy)).rgba;
+	vec4 indirectColor = texture(indirectInput, uv).rgba;
 
     if (worldPos.w != 0.0f)
 	{

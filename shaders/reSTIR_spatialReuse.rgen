@@ -55,7 +55,7 @@ void main()
 
         DirectInputData inputData = packDirectInputData(objIDf, worldPos.xyz, worldNorm, gbufferTexCoord);
 
-        vec4 reservoir = texture(reservoirCurr, ivec2(gl_LaunchIDEXT.xy)).rgba;
+        vec4 reservoir = texture(reservoirCurr, uv).rgba;
         uint lightToSample = uint(reservoir.y);
         DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, false);
         // p_hat of the light is f * Le * G / pdf
