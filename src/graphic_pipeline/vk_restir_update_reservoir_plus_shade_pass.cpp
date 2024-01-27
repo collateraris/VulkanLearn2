@@ -13,8 +13,7 @@
 #include <vk_initializers.h>
 
 void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine, VkAccelerationStructureKHR  tlas,
-	std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer, 
-	const Texture& indirectInput, const Texture& reservoirPrev, const Texture& reservoirSpatial)
+	std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer)
 {
 	_engine = engine;
 
@@ -38,8 +37,7 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine, VkAcce
 	{
 		init_description_set();
 		init_bindless(_engine->_resManager.meshList, _engine->_resManager.textureList, tlas);
-		init_description_set_global_buffer(globalUniformsBuffer, objectBuffer,
-			indirectInput, reservoirPrev, reservoirSpatial);
+		init_description_set_global_buffer(globalUniformsBuffer, objectBuffer);
 	}
 
 	{
@@ -114,7 +112,7 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine, VkAcce
 		_callRegion);
 }
 
-void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffer(std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer, const Texture& indirectInput, const Texture& reservoirPrev, const Texture& reservoirSpatial)
+void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffer(std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer)
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
@@ -125,17 +123,17 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffe
 	{
 		VkDescriptorImageInfo indirectInputImageBufferInfo;
 		indirectInputImageBufferInfo.sampler = sampler;
-		indirectInputImageBufferInfo.imageView = indirectInput.imageView;
+		indirectInputImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::ReSTIR_INDIRECT)->imageView;
 		indirectInputImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo reservoirSpatialImageBufferInfo;
 		reservoirSpatialImageBufferInfo.sampler = sampler;
-		reservoirSpatialImageBufferInfo.imageView = reservoirSpatial.imageView;
+		reservoirSpatialImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::ReSTIR_SPACIAL)->imageView;
 		reservoirSpatialImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo reservoirPrevImageBufferInfo;
 		reservoirPrevImageBufferInfo.sampler = sampler;
-		reservoirPrevImageBufferInfo.imageView = reservoirPrev.imageView;
+		reservoirPrevImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::ReSTIR_PREV)->imageView;
 		reservoirPrevImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		VkDescriptorImageInfo outputBufferInfo;

@@ -25,21 +25,21 @@ void VulkanReSTIRInitPlusTemporalPass::init(VulkanEngine* engine, VkAcceleration
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_reservoirPrevTex = texBuilder.start()
+		texBuilder.start()
 			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
+			.create_engine_texture(ETextureResourceNames::ReSTIR_PREV);
 
 		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
 
-			vkutil::image_pipeline_barrier(cmd.get_cmd(), _reservoirPrevTex, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT);
+			vkutil::image_pipeline_barrier(cmd.get_cmd(), get_reservoirPrevTex(), VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
 			VkClearValue clear_value = { 0., 0., 0., 0. };
-			cmd.clear_image(_reservoirPrevTex, clear_value);
+			cmd.clear_image(get_reservoirPrevTex(), clear_value);
 
-			vkutil::image_pipeline_barrier(cmd.get_cmd(), _reservoirPrevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+			vkutil::image_pipeline_barrier(cmd.get_cmd(), get_reservoirPrevTex(), VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
 
 		});
 	}
@@ -47,23 +47,23 @@ void VulkanReSTIRInitPlusTemporalPass::init(VulkanEngine* engine, VkAcceleration
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_reservoirCurrTex = texBuilder.start()
+		texBuilder.start()
 			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
+			.create_engine_texture(ETextureResourceNames::ReSTIR_CURRENT);
 	}
 
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_indirectOutputTex = texBuilder.start()
+		texBuilder.start()
 			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
+			.create_engine_texture(ETextureResourceNames::ReSTIR_INDIRECT);
 	}
 
 	{
@@ -155,17 +155,17 @@ void VulkanReSTIRInitPlusTemporalPass::init_description_set_global_buffer(std::a
 	{
 		VkDescriptorImageInfo reservoirPrevImageBufferInfo;
 		reservoirPrevImageBufferInfo.sampler = sampler;
-		reservoirPrevImageBufferInfo.imageView = _reservoirPrevTex.imageView;
+		reservoirPrevImageBufferInfo.imageView = get_reservoirPrevTex().imageView;
 		reservoirPrevImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo reservoirCurrImageBufferInfo;
 		reservoirCurrImageBufferInfo.sampler = sampler;
-		reservoirCurrImageBufferInfo.imageView = _reservoirCurrTex.imageView;
+		reservoirCurrImageBufferInfo.imageView = get_reservoirCurrTex().imageView;
 		reservoirCurrImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		VkDescriptorImageInfo indirectOutputBufferInfo;
 		indirectOutputBufferInfo.sampler = sampler;
-		indirectOutputBufferInfo.imageView = _indirectOutputTex.imageView;
+		indirectOutputBufferInfo.imageView = get_indirectOutput().imageView;
 		indirectOutputBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
@@ -309,21 +309,21 @@ void VulkanReSTIRInitPlusTemporalPass::init_bindless(const std::vector<std::uniq
 void VulkanReSTIRInitPlusTemporalPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
 	{
-		vkutil::image_pipeline_barrier(cmd->get_cmd(), _indirectOutputTex, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT);
+		vkutil::image_pipeline_barrier(cmd->get_cmd(), get_indirectOutput(), VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
 		VkClearValue clear_value = { 0., 0., 0., 0. };
-		cmd->clear_image(_indirectOutputTex, clear_value);
+		cmd->clear_image(get_indirectOutput(), clear_value);
 
-		vkutil::image_pipeline_barrier(cmd->get_cmd(), _indirectOutputTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+		vkutil::image_pipeline_barrier(cmd->get_cmd(), get_indirectOutput(), VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
 	}
 
 	{
-		vkutil::image_pipeline_barrier(cmd->get_cmd(), _reservoirCurrTex, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT);
+		vkutil::image_pipeline_barrier(cmd->get_cmd(), get_reservoirCurrTex(), VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
 		VkClearValue clear_value = { 0., 0., 0., 0. };
-		cmd->clear_image(_reservoirCurrTex, clear_value);
+		cmd->clear_image(get_reservoirCurrTex(), clear_value);
 
-		vkutil::image_pipeline_barrier(cmd->get_cmd(), _reservoirCurrTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+		vkutil::image_pipeline_barrier(cmd->get_cmd(), get_reservoirCurrTex(), VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
 	}
 
 	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
@@ -340,49 +340,49 @@ void VulkanReSTIRInitPlusTemporalPass::draw(VulkanCommandBuffer* cmd, int curren
 		});
 }
 
-const Texture& VulkanReSTIRInitPlusTemporalPass::get_indirectOutput() const
+Texture& VulkanReSTIRInitPlusTemporalPass::get_indirectOutput() const
 {
-	return _indirectOutputTex;
+	return *_engine->get_engine_texture(ETextureResourceNames::ReSTIR_INDIRECT);
 }
 
-const Texture& VulkanReSTIRInitPlusTemporalPass::get_reservoirCurrTex() const
+Texture& VulkanReSTIRInitPlusTemporalPass::get_reservoirCurrTex() const
 {
-	return _reservoirCurrTex;
+	return *_engine->get_engine_texture(ETextureResourceNames::ReSTIR_CURRENT);
 }
 
-const Texture& VulkanReSTIRInitPlusTemporalPass::get_reservoirPrevTex() const
+Texture& VulkanReSTIRInitPlusTemporalPass::get_reservoirPrevTex() const
 {
-	return _reservoirPrevTex;
+	return *_engine->get_engine_texture(ETextureResourceNames::ReSTIR_PREV);
 }
 
 void VulkanReSTIRInitPlusTemporalPass::indirectOutput_barrier_for_raytrace_read(VulkanCommandBuffer* cmd)
 {
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), _indirectOutputTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+	vkutil::image_pipeline_barrier(cmd->get_cmd(), get_indirectOutput(), VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
 }
 
 void VulkanReSTIRInitPlusTemporalPass::indirectOutput_barrier_for_raytrace_write(VulkanCommandBuffer* cmd)
 {
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), _indirectOutputTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+	vkutil::image_pipeline_barrier(cmd->get_cmd(), get_indirectOutput(), VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
 }
 
 void VulkanReSTIRInitPlusTemporalPass::reservoirPrevTex_barrier_for_raytrace_read(VulkanCommandBuffer* cmd)
 {
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), _reservoirPrevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+	vkutil::image_pipeline_barrier(cmd->get_cmd(), get_reservoirPrevTex(), VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
 }
 
 void VulkanReSTIRInitPlusTemporalPass::reservoirPrevTex_barrier_for_raytrace_write(VulkanCommandBuffer* cmd)
 {
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), _reservoirPrevTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+	vkutil::image_pipeline_barrier(cmd->get_cmd(), get_reservoirPrevTex(), VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
 }
 
 void VulkanReSTIRInitPlusTemporalPass::reservoirCurrTex_barrier_for_raytrace_read(VulkanCommandBuffer* cmd)
 {
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), _reservoirCurrTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+	vkutil::image_pipeline_barrier(cmd->get_cmd(), get_reservoirCurrTex(), VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
 }
 
 void VulkanReSTIRInitPlusTemporalPass::reservoirCurrTex_barrier_for_raytrace_write(VulkanCommandBuffer* cmd)
 {
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), _reservoirCurrTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+	vkutil::image_pipeline_barrier(cmd->get_cmd(), get_reservoirCurrTex(), VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
 }
 
 #endif

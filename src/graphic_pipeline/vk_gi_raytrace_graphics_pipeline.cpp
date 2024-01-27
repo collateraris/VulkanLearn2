@@ -26,11 +26,10 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 	_restirInitTemporalGP->init(engine, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer);
 
 	_restirSpacialGP = std::make_unique<VulkanReSTIRSpaceReusePass>();
-	_restirSpacialGP->init(engine, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer, _restirInitTemporalGP->get_reservoirCurrTex());
+	_restirSpacialGP->init(engine, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer);
 
 	_restirUpdateShadeGP = std::make_unique<VulkanReSTIRUpdateReservoirPlusShadePass>();
-	_restirUpdateShadeGP->init(engine, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer,
-		_restirInitTemporalGP->get_indirectOutput(), _restirInitTemporalGP->get_reservoirPrevTex(), _restirSpacialGP->get_reservoirSpacial());
+	_restirUpdateShadeGP->init(engine, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer);
 
 	_accumulationGP = std::make_unique<VulkanSimpleAccumulationGraphicsPipeline>();
 	_accumulationGP->init(engine, _restirUpdateShadeGP->get_output());

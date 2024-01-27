@@ -18,8 +18,7 @@ public:
 
 	VulkanReSTIRUpdateReservoirPlusShadePass() = default;
 	void init(VulkanEngine* engine, VkAccelerationStructureKHR  tlas, 
-		std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer, 
-		const Texture& indirectInput, const Texture& reservoirPrev, const Texture& reservoirSpatial);
+		std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
 	const Texture& get_output() const;
@@ -28,7 +27,7 @@ public:
 	void barrier_for_raytrace_write(VulkanCommandBuffer* cmd);
 
 private:
-	void init_description_set_global_buffer(std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer, const Texture& indirectInput, const Texture& reservoirPrev, const Texture& reservoirSpatial);
+	void init_description_set_global_buffer(std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer);
 	void init_description_set();
 	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList, VkAccelerationStructureKHR  tlas);
 
