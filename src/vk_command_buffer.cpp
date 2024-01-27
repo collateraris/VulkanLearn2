@@ -64,14 +64,16 @@ void VulkanCommandBuffer::draw_indexed_indirect(const AllocatedBuffer& indirectB
 	vkCmdDrawIndexedIndirect(_cmd, indirectBuffer._buffer, offset, draw_count, stride);
 }
 
-void VulkanCommandBuffer::clear_image(const Texture& image, const VkClearValue& value)
+void VulkanCommandBuffer::clear_image(Texture& image, const VkClearValue& value)
 {
 	VkImageAspectFlags aspect = vkutil::format_to_aspect_mask(image.createInfo.format);
 	clear_image(image, value, aspect);
 }
 
-void VulkanCommandBuffer::clear_image(const Texture& image, const VkClearValue& value, VkImageAspectFlags aspect)
+void VulkanCommandBuffer::clear_image(Texture& image, const VkClearValue& value, VkImageAspectFlags aspect)
 {
+	vkutil::image_pipeline_barrier(_cmd, image, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
 	VkImageSubresourceRange range = {};
 	range.aspectMask = aspect;
 	range.baseArrayLayer = 0;

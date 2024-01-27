@@ -35,8 +35,8 @@ public:
 
 	void draw_indexed_indirect(const  AllocatedBuffer& indirectBuffer, VkDeviceSize offset, uint32_t draw_count, uint32_t stride, std::function<void(VkCommandBuffer cmd)>&& preDraw);
 
-	void clear_image(const Texture& image, const VkClearValue& value);
-	void clear_image(const Texture& image, const VkClearValue& value, VkImageAspectFlags aspect);
+	void clear_image(Texture& image, const VkClearValue& value);
+	void clear_image(Texture& image, const VkClearValue& value, VkImageAspectFlags aspect);
 	void clear_quad(uint32_t attachment, const VkClearRect& rect, const VkClearValue& value,
 		VkImageAspectFlags aspect,uint32_t frameWidht, uint32_t frameHeight, VkSurfaceTransformFlagBitsKHR surfaceTransform);
 	void clear_quad(const VkClearRect& rect, const VkClearAttachment* attachments, uint32_t num_attachments, uint32_t frameWidht, uint32_t frameHeight, VkSurfaceTransformFlagBitsKHR surfaceTransform);

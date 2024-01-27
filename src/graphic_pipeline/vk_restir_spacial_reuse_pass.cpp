@@ -131,8 +131,6 @@ void VulkanReSTIRSpaceReusePass::init_description_set_global_buffer()
 void VulkanReSTIRSpaceReusePass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
 	{
-		vkutil::image_pipeline_barrier(cmd->get_cmd(), get_reservoirSpacial(), VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT);
-
 		VkClearValue clear_value = { 0., 0., 0., 0. };
 		cmd->clear_image(get_reservoirSpacial(), clear_value);
 

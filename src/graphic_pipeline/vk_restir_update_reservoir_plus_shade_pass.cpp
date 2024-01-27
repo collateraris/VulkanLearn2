@@ -149,26 +149,10 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffe
 
 void VulkanReSTIRUpdateReservoirPlusShadePass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
-	{
-		std::array<VkImageMemoryBarrier, 1> outBarriers =
-		{
-			vkinit::image_barrier(get_output().image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-		};
-
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, outBarriers.size(), outBarriers.data());
-	}
-
 	VkClearValue clear_value = { 0., 0., 0., 0. };
 	cmd->clear_image(_outputTex, clear_value);
 
-	{
-		std::array<VkImageMemoryBarrier, 1> outBarriers =
-		{
-			vkinit::image_barrier(get_output().image._image, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_WRITE_BIT,  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
-		};
-
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, outBarriers.size(), outBarriers.data());
-	}
+	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
 
 	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
 		[&](VkCommandBuffer cmd) {

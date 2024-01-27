@@ -34,8 +34,6 @@ void VulkanReSTIRInitPlusTemporalPass::init(VulkanEngine* engine)
 
 		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
 
-			vkutil::image_pipeline_barrier(cmd.get_cmd(), get_reservoirPrevTex(), VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT);
-
 			VkClearValue clear_value = { 0., 0., 0., 0. };
 			cmd.clear_image(get_reservoirPrevTex(), clear_value);
 
@@ -177,8 +175,6 @@ void VulkanReSTIRInitPlusTemporalPass::init_description_set_global_buffer()
 void VulkanReSTIRInitPlusTemporalPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
 	{
-		vkutil::image_pipeline_barrier(cmd->get_cmd(), get_indirectOutput(), VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT);
-
 		VkClearValue clear_value = { 0., 0., 0., 0. };
 		cmd->clear_image(get_indirectOutput(), clear_value);
 
@@ -186,8 +182,6 @@ void VulkanReSTIRInitPlusTemporalPass::draw(VulkanCommandBuffer* cmd, int curren
 	}
 
 	{
-		vkutil::image_pipeline_barrier(cmd->get_cmd(), get_reservoirCurrTex(), VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT);
-
 		VkClearValue clear_value = { 0., 0., 0., 0. };
 		cmd->clear_image(get_reservoirCurrTex(), clear_value);
 
