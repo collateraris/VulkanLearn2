@@ -26,6 +26,7 @@ public:
 
 	std::unordered_map<std::string, std::unique_ptr<Texture>> textureCache;
 	std::array<std::unique_ptr<Texture>, (uint32_t)ETextureResourceNames::MAX> engineTextureCache;
+	std::array<std::unique_ptr<AllocateDescriptor>, (uint32_t)EDescriptorResourceNames::MAX> engineDescriptorCache;
 	std::vector<std::unique_ptr<Mesh>> meshList;
 	std::vector<std::unique_ptr<MaterialDesc>> matDescList; 
 	std::vector<Texture*> textureList;
@@ -34,6 +35,10 @@ public:
 	glm::vec3 minCube = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
 
 	uint32_t store_texture(std::string& name);
+
 	Texture* create_engine_texture(ETextureResourceNames texNameId);
 	Texture* get_engine_texture(ETextureResourceNames texNameId);
+
+	AllocateDescriptor* create_engine_descriptor(EDescriptorResourceNames descrNameId);
+	AllocateDescriptor* get_engine_descriptor(EDescriptorResourceNames descrNameId);
 };

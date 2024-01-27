@@ -33,6 +33,12 @@ struct AllocatedImage {
     VmaAllocation _allocation = VK_NULL_HANDLE;
 };
 
+struct AllocateDescriptor
+{
+	VkDescriptorSet set;
+	VkDescriptorSetLayout setLayout;
+};
+
 enum ETexFlags: uint32_t
 {
 	NO_MIPS = BIT(1),
@@ -127,6 +133,15 @@ enum class ETextureResourceNames : uint32_t
 	ReSTIR_INDIRECT,
 	ReSTIR_SPACIAL,
 	MAX,
+};
+
+enum class EDescriptorResourceNames : uint32_t
+{
+	Bindless_Scene = 0,
+	GBUFFER_IBL,
+	GI_GlobalUniformBuffer_Frame0,
+	GI_GlobalUniformBuffer_Frame1,
+	MAX
 };
 
 enum class EBufferResourceNames : uint32_t

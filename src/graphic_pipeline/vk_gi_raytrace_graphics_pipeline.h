@@ -56,6 +56,7 @@ private:
 
 	void create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList);
 	void create_tlas(const std::vector<RenderObject>& renderables);
+	void init_scene_descriptors(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList, VkAccelerationStructureKHR  tlas);
 	void init_global_buffers(const std::vector<RenderObject>& renderables);
 
 	VulkanRaytracerBuilder::BlasInput create_blas_input(Mesh& mesh);

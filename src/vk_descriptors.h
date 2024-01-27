@@ -86,9 +86,11 @@ namespace vkutil {
 		DescriptorBuilder& bind_image(uint32_t binding, VkDescriptorImageInfo* imageInfo, VkDescriptorType type, VkShaderStageFlags stageFlags,uint32_t descriptorCount = 1);
 		DescriptorBuilder& bind_rt_as(uint32_t binding, VkWriteDescriptorSetAccelerationStructureKHR* accelInfo, VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t descriptorCount = 1);
 
+		bool build(VulkanEngine* engine, EDescriptorResourceNames descrNameId);
 		bool build(VkDescriptorSet& set, VkDescriptorSetLayout& layout);
 		bool build(VkDescriptorSet& set);
 
+		bool build_bindless(VulkanEngine* engine, EDescriptorResourceNames descrNameId);
 		bool build_bindless(VkDescriptorSet& set, VkDescriptorSetLayout& layout);
 	private:
 

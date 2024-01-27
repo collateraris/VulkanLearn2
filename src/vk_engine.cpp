@@ -478,6 +478,11 @@ Texture* VulkanEngine::get_engine_texture(ETextureResourceNames texNameId)
 	return _resManager.get_engine_texture(texNameId);
 }
 
+AllocateDescriptor* VulkanEngine::get_engine_descriptor(EDescriptorResourceNames descrNameId)
+{
+	return _resManager.get_engine_descriptor(descrNameId);
+}
+
 void VulkanEngine::init_vulkan()
 {
 	VK_CHECK(volkInitialize());

@@ -304,6 +304,13 @@ vkutil::DescriptorBuilder& vkutil::DescriptorBuilder::bind_rt_as(uint32_t bindin
 	return *this;
 }
 
+bool vkutil::DescriptorBuilder::build(VulkanEngine* engine, EDescriptorResourceNames descrNameId)
+{
+	AllocateDescriptor& desciptor = *engine->_resManager.create_engine_descriptor(descrNameId);
+
+	return build(desciptor.set, desciptor.setLayout);
+}
+
 bool vkutil::DescriptorBuilder::build(VkDescriptorSet& set, VkDescriptorSetLayout& layout)
 {
 	//build layout first
@@ -338,6 +345,13 @@ bool vkutil::DescriptorBuilder::build(VkDescriptorSet& set)
 {
 	VkDescriptorSetLayout layout;
 	return build(set, layout);
+}
+
+bool vkutil::DescriptorBuilder::build_bindless(VulkanEngine* engine, EDescriptorResourceNames descrNameId)
+{
+	AllocateDescriptor& desciptor = *engine->_resManager.create_engine_descriptor(descrNameId);
+
+	return build_bindless(desciptor.set, desciptor.setLayout);
 }
 
 bool vkutil::DescriptorBuilder::build_bindless(VkDescriptorSet& set, VkDescriptorSetLayout& layout)

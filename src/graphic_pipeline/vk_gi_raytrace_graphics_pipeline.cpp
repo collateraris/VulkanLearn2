@@ -20,16 +20,17 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 		create_blas(_engine->_resManager.meshList);
 		create_tlas(_engine->_renderables);
 		init_global_buffers(_engine->_renderables);
+		init_scene_descriptors(_engine->_resManager.meshList, _engine->_resManager.textureList, _rtBuilder.get_acceleration_structure());
 	}
 
 	_restirInitTemporalGP = std::make_unique<VulkanReSTIRInitPlusTemporalPass>();
-	_restirInitTemporalGP->init(engine, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer);
+	_restirInitTemporalGP->init(engine);
 
 	_restirSpacialGP = std::make_unique<VulkanReSTIRSpaceReusePass>();
-	_restirSpacialGP->init(engine, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer);
+	_restirSpacialGP->init(engine);
 
 	_restirUpdateShadeGP = std::make_unique<VulkanReSTIRUpdateReservoirPlusShadePass>();
-	_restirUpdateShadeGP->init(engine, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer);
+	_restirUpdateShadeGP->init(engine);
 
 	_accumulationGP = std::make_unique<VulkanSimpleAccumulationGraphicsPipeline>();
 	_accumulationGP->init(engine, _restirUpdateShadeGP->get_output());
@@ -80,6 +81,141 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::create_tlas(const std::vector<Re
 	}
 	_rtBuilder.build_tlas(*_engine, tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 
+}
+
+void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList, VkAccelerationStructureKHR  tlas)
+{
+	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
+
+	VkSampler sampler;
+	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
+
+	{
+		VkDescriptorImageInfo wposImageBufferInfo;
+		wposImageBufferInfo.sampler = sampler;
+		wposImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_WPOS)->imageView;
+		wposImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkDescriptorImageInfo normalImageBufferInfo;
+		normalImageBufferInfo.sampler = sampler;
+		normalImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_NORM)->imageView;
+		normalImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkDescriptorImageInfo uvImageBufferInfo;
+		uvImageBufferInfo.sampler = sampler;
+		uvImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_UV)->imageView;
+		uvImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkDescriptorImageInfo objIDImageBufferInfo;
+		objIDImageBufferInfo.sampler = sampler;
+		objIDImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_OBJ_ID)->imageView;
+		objIDImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkDescriptorImageInfo irradMapImageBufferInfo;
+		irradMapImageBufferInfo.sampler = sampler;
+		irradMapImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::IBL_IRRADIANCE)->imageView;
+		irradMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkDescriptorImageInfo prefilteredMapImageBufferInfo;
+		prefilteredMapImageBufferInfo.sampler = sampler;
+		prefilteredMapImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::IBL_PREFILTEREDENV)->imageView;
+		prefilteredMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkDescriptorImageInfo brdflutMapImageBufferInfo;
+		brdflutMapImageBufferInfo.sampler = sampler;
+		brdflutMapImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::IBL_BRDFLUT)->imageView;
+		brdflutMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+			.bind_image(0, &wposImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(1, &normalImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(2, &uvImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(3, &objIDImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(4, &irradMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(5, &prefilteredMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(6, &brdflutMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.build(_engine, EDescriptorResourceNames::GBUFFER_IBL);
+	}
+
+	{
+		const uint32_t verticesBinding = 0;
+		const uint32_t textureBinding = 1;
+		const uint32_t tlasBinding = 2;
+
+		//BIND MESHDATA
+		std::vector<VkDescriptorBufferInfo> vertexBufferInfoList{};
+		vertexBufferInfoList.resize(meshList.size());
+
+
+		for (uint32_t meshArrayIndex = 0; meshArrayIndex < meshList.size(); meshArrayIndex++)
+		{
+			Mesh* mesh = meshList[meshArrayIndex].get();
+
+			VkDescriptorBufferInfo& vertexBufferInfo = vertexBufferInfoList[meshArrayIndex];
+			vertexBufferInfo.buffer = mesh->_vertexBufferRT._buffer;
+			vertexBufferInfo.offset = 0;
+			vertexBufferInfo.range = mesh->_vertexBufferRT._size;
+		}
+
+		//BIND SAMPLERS
+		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
+
+		VkSampler blockySampler;
+		vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &blockySampler);
+
+		std::vector<VkDescriptorImageInfo> imageInfoList{};
+		imageInfoList.resize(textureList.size());
+
+		for (uint32_t textureArrayIndex = 0; textureArrayIndex < textureList.size(); textureArrayIndex++)
+		{
+			VkDescriptorImageInfo& imageBufferInfo = imageInfoList[textureArrayIndex];
+			imageBufferInfo.sampler = blockySampler;
+			imageBufferInfo.imageView = textureList[textureArrayIndex]->imageView;
+			imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		}
+
+		//BIND TLAS
+		VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
+		descASInfo.accelerationStructureCount = 1;
+		descASInfo.pAccelerationStructures = &tlas;
+
+		vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
+			.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, vertexBufferInfoList.size())
+			.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, imageInfoList.size())
+			.bind_rt_as(tlasBinding, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
+			.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene);
+	}
+
+	{
+		for (int i = 0; i < FRAME_OVERLAP; i++)
+		{
+			//set 1
+
+			VkDescriptorBufferInfo globalUniformsInfo;
+			globalUniformsInfo.buffer = _globalUniformsBuffer[i]._buffer;
+			globalUniformsInfo.offset = 0;
+			globalUniformsInfo.range = _globalUniformsBuffer[i]._size;
+
+			VkDescriptorBufferInfo lightsInfo;
+			lightsInfo.buffer = _engine->_lightManager.get_light_buffer(i)._buffer;
+			lightsInfo.offset = 0;
+			lightsInfo.range = _engine->_lightManager.get_light_buffer(i)._size;
+
+			VkDescriptorBufferInfo objectBufferInfo;
+			objectBufferInfo.buffer = _objectBuffer._buffer;
+			objectBufferInfo.offset = 0;
+			objectBufferInfo.range = _objectBuffer._size;
+
+			EDescriptorResourceNames currentDesciptor = i == 0 ? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0 : EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
+
+
+			vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+				.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
+				.bind_buffer(1, &lightsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
+				.bind_buffer(2, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
+				.build(_engine, currentDesciptor);
+		}
+	}
 }
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::init_global_buffers(const std::vector<RenderObject>& renderables)

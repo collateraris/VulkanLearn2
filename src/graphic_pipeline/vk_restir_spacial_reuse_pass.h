@@ -17,7 +17,7 @@ class VulkanReSTIRSpaceReusePass
 public:
 
 	VulkanReSTIRSpaceReusePass() = default;
-	void init(VulkanEngine* engine, VkAccelerationStructureKHR  tlas, std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer);
+	void init(VulkanEngine* engine);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
 	void reservoirSpacial_barrier_for_raytrace_read(VulkanCommandBuffer* cmd);
@@ -27,9 +27,7 @@ private:
 
 	Texture& get_reservoirSpacial() const;
 
-	void init_description_set_global_buffer(std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer);
-	void init_description_set();
-	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList, VkAccelerationStructureKHR  tlas);
+	void init_description_set_global_buffer();
 
 	VulkanEngine* _engine = nullptr;
 
@@ -44,16 +42,7 @@ private:
 	VkStridedDeviceAddressRegionKHR _callRegion{};
 
 	VkDescriptorSetLayout          _rtDescSetLayout;
-	std::array<VkDescriptorSet, 2>  _rtDescSet;
-
-	VkDescriptorSetLayout          _globalUniformsDescSetLayout;
-	std::array<VkDescriptorSet, 2>  _globalUniformsDescSet;
-
-	VkDescriptorSetLayout _gBuffDescSetLayout;
-	std::array<VkDescriptorSet, 2> _gBuffDescSet;
-
-	VkDescriptorSet _bindlessSet;
-	VkDescriptorSetLayout _bindlessSetLayout;
+	VkDescriptorSet  _rtDescSet;
 };
 
 #endif

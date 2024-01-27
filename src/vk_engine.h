@@ -270,6 +270,7 @@ public:
 	void run();
 
 	Texture* get_engine_texture(ETextureResourceNames texNameId);
+	AllocateDescriptor* get_engine_descriptor(EDescriptorResourceNames descrNameId);
 
 	AllocatedBuffer create_buffer_n_copy_data(size_t allocSize, void* copyData, VkBufferUsageFlags usage);
 	AllocatedBuffer create_gpuonly_buffer(size_t allocSize, VkBufferUsageFlags usage);

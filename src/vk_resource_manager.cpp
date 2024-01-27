@@ -25,3 +25,16 @@ Texture* ResourceManager::get_engine_texture(ETextureResourceNames texNameId)
 {
 	return engineTextureCache[(uint32_t)texNameId].get();
 }
+
+AllocateDescriptor* ResourceManager::create_engine_descriptor(EDescriptorResourceNames descrNameId)
+{
+	if (engineDescriptorCache[(uint32_t)descrNameId] == nullptr)
+		engineDescriptorCache[(uint32_t)descrNameId] = std::make_unique<AllocateDescriptor>();
+
+	return get_engine_descriptor(descrNameId);
+}
+
+AllocateDescriptor* ResourceManager::get_engine_descriptor(EDescriptorResourceNames descrNameId)
+{
+	return engineDescriptorCache[(uint32_t)descrNameId].get();
+}
