@@ -85,10 +85,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::create_tlas(const std::vector<Re
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList, VkAccelerationStructureKHR  tlas)
 {
-	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
-
-	VkSampler sampler;
-	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
+	VkSampler& sampler = _engine->get_engine_sampler(ESamplerType::NEAREST)->sampler;
 
 	{
 		VkDescriptorImageInfo wposImageBufferInfo;
@@ -158,10 +155,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std
 		}
 
 		//BIND SAMPLERS
-		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
-
-		VkSampler blockySampler;
-		vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &blockySampler);
+		VkSampler& blockySampler = _engine->get_engine_sampler(ESamplerType::LINEAR)->sampler;
 
 		std::vector<VkDescriptorImageInfo> imageInfoList{};
 		imageInfoList.resize(textureList.size());

@@ -25,6 +25,7 @@ class ResourceManager
 public:
 
 	std::unordered_map<std::string, std::unique_ptr<Texture>> textureCache;
+	std::array<std::unique_ptr<AllocatedSampler>, (uint32_t)ESamplerType::MAX> engineSamplerCache;
 	std::array<std::unique_ptr<Texture>, (uint32_t)ETextureResourceNames::MAX> engineTextureCache;
 	std::array<std::unique_ptr<AllocateDescriptor>, (uint32_t)EDescriptorResourceNames::MAX> engineDescriptorCache;
 	std::vector<std::unique_ptr<Mesh>> meshList;
@@ -35,6 +36,9 @@ public:
 	glm::vec3 minCube = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
 
 	uint32_t store_texture(std::string& name);
+
+	AllocatedSampler* create_engine_sampler(ESamplerType sampleNameId);
+	AllocatedSampler* get_engine_sampler(ESamplerType sampleNameId);
 
 	Texture* create_engine_texture(ETextureResourceNames texNameId);
 	Texture* get_engine_texture(ETextureResourceNames texNameId);

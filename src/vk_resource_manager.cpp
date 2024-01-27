@@ -1,4 +1,5 @@
 #include <vk_resource_manager.h>
+#include <vk_initializers.h>
 
 uint32_t ResourceManager::store_texture(std::string& name)
 {
@@ -12,6 +13,20 @@ uint32_t ResourceManager::store_texture(std::string& name)
 
 	return textureList.size() - 1;
 }
+
+AllocatedSampler* ResourceManager::create_engine_sampler(ESamplerType sampleNameId)
+{
+	if (engineSamplerCache[(uint32_t)sampleNameId] == nullptr)
+		engineSamplerCache[(uint32_t)sampleNameId] = std::make_unique<AllocatedSampler>();
+
+	return get_engine_sampler(sampleNameId);
+}
+
+AllocatedSampler* ResourceManager::get_engine_sampler(ESamplerType sampleNameId)
+{
+	return engineSamplerCache[(uint32_t)sampleNameId].get();
+}
+
 
 Texture* ResourceManager::create_engine_texture(ETextureResourceNames texNameId)
 {

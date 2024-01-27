@@ -269,6 +269,7 @@ public:
 	//run main loop
 	void run();
 
+	AllocatedSampler* get_engine_sampler(ESamplerType sampleNameId);
 	Texture* get_engine_texture(ETextureResourceNames texNameId);
 	AllocateDescriptor* get_engine_descriptor(EDescriptorResourceNames descrNameId);
 
@@ -306,6 +307,8 @@ public:
 private:
 
 	void init_vulkan();
+
+	void init_samplers();
 
 	void init_swapchain();
 

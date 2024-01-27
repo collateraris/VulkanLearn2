@@ -64,6 +64,8 @@ void VulkanEngine::init()
 
 	_shaderCache.init(_device);
 
+	init_samplers();
+
 	//create the swapchain
 	init_swapchain();
 
@@ -473,6 +475,11 @@ void VulkanEngine::run()
 	}
 }
 
+AllocatedSampler* VulkanEngine::get_engine_sampler(ESamplerType samplerNameId)
+{
+	return _resManager.create_engine_sampler(samplerNameId);
+}
+
 Texture* VulkanEngine::get_engine_texture(ETextureResourceNames texNameId)
 {
 	return _resManager.get_engine_texture(texNameId);
@@ -665,6 +672,25 @@ void VulkanEngine::init_vulkan()
 #endif	
 
 	std::cout << "The GPU has a minimum buffer alignment of " << _gpuProperties.limits.minUniformBufferOffsetAlignment << std::endl;
+}
+
+void VulkanEngine::init_samplers()
+{
+	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::NEAREST))
+	{
+		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
+
+		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
+		alloc_sampler->samplerType = ESamplerType::NEAREST;
+	}
+
+	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::LINEAR))
+	{
+		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
+
+		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
+		alloc_sampler->samplerType = ESamplerType::LINEAR;
+	}
 }
 
 void VulkanEngine::init_swapchain()

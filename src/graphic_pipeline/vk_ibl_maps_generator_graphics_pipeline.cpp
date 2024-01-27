@@ -325,10 +325,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawHDRtoEnvMap()
 	VkDescriptorSetLayout          descSetLayout;
 	VkDescriptorSet  descSet;
 
-	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
-
-	VkSampler sampler;
-	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
+	VkSampler& sampler = _engine->get_engine_sampler(ESamplerType::LINEAR)->sampler;
 
 	VkDescriptorImageInfo hdrImageBufferInfo;
 	hdrImageBufferInfo.sampler = sampler;
@@ -389,10 +386,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawEnvMapToIrradianceMap()
 	VkDescriptorSetLayout          descSetLayout;
 	VkDescriptorSet  descSet;
 
-	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
-
-	VkSampler sampler;
-	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
+	VkSampler& sampler = _engine->get_engine_sampler(ESamplerType::LINEAR)->sampler;
 
 	VkDescriptorImageInfo envMapImageBufferInfo;
 	envMapImageBufferInfo.sampler = sampler;
@@ -452,10 +446,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawEnvMapToPrefilteredMap()
 	VkDescriptorSetLayout          descSetLayout;
 	VkDescriptorSet  descSet;
 
-	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
-
-	VkSampler sampler;
-	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
+	VkSampler& sampler = _engine->get_engine_sampler(ESamplerType::LINEAR)->sampler;
 
 	VkDescriptorImageInfo envMapImageBufferInfo;
 	envMapImageBufferInfo.sampler = sampler;

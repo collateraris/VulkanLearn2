@@ -108,10 +108,7 @@ void VulkanReSTIRSpaceReusePass::init(VulkanEngine* engine)
 
 void VulkanReSTIRSpaceReusePass::init_description_set_global_buffer()
 {
-	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
-
-	VkSampler sampler;
-	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
+	VkSampler& sampler = _engine->get_engine_sampler(ESamplerType::NEAREST)->sampler;
 
 	VkDescriptorImageInfo reservoirCurrImageBufferInfo;
 	reservoirCurrImageBufferInfo.sampler = sampler;

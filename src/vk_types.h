@@ -45,6 +45,21 @@ enum ETexFlags: uint32_t
 	HDR_CUBEMAP = BIT(2),
 };
 
+enum class ESamplerType : uint32_t
+{
+	NONE = 0,
+	NEAREST,
+	LINEAR,
+	MAX,
+};
+
+struct AllocatedSampler
+{
+	ESamplerType samplerType = ESamplerType::NEAREST;
+	VkSampler sampler;
+};
+
+
 struct Texture {
 	AllocatedImage image;
 	VkImageView imageView = VK_NULL_HANDLE;
@@ -53,6 +68,7 @@ struct Texture {
 	uint32_t flags = 0;
 	uint32_t mipLevels = 0; 
 	bool bIsSwapChainImage = false;
+	ESamplerType samplerType = ESamplerType::NEAREST;
 	VkAccessFlagBits currAccessFlag = VK_ACCESS_NONE;
 	VkImageLayout currImageLayout = VK_IMAGE_LAYOUT_GENERAL;
 	VkPipelineStageFlagBits currPipStage = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT;
