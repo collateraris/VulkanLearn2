@@ -70,24 +70,6 @@ struct AccelerationStruct
 	AllocatedBuffer               buffer;
 };
 
-enum class EGbufferTex : uint8_t
-{
-	WPOS = 0,
-	NORM = 1,
-	UV = 2,
-	OBJ_ID = 3,
-};
-
-
-enum EIblTex : uint8_t
-{
-	ENV = 0,
-	IRRADIANCE = 1,
-	PREFILTEREDENV = 2,
-	BRDFLUT = 3,
-};
-
-
 enum class MeshpassType : uint8_t {
 	None = 0,
 	Forward = 1,
@@ -127,6 +109,27 @@ enum class EPipelineType : uint32_t
 	ReSTIR_SpaceReuse = 18,
 	ReSTIR_UpdateReservoir_PlusShade = 19,
 	Max,
+};
+
+enum class ETextureResourceNames : uint32_t
+{
+	GBUFFER_WPOS = 0,
+	GBUFFER_NORM,
+	GBUFFER_UV,
+	GBUFFER_OBJ_ID,
+	GBUFFER_DEPTH_BUFFER,
+	IBL_ENV,
+	IBL_IRRADIANCE,
+	IBL_PREFILTEREDENV,
+	IBL_BRDFLUT,
+	MAX,
+};
+
+enum class EBufferResourceNames : uint32_t
+{
+	GlobalUniformBuffer_Frame0 = 0,
+	GlobalUniformBuffer_Frame1 = 1,
+
 };
 
 #include <glm/glm.hpp>

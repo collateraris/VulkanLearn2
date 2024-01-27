@@ -269,6 +269,8 @@ public:
 	//run main loop
 	void run();
 
+	Texture* get_engine_texture(ETextureResourceNames texNameId);
+
 	AllocatedBuffer create_buffer_n_copy_data(size_t allocSize, void* copyData, VkBufferUsageFlags usage);
 	AllocatedBuffer create_gpuonly_buffer(size_t allocSize, VkBufferUsageFlags usage);
 	AllocatedBuffer create_gpuonly_buffer_with_device_address(size_t allocSize, VkBufferUsageFlags usage);

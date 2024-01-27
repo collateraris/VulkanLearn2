@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vk_engine.h>
 #include <vk_initializers.h>
+#include <vk_resource_manager.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -486,6 +487,17 @@ Texture VulkanTextureBuilder::create_texture()
 	tex.currImageLayout = _img_info.initialLayout;
 
 	return tex;
+}
+
+void VulkanTextureBuilder::create_engine_texture(ETextureResourceNames texNameId)
+{
+	Texture* tex = _engine->_resManager.create_engine_texture(texNameId);
+	tex->image = create_image();
+	tex->imageView = create_image_view(tex->image);
+	tex->extend = _extend;
+	tex->createInfo = _img_info;
+	tex->mipLevels = _img_info.mipLevels;
+	tex->currImageLayout = _img_info.initialLayout;
 }
 
 AllocatedImage VulkanTextureBuilder::create_image()

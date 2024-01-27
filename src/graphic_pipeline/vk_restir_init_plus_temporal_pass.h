@@ -17,7 +17,7 @@ class VulkanReSTIRInitPlusTemporalPass
 public:
 
 	VulkanReSTIRInitPlusTemporalPass() = default;
-	void init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap, VkAccelerationStructureKHR  tlas, std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer);
+	void init(VulkanEngine* engine, VkAccelerationStructureKHR  tlas, std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
 	const Texture& get_indirectOutput() const;
@@ -34,7 +34,7 @@ public:
 private:
 
 	void init_description_set_global_buffer(std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer);
-	void init_description_set(const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap);
+	void init_description_set();
 	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList, VkAccelerationStructureKHR  tlas);
 
 	VulkanEngine* _engine = nullptr;

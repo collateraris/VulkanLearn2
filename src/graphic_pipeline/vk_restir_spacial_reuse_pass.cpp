@@ -11,7 +11,7 @@
 #include <vk_raytracer_builder.h>
 #include <vk_initializers.h>
 
-void VulkanReSTIRSpaceReusePass::init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap, VkAccelerationStructureKHR  tlas, std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer, const Texture& reservoirCurr)
+void VulkanReSTIRSpaceReusePass::init(VulkanEngine* engine, VkAccelerationStructureKHR  tlas, std::array<AllocatedBuffer, 2>& globalUniformsBuffer, AllocatedBuffer& objectBuffer, const Texture& reservoirCurr)
 {
 	_engine = engine;
 
@@ -34,7 +34,7 @@ void VulkanReSTIRSpaceReusePass::init(VulkanEngine* engine, const std::array<Tex
 
 	{
 		init_description_set_global_buffer(globalUniformsBuffer,objectBuffer, reservoirCurr);
-		init_description_set(gbuffer, iblMap);
+		init_description_set();
 		init_bindless(_engine->_resManager.meshList, _engine->_resManager.textureList, tlas);
 	}
 
@@ -155,7 +155,7 @@ void VulkanReSTIRSpaceReusePass::init_description_set_global_buffer(std::array<A
 	}
 }
 
-void VulkanReSTIRSpaceReusePass::init_description_set(const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap)
+void VulkanReSTIRSpaceReusePass::init_description_set()
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
@@ -166,37 +166,37 @@ void VulkanReSTIRSpaceReusePass::init_description_set(const std::array<Texture, 
 	{
 		VkDescriptorImageInfo wposImageBufferInfo;
 		wposImageBufferInfo.sampler = sampler;
-		wposImageBufferInfo.imageView = gbuffer[int(EGbufferTex::WPOS)].imageView;
+		wposImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_WPOS)->imageView;
 		wposImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo normalImageBufferInfo;
 		normalImageBufferInfo.sampler = sampler;
-		normalImageBufferInfo.imageView = gbuffer[int(EGbufferTex::NORM)].imageView;
+		normalImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_NORM)->imageView;
 		normalImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo uvImageBufferInfo;
 		uvImageBufferInfo.sampler = sampler;
-		uvImageBufferInfo.imageView = gbuffer[int(EGbufferTex::UV)].imageView;
+		uvImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_UV)->imageView;
 		uvImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo objIDImageBufferInfo;
 		objIDImageBufferInfo.sampler = sampler;
-		objIDImageBufferInfo.imageView = gbuffer[int(EGbufferTex::OBJ_ID)].imageView;
+		objIDImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_OBJ_ID)->imageView;
 		objIDImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo irradMapImageBufferInfo;
 		irradMapImageBufferInfo.sampler = sampler;
-		irradMapImageBufferInfo.imageView = iblMap[EIblTex::IRRADIANCE].imageView;
+		irradMapImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::IBL_IRRADIANCE)->imageView;
 		irradMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo prefilteredMapImageBufferInfo;
 		prefilteredMapImageBufferInfo.sampler = sampler;
-		prefilteredMapImageBufferInfo.imageView = iblMap[EIblTex::PREFILTEREDENV].imageView;
+		prefilteredMapImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::IBL_PREFILTEREDENV)->imageView;
 		prefilteredMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkDescriptorImageInfo brdflutMapImageBufferInfo;
 		brdflutMapImageBufferInfo.sampler = sampler;
-		brdflutMapImageBufferInfo.imageView = iblMap[EIblTex::BRDFLUT].imageView;
+		brdflutMapImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::IBL_BRDFLUT)->imageView;
 		brdflutMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())

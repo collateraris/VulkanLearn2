@@ -32,6 +32,7 @@ public:
 	VulkanTextureBuilder& make_cubemap_view_info(VkFormat format, VkImageAspectFlags aspectFlags);
 	VulkanTextureBuilder& fill_view_info(const std::function<void(VkImageViewCreateInfo& _view_info)>& func);
 	Texture create_texture();
+	void create_engine_texture(ETextureResourceNames texNameId);
 	AllocatedImage create_image();
 	VkImageView create_image_view(AllocatedImage img);
 

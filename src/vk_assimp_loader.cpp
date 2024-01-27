@@ -161,7 +161,7 @@ void ProcessMeshLoadMaterialTextures(const aiMaterial* mat, aiTextureType type, 
 			if (newMatDesc->diffuseTexture.empty())
 			{
 				newMatDesc->diffuseTexture = texPath;
-				newMatDesc->diffuseTextureIndex = resManager.storeTexture(newMatDesc->diffuseTexture);
+				newMatDesc->diffuseTextureIndex = resManager.store_texture(newMatDesc->diffuseTexture);
 			}
 			break;
 		case aiTextureType_SPECULAR:
@@ -171,7 +171,7 @@ void ProcessMeshLoadMaterialTextures(const aiMaterial* mat, aiTextureType type, 
 			if (newMatDesc->normalTexture.empty())
 			{
 				newMatDesc->normalTexture = texPath;
-				newMatDesc->normalTextureIndex = resManager.storeTexture(newMatDesc->normalTexture);
+				newMatDesc->normalTextureIndex = resManager.store_texture(newMatDesc->normalTexture);
 			}
 			break;
 		case aiTextureType_EMISSION_COLOR:
@@ -179,28 +179,28 @@ void ProcessMeshLoadMaterialTextures(const aiMaterial* mat, aiTextureType type, 
 			if (newMatDesc->emissionTexture.empty())
 			{
 				newMatDesc->emissionTexture = texPath;
-				newMatDesc->emissionTextureIndex = resManager.storeTexture(newMatDesc->emissionTexture);
+				newMatDesc->emissionTextureIndex = resManager.store_texture(newMatDesc->emissionTexture);
 			}
 			break;
 		case aiTextureType_METALNESS:
 			if (newMatDesc->metalnessTexture.empty())
 			{
 				newMatDesc->metalnessTexture = texPath;
-				newMatDesc->metalnessTextureIndex = resManager.storeTexture(newMatDesc->metalnessTexture);
+				newMatDesc->metalnessTextureIndex = resManager.store_texture(newMatDesc->metalnessTexture);
 			}
 			break;
 		case aiTextureType_DIFFUSE_ROUGHNESS:
 			if (newMatDesc->roughnessTexture.empty())
 			{
 				newMatDesc->roughnessTexture = texPath;
-				newMatDesc->roughnessTextureIndex = resManager.storeTexture(newMatDesc->roughnessTexture);
+				newMatDesc->roughnessTextureIndex = resManager.store_texture(newMatDesc->roughnessTexture);
 			}
 			break;
 		case aiTextureType_OPACITY:
 			if (newMatDesc->opacityTexture.empty())
 			{
 				newMatDesc->opacityTexture = texPath;
-				newMatDesc->opacityTextureIndex = resManager.storeTexture(newMatDesc->opacityTexture);
+				newMatDesc->opacityTextureIndex = resManager.store_texture(newMatDesc->opacityTexture);
 			}
 			break;
 		case aiTextureType_AMBIENT:

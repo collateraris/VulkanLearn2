@@ -186,32 +186,27 @@ void VulkanGbufferGenerateGraphicsPipeline::barrier_for_gbuffer_generate(VulkanC
 
 const Texture& VulkanGbufferGenerateGraphicsPipeline::get_wpos_output() const
 {
-	return _gbuffer[int(EGbufferTex::WPOS)];
+	return *_engine->get_engine_texture(ETextureResourceNames::GBUFFER_WPOS);
 }
 
 const Texture& VulkanGbufferGenerateGraphicsPipeline::get_normal_output() const
 {
-	return _gbuffer[int(EGbufferTex::NORM)];
+	return *_engine->get_engine_texture(ETextureResourceNames::GBUFFER_NORM);
 }
 
 const Texture& VulkanGbufferGenerateGraphicsPipeline::get_uv_output() const
 {
-	return _gbuffer[int(EGbufferTex::UV)];
+	return *_engine->get_engine_texture(ETextureResourceNames::GBUFFER_UV);
 }
 
 const Texture& VulkanGbufferGenerateGraphicsPipeline::get_objID_output() const
 {
-	return _gbuffer[int(EGbufferTex::OBJ_ID)];
+	return *_engine->get_engine_texture(ETextureResourceNames::GBUFFER_OBJ_ID);
 }
 
 const Texture& VulkanGbufferGenerateGraphicsPipeline::get_depth_output() const
 {
-	return _depthTexture;
-}
-
-const std::array<Texture, 4> VulkanGbufferGenerateGraphicsPipeline::get_gbuffer() const
-{
-	return _gbuffer;
+	return *_engine->get_engine_texture(ETextureResourceNames::GBUFFER_DEPTH_BUFFER);
 }
 
 void VulkanGbufferGenerateGraphicsPipeline::init_gbuffer_tex()
@@ -225,55 +220,55 @@ void VulkanGbufferGenerateGraphicsPipeline::init_gbuffer_tex()
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_gbuffer[int(EGbufferTex::WPOS)] = texBuilder.start()
+		texBuilder.start()
 			.make_img_info(_wposFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, _texExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_wposFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
+			.create_engine_texture(ETextureResourceNames::GBUFFER_WPOS);
 	}
 
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_gbuffer[int(EGbufferTex::NORM)] = texBuilder.start()
+		texBuilder.start()
 			.make_img_info(_normalFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, _texExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_normalFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
+			.create_engine_texture(ETextureResourceNames::GBUFFER_NORM);
 	}
 
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_gbuffer[int(EGbufferTex::UV)] = texBuilder.start()
+		texBuilder.start()
 			.make_img_info(_uvFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, _texExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_uvFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
+			.create_engine_texture(ETextureResourceNames::GBUFFER_UV);
 	}
 
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_gbuffer[int(EGbufferTex::OBJ_ID)] = texBuilder.start()
+		texBuilder.start()
 			.make_img_info(_objIDFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, _texExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_objIDFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
+			.create_engine_texture(ETextureResourceNames::GBUFFER_OBJ_ID);
 	}
 
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
-		_depthTexture = texBuilder.start()
+		texBuilder.start()
 			.make_img_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, _texExtent)
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
-			.create_texture();
+			.create_engine_texture(ETextureResourceNames::GBUFFER_DEPTH_BUFFER);
 	}
 }
 
@@ -284,11 +279,11 @@ void VulkanGbufferGenerateGraphicsPipeline::init_render_pass()
 	default_rp.clear_attachments = BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4);
 	default_rp.store_attachments = BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4);
 	default_rp.num_color_attachments = 4;
-	default_rp.color_attachments[0] = &_gbuffer[int(EGbufferTex::WPOS)];
-	default_rp.color_attachments[1] = &_gbuffer[int(EGbufferTex::NORM)];
-	default_rp.color_attachments[2] = &_gbuffer[int(EGbufferTex::UV)];
-	default_rp.color_attachments[3] = &_gbuffer[int(EGbufferTex::OBJ_ID)];
-	default_rp.depth_stencil = &_depthTexture;
+	default_rp.color_attachments[0] = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_WPOS);
+	default_rp.color_attachments[1] = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_NORM);
+	default_rp.color_attachments[2] = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_UV);
+	default_rp.color_attachments[3] = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_OBJ_ID);
+	default_rp.depth_stencil = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_DEPTH_BUFFER);
 
 	RenderPassInfo::Subpass subpass = {};
 	subpass.num_color_attachments = 4;
@@ -313,15 +308,15 @@ void VulkanGbufferGenerateGraphicsPipeline::init_render_pass()
 		fb_info.height = _texExtent.height;
 		fb_info.layers = 1;
 
-		VkImageView attachments[5];
-		attachments[0] = get_wpos_output().imageView;
-		attachments[1] = get_normal_output().imageView;
-		attachments[2] = get_uv_output().imageView;
-		attachments[3] = get_objID_output().imageView;
-		attachments[4] = get_depth_output().imageView;
+		std::array<VkImageView, 5> attachments;
+		attachments[0] = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_WPOS)->imageView;
+		attachments[1] = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_NORM)->imageView;
+		attachments[2] = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_UV)->imageView;
+		attachments[3] = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_OBJ_ID)->imageView;
+		attachments[4] = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_DEPTH_BUFFER)->imageView;
 
-		fb_info.pAttachments = attachments;
-		fb_info.attachmentCount = 5;
+		fb_info.pAttachments = attachments.data();
+		fb_info.attachmentCount = attachments.size();
 		vkCreateFramebuffer(_engine->_device, &fb_info, nullptr, &_gBufFramebuffer);
 	}
 }

@@ -12,7 +12,7 @@
 #include <vk_initializers.h>
 #include <vk_camera.h>
 
-void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap)
+void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 {
 	_engine = engine;
 
@@ -23,13 +23,13 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine, const
 	}
 
 	_restirInitTemporalGP = std::make_unique<VulkanReSTIRInitPlusTemporalPass>();
-	_restirInitTemporalGP->init(engine, gbuffer, iblMap, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer);
+	_restirInitTemporalGP->init(engine, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer);
 
 	_restirSpacialGP = std::make_unique<VulkanReSTIRSpaceReusePass>();
-	_restirSpacialGP->init(engine, gbuffer, iblMap, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer, _restirInitTemporalGP->get_reservoirCurrTex());
+	_restirSpacialGP->init(engine, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer, _restirInitTemporalGP->get_reservoirCurrTex());
 
 	_restirUpdateShadeGP = std::make_unique<VulkanReSTIRUpdateReservoirPlusShadePass>();
-	_restirUpdateShadeGP->init(engine, gbuffer, iblMap, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer,
+	_restirUpdateShadeGP->init(engine, _rtBuilder.get_acceleration_structure(), _globalUniformsBuffer, _objectBuffer,
 		_restirInitTemporalGP->get_indirectOutput(), _restirInitTemporalGP->get_reservoirPrevTex(), _restirSpacialGP->get_reservoirSpacial());
 
 	_accumulationGP = std::make_unique<VulkanSimpleAccumulationGraphicsPipeline>();

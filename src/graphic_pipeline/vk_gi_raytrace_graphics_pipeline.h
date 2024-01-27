@@ -43,7 +43,7 @@ public:
 		uint32_t  numRays;
 	};
 	VulkanGIShadowsRaytracingGraphicsPipeline() = default;
-	void init(VulkanEngine* engine, const std::array<Texture, 4>& gbuffer, const std::array<Texture, 4>& iblMap);
+	void init(VulkanEngine* engine);
 	void copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams& aoData, int current_frame_index);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 

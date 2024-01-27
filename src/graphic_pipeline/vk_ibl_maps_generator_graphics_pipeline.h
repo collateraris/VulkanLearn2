@@ -12,7 +12,8 @@ public:
 	const Texture& getHDR() const;
 	const Texture& getEnvCubemap() const;
 	const Texture& getIrradianceCubemap() const;
-	const std::array<Texture, 4>& getIblTex() const;
+	const Texture& getPrefilteredCubemap() const;
+	const Texture& getBRDFLUT() const;
 
 private:
 	void loadEnvironment(std::string filename);
@@ -23,7 +24,7 @@ private:
 	void drawEnvMapToIrradianceMap();
 	void drawEnvMapToPrefilteredMap();
 	void drawBRDFLUT();
-	void drawIntoFaceCubemap(uint32_t pipType, uint32_t cubemapSize, uint32_t cubeFace, Texture& cubemapTex, VkDescriptorSet&  descSet, std::function<void(VkCommandBuffer& cmd)>&& pushConst, uint32_t mipLevel = 0, uint32_t numMips = 1);
+	void drawIntoFaceCubemap(uint32_t pipType, uint32_t cubemapSize, uint32_t cubeFace, const Texture& cubemapTex, VkDescriptorSet&  descSet, std::function<void(VkCommandBuffer& cmd)>&& pushConst, uint32_t mipLevel = 0, uint32_t numMips = 1);
 	void drawCube(VkCommandBuffer& cmd);
 
 	VulkanEngine* _engine = nullptr;
@@ -39,7 +40,6 @@ private:
 	AllocatedBuffer _boxVB;
 
 	Texture _hdr;
-	std::array<Texture, 4> _iblTex;
 
 	const std::vector<glm::mat4> _viewMatrices = {
 		glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),

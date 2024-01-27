@@ -40,7 +40,6 @@ public:
 	const Texture& get_uv_output() const;
 	const Texture& get_objID_output() const;
 	const Texture& get_depth_output() const;
-	const std::array<Texture, 4> get_gbuffer() const;
 
 private:
 
@@ -53,14 +52,10 @@ private:
 
 	VkExtent3D _texExtent;
 
-	std::array<Texture, 4> _gbuffer;
-
 	VkFormat      _wposFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
 	VkFormat      _normalFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
 	VkFormat      _uvFormat{ VK_FORMAT_R16G16_SFLOAT };
 	VkFormat      _objIDFormat{ VK_FORMAT_R32_SFLOAT };
-
-	Texture _depthTexture;
 	VkFormat      _depthFormat{ VK_FORMAT_D32_SFLOAT };
 
 	VkFramebuffer _gBufFramebuffer;

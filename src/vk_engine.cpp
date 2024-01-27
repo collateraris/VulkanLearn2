@@ -90,7 +90,7 @@ void VulkanEngine::init()
 
 	_lightManager.init(this);
 	//_lightManager.add_sun_light();
-	_lightManager.generateUniformGrid(_resManager.maxCube, _resManager.minCube, 5);
+	_lightManager.generateUniformGrid(_resManager.maxCube, _resManager.minCube, 30);
 	_lightManager.create_light_buffers();
 
 #if VBUFFER_ON
@@ -123,7 +123,7 @@ void VulkanEngine::init()
 #if GBUFFER_ON
 	_gBufGenerateGraphicsPipeline.init(this);
 	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
-	_giRtGraphicsPipeline.init(this, _gBufGenerateGraphicsPipeline.get_gbuffer(), _iblGenGraphicsPipeline.getIblTex());
+	_giRtGraphicsPipeline.init(this);
 	_gBufShadingGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
 #endif
 
@@ -471,6 +471,11 @@ void VulkanEngine::run()
 			_stats.frameCpuAvg = _stats.frameCpuAvg * 0.95 + elapsed_seconds / std::chrono::milliseconds(1) * 0.05;
 		}
 	}
+}
+
+Texture* VulkanEngine::get_engine_texture(ETextureResourceNames texNameId)
+{
+	return _resManager.get_engine_texture(texNameId);
 }
 
 void VulkanEngine::init_vulkan()
