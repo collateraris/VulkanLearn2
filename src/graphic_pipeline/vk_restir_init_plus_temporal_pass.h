@@ -6,6 +6,7 @@
 #include <vk_raytracer_builder.h>
 #include <vk_render_pass.h>
 #include <vk_mesh.h>
+#include <vk_descriptors.h>
 
 class VulkanEngine;
 class VulkanFrameBuffer;
@@ -47,8 +48,7 @@ private:
 	VkStridedDeviceAddressRegionKHR _hitRegion{};
 	VkStridedDeviceAddressRegionKHR _callRegion{};
 
-	VkDescriptorSetLayout          _rtDescSetLayout;
-	VkDescriptorSet  _rtDescSet;
+	vkutil::DescriptorManager _rpDescrMan; // render pass descriptor manager
 };
 
 #endif

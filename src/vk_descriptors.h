@@ -101,53 +101,48 @@ namespace vkutil {
 		DescriptorAllocator* alloc;
 	};
 
-	class BindlessParams
+	class DescriptorManager
 	{
-		struct Range
+		friend class DescriptorManagerBuilder;
+	public:
+		struct ResBarrierInfo
 		{
-			uint32_t offset;
-			uint32_t size;
-			void* data;
+			Texture* texture = nullptr;
+			VkAccessFlagBits nextAccessFlag;
+			VkImageLayout nextImageLayout;
+			VkPipelineStageFlagBits nextPipStage;
+			VkImageAspectFlagBits aspect = VK_IMAGE_ASPECT_COLOR_BIT;
 		};
 
-	public:
-		BindlessParams(uint32_t minAlignment, VulkanEngine* e) : _minAlignment(minAlignment), _engine(e) {}
+		DescriptorManager() = default;
 
-		template<class TData>
-		uint32_t addRange(TData&& data) {
-			// Copy data to heap and store void pointer
-			// since we do not care about the type at
-			// point
-			size_t dataSize = sizeof(TData);
-			auto* bytes = new TData;
-			*bytes = data;
+		void bind_descriptor_set(VkCommandBuffer cmd,
+			VkPipelineBindPoint pipelineBindPoint,
+			VkPipelineLayout layout,
+			uint32_t bind_point);
 
-			// Add range
-			uint32_t currentOffset = _lastOffset;
-			_ranges.push_back({ currentOffset, dataSize, bytes });
-
-			// Pad the data size to minimum alignment
-			// and move the offset
-			_lastOffset += vkutil::padSizeToAlignment(dataSize, _minAlignment);
-			return currentOffset;
-		}
-
-		void build(uint32_t binding, DescriptorLayoutCache* layoutCache, DescriptorAllocator* allocator, VmaAllocator& vmaallocator);
-
-		inline VkDescriptorSet getDescriptorSet() { return _descriptorSet; }
-
-		inline VkDescriptorSetLayout getDescriptorSetLayout() { return _layout; }
+		VkDescriptorSet get_set() const;
+		VkDescriptorSetLayout get_layout() const;
 
 	private:
-		uint32_t _minAlignment;
-		uint32_t _lastOffset = 0;
-		std::vector<Range> _ranges;
+		VkDescriptorSet set;
+		VkDescriptorSetLayout layout;
+		std::vector<ResBarrierInfo> barrier_info;
+	};
 
-		VkDescriptorSetLayout _layout;
-		VkDescriptorSet _descriptorSet;
+	class DescriptorManagerBuilder
+	{
+	public:
+		static DescriptorManagerBuilder begin(VulkanEngine* engine, DescriptorLayoutCache* layoutCache, DescriptorAllocator* allocator);
 
-		AllocatedBuffer _rangeBuffer;
+		DescriptorManagerBuilder& bind_image(uint32_t binding, Texture& texture, EResOp operation, VkShaderStageFlags stageFlags);
 
-		VulkanEngine* _engine = nullptr;
+		DescriptorManager create_desciptor_manager();
+
+	private:
+		DescriptorBuilder _descriptor_builder;
+		DescriptorManager _manager;
+		VulkanEngine* _engine;
+		std::vector<std::unique_ptr<VkDescriptorImageInfo>> imageInfoList;
 	};
 }

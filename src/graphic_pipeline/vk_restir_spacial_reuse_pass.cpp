@@ -53,7 +53,7 @@ void VulkanReSTIRSpaceReusePass::init(VulkanEngine* engine)
 				VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
 				std::vector<VkDescriptorSetLayout> setLayout = { _engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->setLayout,
 																 _engine->get_engine_descriptor(EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0)->setLayout,
-																 _rtDescSetLayout,
+																 _rpDescrMan.get_layout(),
 																 _engine->get_engine_descriptor(EDescriptorResourceNames::GBUFFER_IBL)->setLayout };
 				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
 				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
@@ -108,30 +108,16 @@ void VulkanReSTIRSpaceReusePass::init(VulkanEngine* engine)
 
 void VulkanReSTIRSpaceReusePass::init_description_set_global_buffer()
 {
-	VkSampler& sampler = _engine->get_engine_sampler(ESamplerType::NEAREST)->sampler;
-
-	VkDescriptorImageInfo reservoirCurrImageBufferInfo;
-	reservoirCurrImageBufferInfo.sampler = sampler;
-	reservoirCurrImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::ReSTIR_CURRENT)->imageView;
-	reservoirCurrImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-	VkDescriptorImageInfo reservoirSpacialImageBufferInfo;
-	reservoirSpacialImageBufferInfo.sampler = sampler;
-	reservoirSpacialImageBufferInfo.imageView = get_reservoirSpacial().imageView;
-	reservoirSpacialImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-	vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-		.bind_image(0, &reservoirCurrImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(1, &reservoirSpacialImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.build(_rtDescSet, _rtDescSetLayout);
+	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+		.bind_image(0, *_engine->get_engine_texture(ETextureResourceNames::ReSTIR_CURRENT), EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(1, get_reservoirSpacial(), EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.create_desciptor_manager();
 }
 void VulkanReSTIRSpaceReusePass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
 	{
 		VkClearValue clear_value = { 0., 0., 0., 0. };
 		cmd->clear_image(get_reservoirSpacial(), clear_value);
-
-		vkutil::image_pipeline_barrier(cmd->get_cmd(), get_reservoirSpacial(), VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
 	}
 
 	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
@@ -146,8 +132,9 @@ void VulkanReSTIRSpaceReusePass::draw(VulkanCommandBuffer* cmd, int current_fram
 
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_SpaceReuse), 1,
 				1, &_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set, 0, nullptr);
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_SpaceReuse), 2,
-				1, &_rtDescSet, 0, nullptr);
+
+			_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_SpaceReuse), 2);
+
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_SpaceReuse), 3,
 				1, &_engine->get_engine_descriptor(EDescriptorResourceNames::GBUFFER_IBL)->set, 0, nullptr);
 		});

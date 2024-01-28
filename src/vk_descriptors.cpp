@@ -393,30 +393,98 @@ bool vkutil::DescriptorBuilder::build_bindless(VkDescriptorSet& set, VkDescripto
 	return true;
 }
 
-void vkutil::BindlessParams::build(uint32_t binding, DescriptorLayoutCache* layoutCache, DescriptorAllocator* allocator, VmaAllocator& vmaallocator)
+
+void vkutil::DescriptorManager::bind_descriptor_set(VkCommandBuffer cmd,
+	VkPipelineBindPoint pipelineBindPoint,
+	VkPipelineLayout layout,
+	uint32_t bind_point)
 {
-	_rangeBuffer = _engine->create_cpu_to_gpu_buffer(_lastOffset, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+	for (auto& bi : barrier_info)
+	{
+		if (bi.texture == nullptr)
+			continue;
 
-	// Copy ranges to buffer
-	_engine->map_buffer(vmaallocator, _rangeBuffer._allocation, [&](void*& data) {
-			uint8_t* _data = (uint8_t*)data;
-			for (const auto& range : _ranges) {
-				memcpy(_data + range.offset, range.data, range.size);
-			}
-		});
-
-	// Get maximum size of a single range
-	uint32_t maxRangeSize = 0;
-	for (auto& range : _ranges) {
-		maxRangeSize = std::max(range.size, maxRangeSize);
+		vkutil::image_pipeline_barrier(cmd, *bi.texture, bi.nextAccessFlag, bi.nextImageLayout, bi.nextPipStage, bi.aspect);
 	}
 
-	VkDescriptorBufferInfo bufferInfo{};
-	bufferInfo.buffer = _rangeBuffer._buffer;
-	bufferInfo.offset = 0;
-	bufferInfo.range = _engine->padSizeToMinUniformBufferOffsetAlignment(maxRangeSize);
-
-	vkutil::DescriptorBuilder::begin(layoutCache,allocator)
-		.bind_buffer(binding, &bufferInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_ALL)
-		.build(_descriptorSet, _layout);
+	vkCmdBindDescriptorSets(cmd, pipelineBindPoint, layout, bind_point,
+		1, &set, 0, nullptr);
 }
+
+VkDescriptorSet vkutil::DescriptorManager::get_set() const
+{
+	return set;
+}
+
+VkDescriptorSetLayout vkutil::DescriptorManager::get_layout() const
+{
+	return layout;
+}
+
+vkutil::DescriptorManagerBuilder vkutil::DescriptorManagerBuilder::begin(VulkanEngine* engine, DescriptorLayoutCache* layoutCache, DescriptorAllocator* allocator)
+{
+	DescriptorManagerBuilder builder;
+	builder._engine = engine;
+	builder._descriptor_builder = DescriptorBuilder::begin(layoutCache, allocator);
+	return builder;
+}
+
+vkutil::DescriptorManagerBuilder& vkutil::DescriptorManagerBuilder::bind_image(uint32_t binding, Texture& texture, EResOp operation, VkShaderStageFlags stageFlags)
+{
+	VkSampler& sampler = _engine->get_engine_sampler(texture.samplerType)->sampler;
+
+	imageInfoList.push_back(std::make_unique<VkDescriptorImageInfo>());
+	VkDescriptorImageInfo* imageInfo = imageInfoList.back().get();
+	imageInfo->sampler = sampler;
+	imageInfo->imageView = texture.imageView;
+	VkDescriptorType type;
+
+	DescriptorManager::ResBarrierInfo resBarInfo;
+	resBarInfo.texture = &texture;
+	switch (stageFlags)
+	{
+		case VK_SHADER_STAGE_RAYGEN_BIT_KHR:
+		case VK_SHADER_STAGE_ANY_HIT_BIT_KHR:
+		case VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR:
+		case VK_SHADER_STAGE_MISS_BIT_KHR:
+		case VK_SHADER_STAGE_INTERSECTION_BIT_KHR:
+			resBarInfo.nextPipStage = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
+		break;
+	default:
+		assert(false);
+		break;
+	}
+
+	switch (operation)
+	{
+	case EResOp::NONE:
+		assert(false);
+		break;
+	case EResOp::WRITE:
+		resBarInfo.nextImageLayout = imageInfo->imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		resBarInfo.nextAccessFlag = VK_ACCESS_SHADER_WRITE_BIT;
+		break;
+	case EResOp::READ:
+		resBarInfo.nextImageLayout = imageInfo->imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		resBarInfo.nextAccessFlag = VK_ACCESS_SHADER_READ_BIT;
+		break;
+	default:
+		assert(false);
+		break;
+	}
+
+	_manager.barrier_info.push_back(resBarInfo);
+	_descriptor_builder.bind_image(binding, imageInfo, type, stageFlags);
+
+	return *this;
+}
+
+vkutil::DescriptorManager vkutil::DescriptorManagerBuilder::create_desciptor_manager()
+{
+	_descriptor_builder.build(_manager.set, _manager.layout);
+	return _manager;
+}
+
+
