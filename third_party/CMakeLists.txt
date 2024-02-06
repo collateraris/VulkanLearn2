@@ -5,7 +5,7 @@ add_library(glm INTERFACE)
 add_library(vma INTERFACE)
 
 add_library(plog INTERFACE)
-add_library(streamline INTERFACE)
+add_library(streamline2 INTERFACE)
 add_library(stb_image INTERFACE)
 add_library(taskflow INTERFACE)
 add_library(spirv_reflect STATIC)
@@ -79,7 +79,7 @@ imgui/imstb_truetype.h
     )
 
 target_link_libraries(imgui PUBLIC Vulkan::Vulkan sdl2)
-target_include_directories(streamline INTERFACE streamline)
+target_include_directories(streamline2 INTERFACE streamline/include)
 target_include_directories(stb_image INTERFACE stb_image)
 target_include_directories(taskflow INTERFACE taskflow)
 target_include_directories(plog INTERFACE plog)

@@ -90,6 +90,12 @@ set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGE
 target_include_directories(vulkan_guide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(vulkan_guide vkbootstrap vma glm tinyobjloader imgui stb_image assimp spirv_reflect)
 
-target_link_libraries(vulkan_guide sdl2 volk volk_headers meshoptimizer plog taskflow streamline) 
+add_library(streamline SHARED IMPORTED)
+set_property(TARGET streamline PROPERTY
+             IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/streamline/bin/x64/sl.interposer.dll")
+set_property(TARGET streamline PROPERTY
+             IMPORTED_IMPLIB "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/streamline/lib/x64/sl.interposer.lib")
+
+target_link_libraries(vulkan_guide sdl2 volk volk_headers meshoptimizer plog taskflow streamline streamline2) 
 
 add_dependencies(vulkan_guide Shaders)
