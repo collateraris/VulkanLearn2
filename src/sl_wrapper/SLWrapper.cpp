@@ -3,6 +3,7 @@
 #if STREAMLINE_ON
 
 #include <vk_engine.h>
+#include <sys_config/vk_strings.h>
 
 // Streamline Core
 #include <sl.h>
@@ -96,8 +97,8 @@ bool successCheck(sl::Result result, const char* location) {
 }
 
 std::wstring GetSlInterposerDllLocation() {
-
-    return std::wstring(L"\\sl.interposer.dll");
+    static std::string path = vk_utils::STREAMLINE_DLL + "/sl.interposer.dll";
+    return std::wstring(path.begin(), path.end());
 }
 
 SLWrapper& SLWrapper::Get() {
