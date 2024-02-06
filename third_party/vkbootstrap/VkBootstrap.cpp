@@ -28,7 +28,7 @@
 #if defined(__linux__) || defined(__APPLE__)
 #include <dlfcn.h>
 #endif
-
+#define STREAMLINE_ON 1
 #include <mutex>
 
 namespace vkb {
@@ -54,7 +54,11 @@ class VulkanFunctions {
 			library = dlopen ("libvulkan.dylib", RTLD_NOW | RTLD_LOCAL);
 			if (!library) library = dlopen ("libvulkan.1.dylib", RTLD_NOW | RTLD_LOCAL);
 #elif defined(_WIN32)
+	#if STREAMLINE_ON
+			library = LoadLibrary (TEXT ("sl.interposer.dll"));
+	#else
 			library = LoadLibrary (TEXT ("vulkan-1.dll"));
+	#endif		
 #else
 			assert (false && "Unsupported platform");
 #endif

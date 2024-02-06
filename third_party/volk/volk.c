@@ -43,11 +43,15 @@ static PFN_vkVoidFunction vkGetDeviceProcAddrStub(void* context, const char* nam
 {
 	return vkGetDeviceProcAddr((VkDevice)context, name);
 }
-
+#define STREAMLINE_ON 1
 VkResult volkInitialize(void)
 {
 #if defined(_WIN32)
-	HMODULE module = LoadLibraryA("vulkan-1.dll");
+	#if STREAMLINE_ON
+			HMODULE module = LoadLibraryA("sl.interposer.dll");
+	#else
+			HMODULE module = LoadLibraryA("vulkan-1.dll");
+	#endif	
 	if (!module)
 		return VK_ERROR_INITIALIZATION_FAILED;
 

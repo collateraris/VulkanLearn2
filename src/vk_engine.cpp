@@ -23,6 +23,8 @@
 
 #include <sys_config/ConfigManager.h>
 #include <sys_config/vk_strings.h>
+
+#include <sl_wrapper/SLWrapper.h>
 using namespace vk_utils;
 
 //we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
@@ -492,6 +494,9 @@ AllocateDescriptor* VulkanEngine::get_engine_descriptor(EDescriptorResourceNames
 
 void VulkanEngine::init_vulkan()
 {
+#if STREAMLINE_ON
+	SLWrapper::Get().Initialize_preDevice(this);
+#endif
 	VK_CHECK(volkInitialize());
 
 	vkb::InstanceBuilder builder;
