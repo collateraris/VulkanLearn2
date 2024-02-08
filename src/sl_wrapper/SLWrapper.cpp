@@ -159,5 +159,14 @@ bool SLWrapper::Initialize_preDevice(VulkanEngine* engine)
     return true;
 };
 
+void SLWrapper::Shutdown()
+{
+    // Shutdown Streamline
+    if (m_sl_initialised) {
+        successCheck(slShutdown(), "slShutdown");
+        m_sl_initialised = false;
+    }
+}
+
 #endif
 

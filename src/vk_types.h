@@ -8,7 +8,7 @@
 #define VBUFFER_ON 0
 #define GBUFFER_ON 1
 #define VULKAN_DEBUG_ON 1
-#define STREAMLINE_ON 1
+#define STREAMLINE_ON 0
 
 #include <volk.h>
 #include "vk_mem_alloc.h"

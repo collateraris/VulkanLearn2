@@ -157,6 +157,10 @@ void VulkanEngine::cleanup()
 		_descriptorBindlessAllocator->cleanup();
 		_descriptorBindlessLayoutCache->cleanup();
 
+#if STREAMLINE_ON
+		SLWrapper::Get().Shutdown();
+#endif
+
 		vkDestroyDevice(_device, nullptr);
 		vkDestroySurfaceKHR(_instance, _surface, nullptr);
 		vkb::destroy_debug_utils_messenger(_instance, _debug_messenger);
@@ -559,7 +563,7 @@ void VulkanEngine::init_vulkan()
 	};
 
 	vkb::PhysicalDevice physicalDevice = selector
-		.set_minimum_version(1, 1)
+		.set_minimum_version(1, 3)
 		.set_surface(_surface)
 		.add_required_extensions(extensions)
 		.set_required_features(required_features)
@@ -594,6 +598,7 @@ void VulkanEngine::init_vulkan()
 	descriptor_indexing_features.descriptorBindingUniformBufferUpdateAfterBind = true;
 	descriptor_indexing_features.shaderStorageBufferArrayNonUniformIndexing = true;
 	descriptor_indexing_features.descriptorBindingStorageBufferUpdateAfterBind = true;
+	descriptor_indexing_features.descriptorBindingVariableDescriptorCount = true;
 	descriptor_indexing_features.descriptorBindingPartiallyBound = true;
 	descriptor_indexing_features.runtimeDescriptorArray = true;
 

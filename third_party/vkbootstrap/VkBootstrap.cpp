@@ -28,7 +28,7 @@
 #if defined(__linux__) || defined(__APPLE__)
 #include <dlfcn.h>
 #endif
-#define STREAMLINE_ON 1
+#define STREAMLINE_ON 0
 #include <mutex>
 
 namespace vkb {

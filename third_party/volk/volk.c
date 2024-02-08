@@ -43,7 +43,7 @@ static PFN_vkVoidFunction vkGetDeviceProcAddrStub(void* context, const char* nam
 {
 	return vkGetDeviceProcAddr((VkDevice)context, name);
 }
-#define STREAMLINE_ON 1
+#define STREAMLINE_ON 0
 VkResult volkInitialize(void)
 {
 #if defined(_WIN32)

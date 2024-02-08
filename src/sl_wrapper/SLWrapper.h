@@ -20,6 +20,8 @@ public:
 
     bool Initialize_preDevice(VulkanEngine* engine);
 
+    void Shutdown();
+
 private:
 
     SLWrapper() {}
