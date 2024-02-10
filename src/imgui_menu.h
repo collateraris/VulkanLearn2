@@ -197,7 +197,7 @@ static void EditSun(VulkanLightManager& lightManager, int current_frame_index)
 }
 
 
-#if GI_RAYTRACER_ON && GBUFFER_ON
+#if GI_RAYTRACER_ON
 static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeline& giGP, int current_frame_index, int frameNumber)
 {
     static bool p_open = true;
@@ -235,7 +235,7 @@ static void ShowVkMenu(VulkanEngine& engine)
     ImguiAppLog::ShowFPSLog(engine._stats);
 
     ImguiAppLog::EditSun(engine._lightManager, engine.get_current_frame_index());
-#if GI_RAYTRACER_ON && GBUFFER_ON
+#if GI_RAYTRACER_ON
     ImguiAppLog::EditGI(engine._lightManager, engine._camera, engine._giRtGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
 #endif
 }

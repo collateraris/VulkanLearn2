@@ -42,6 +42,11 @@ IndirectRayPayload shootIndirectRay(vec3 orig, vec3 dir)
 	return indirectRpl;
 };
 
+IndirectRayPayload shootDirectRay(vec3 orig, vec3 dir)
+{
+    return shootIndirectRay(orig, dir);
+};
+
 float getDistanceFalloff(float distSquared)
 {
     float falloff = 1 / ((0.01 * 0.01) + distSquared); // The 0.01 is to avoid infs when the light source is close to the shading point

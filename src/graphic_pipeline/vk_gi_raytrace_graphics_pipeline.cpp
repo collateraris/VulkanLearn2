@@ -1,6 +1,6 @@
 #include <graphic_pipeline/vk_gi_raytrace_graphics_pipeline.h>
 
-#if GI_RAYTRACER_ON && GBUFFER_ON
+#if GI_RAYTRACER_ON
 
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
@@ -88,26 +88,6 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std
 	VkSampler& sampler = _engine->get_engine_sampler(ESamplerType::NEAREST)->sampler;
 
 	{
-		VkDescriptorImageInfo wposImageBufferInfo;
-		wposImageBufferInfo.sampler = sampler;
-		wposImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_WPOS)->imageView;
-		wposImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		VkDescriptorImageInfo normalImageBufferInfo;
-		normalImageBufferInfo.sampler = sampler;
-		normalImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_NORM)->imageView;
-		normalImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		VkDescriptorImageInfo uvImageBufferInfo;
-		uvImageBufferInfo.sampler = sampler;
-		uvImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_UV)->imageView;
-		uvImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-		VkDescriptorImageInfo objIDImageBufferInfo;
-		objIDImageBufferInfo.sampler = sampler;
-		objIDImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::GBUFFER_OBJ_ID)->imageView;
-		objIDImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
 		VkDescriptorImageInfo irradMapImageBufferInfo;
 		irradMapImageBufferInfo.sampler = sampler;
 		irradMapImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::IBL_IRRADIANCE)->imageView;
@@ -124,14 +104,10 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std
 		brdflutMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_image(0, &wposImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.bind_image(1, &normalImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.bind_image(2, &uvImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.bind_image(3, &objIDImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.bind_image(4, &irradMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.bind_image(5, &prefilteredMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.bind_image(6, &brdflutMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.build(_engine, EDescriptorResourceNames::GBUFFER_IBL);
+			.bind_image(0, &irradMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(1, &prefilteredMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_image(2, &brdflutMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.build(_engine, EDescriptorResourceNames::IBL);
 	}
 
 	{

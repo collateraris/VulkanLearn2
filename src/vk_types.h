@@ -4,9 +4,9 @@
 #pragma once
 
 #define MESHSHADER_ON 0
-#define GI_RAYTRACER_ON 1 // NEED GBUFFER_ON
+#define GI_RAYTRACER_ON 1 
 #define VBUFFER_ON 0
-#define GBUFFER_ON 1
+#define GBUFFER_ON 0
 #define VULKAN_DEBUG_ON 1
 #define STREAMLINE_ON 0
 
@@ -162,7 +162,7 @@ enum class ETextureResourceNames : uint32_t
 enum class EDescriptorResourceNames : uint32_t
 {
 	Bindless_Scene = 0,
-	GBUFFER_IBL,
+	IBL,
 	GI_GlobalUniformBuffer_Frame0,
 	GI_GlobalUniformBuffer_Frame1,
 	MAX

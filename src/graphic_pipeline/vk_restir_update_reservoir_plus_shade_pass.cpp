@@ -1,6 +1,6 @@
 #include <graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.h>
 
-#if GI_RAYTRACER_ON && GBUFFER_ON
+#if GI_RAYTRACER_ON
 
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
@@ -56,7 +56,7 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine)
 				std::vector<VkDescriptorSetLayout> setLayout = { _engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->setLayout,
 																 _engine->get_engine_descriptor(EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0)->setLayout,
 																 _rpDescrMan.get_layout(),
-																 _engine->get_engine_descriptor(EDescriptorResourceNames::GBUFFER_IBL)->setLayout };
+																 _engine->get_engine_descriptor(EDescriptorResourceNames::IBL)->setLayout };
 				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
 				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
 
@@ -145,7 +145,7 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::draw(VulkanCommandBuffer* cmd, in
 			_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_UpdateReservoir_PlusShade), 2);
 
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_UpdateReservoir_PlusShade), 3,
-				1, &_engine->get_engine_descriptor(EDescriptorResourceNames::GBUFFER_IBL)->set, 0, nullptr);
+				1, &_engine->get_engine_descriptor(EDescriptorResourceNames::IBL)->set, 0, nullptr);
 		});
 }
 

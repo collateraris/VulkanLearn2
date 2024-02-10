@@ -153,18 +153,8 @@ public:
 	VulkanDepthReduceRenderPass _depthReduceRenderPass;
 	std::vector<VkFramebuffer> _framebuffers;
 
-#if VBUFFER_ON
-	VulkanVbufferGraphicsPipeline _visBufGenerateGraphicsPipeline;
-	VulkanVbufferShadingGraphicsPipeline _visBufShadingGraphicsPipeline;
-	VkFramebuffer _visBufFramebuffer;
-#endif
-
-#if GBUFFER_ON
-	VulkanGbufferGenerateGraphicsPipeline _gBufGenerateGraphicsPipeline;
+#if GI_RAYTRACER_ON
 	VulkanGbufferShadingGraphicsPipeline _gBufShadingGraphicsPipeline;
-#endif
-
-#if GI_RAYTRACER_ON && GBUFFER_ON
 	VulkanIblMapsGeneratorGraphicsPipeline _iblGenGraphicsPipeline;
 	VulkanGIShadowsRaytracingGraphicsPipeline _giRtGraphicsPipeline;
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR _rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };

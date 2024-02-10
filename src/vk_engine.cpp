@@ -124,8 +124,7 @@ void VulkanEngine::init()
 	}
 #endif
 
-#if GBUFFER_ON
-	_gBufGenerateGraphicsPipeline.init(this);
+#if GI_RAYTRACER_ON
 	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
 	_giRtGraphicsPipeline.init(this);
 	_gBufShadingGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
@@ -214,26 +213,8 @@ void VulkanEngine::draw()
 			map_buffer(_allocator, get_current_frame().cameraBuffer._allocation, [&](void*& data) {
 				memcpy(data, &camData, sizeof(GPUCameraData));
 				});
-#if VBUFFER_ON
-			{
-				VulkanVbufferGraphicsPipeline::SGlobalCamera globalCameraData;
-				globalCameraData.viewProj = projection * view;
-				_visBufGenerateGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
 
-				VulkanVbufferShadingGraphicsPipeline::SGlobalCamera globalCameraData1;
-				globalCameraData1.viewProj = projection * view;
-				_visBufShadingGraphicsPipeline.copy_global_uniform_data(globalCameraData1, get_current_frame_index());
-			}
-#endif
-#if GBUFFER_ON
-			{
-				VulkanGbufferGenerateGraphicsPipeline::SGlobalCamera globalCameraData;
-				globalCameraData.viewProj = projection * view;
-				_gBufGenerateGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
-			}
-#endif
-
-#if GI_RAYTRACER_ON && GBUFFER_ON
+#if GI_RAYTRACER_ON
 			{
 				_giRtGraphicsPipeline.try_reset_accumulation(_camera);
 			}
@@ -251,59 +232,8 @@ void VulkanEngine::draw()
 		VkClearValue depthClear;
 		depthClear.depthStencil.depth = 1.f;
 
-#if GBUFFER_ON
-		_gBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-		_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_shading(&get_current_frame()._mainCommandBuffer);
+#if GI_RAYTRACER_ON
 		_giRtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-#endif
-
-#if VBUFFER_ON
-		{
-
-			//start the main renderpass. 
-			//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-			VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPassManager.get_render_pass(ERenderPassType::VisBufferGenerate)->get_render_pass(), _windowExtent, _visBufFramebuffer);
-
-			//connect clear values
-			rpInfo.clearValueCount = 2;
-
-			VkClearValue clearValues[] = { clearValue, depthClear };
-
-			rpInfo.pClearValues = &clearValues[0];
-
-			vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-			VkViewport viewport;
-			viewport.x = 0.0f;
-			viewport.y = 0.0f;
-			viewport.width = (float)_windowExtent.width;
-			viewport.height = (float)_windowExtent.height;
-			viewport.minDepth = 0.0f;
-			viewport.maxDepth = 1.0f;
-
-			VkRect2D scissor;
-			scissor.offset = { 0, 0 };
-			scissor.extent = _windowExtent;
-
-			vkCmdSetViewport(cmd, 0, 1, &viewport);
-			vkCmdSetScissor(cmd, 0, 1, &scissor);
-			vkCmdSetDepthBias(cmd, 0, 0, 0);
-#if VBUFFER_ON
-			_visBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-#endif
-
-			//finalize the render pass
-			vkCmdEndRenderPass(cmd);
-		}
-
-		{
-			std::array<VkImageMemoryBarrier, 1> visBufBarriers =
-			{
-				vkinit::image_barrier(_visBufGenerateGraphicsPipeline.get_vbuffer_output().image._image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-			};
-
-			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, visBufBarriers.size(), visBufBarriers.data());
-		}
 #endif
 		{
 
@@ -335,34 +265,15 @@ void VulkanEngine::draw()
 			vkCmdSetViewport(cmd, 0, 1, &viewport);
 			vkCmdSetScissor(cmd, 0, 1, &scissor);
 			vkCmdSetDepthBias(cmd, 0, 0, 0);
-#if GBUFFER_ON
+#if GI_RAYTRACER_ON
 			_gBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif			
-#if VBUFFER_ON
-			_visBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-#endif
 		//draw_objects(cmd, _renderables.data(), _renderables.size());
 			ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
 			//finalize the render pass
 			vkCmdEndRenderPass(cmd);
 		}
-#if VBUFFER_ON
-		{
-			std::array<VkImageMemoryBarrier, 1> visBufBarriers =
-			{
-				vkinit::image_barrier(_visBufGenerateGraphicsPipeline.get_vbuffer_output().image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-			};
-
-			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, 0, 0, 0, visBufBarriers.size(), visBufBarriers.data());
-		}
-#endif
-
-#if GBUFFER_ON
-		{
-			_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_generate(&get_current_frame()._mainCommandBuffer);
-		}
-#endif
 		//_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });
 
 		vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 1);

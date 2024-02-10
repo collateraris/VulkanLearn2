@@ -28,13 +28,9 @@ layout(set = 2, binding = 1) uniform sampler2D reservoirSpatial;
 layout(set = 2, binding = 2, rgba32f) uniform image2D reservoirPrev;
 layout(set = 2, binding = 3, rgba32f) uniform image2D outputTex;
 
-layout(set = 3, binding = 0) uniform sampler2D wposTex;
-layout(set = 3, binding = 1) uniform sampler2D normalTex;
-layout(set = 3, binding = 2) uniform sampler2D uvTex;
-layout(set = 3, binding = 3) uniform sampler2D objIDTex;
-layout(set = 3, binding = 4) uniform samplerCube irradianceMap;
-layout(set = 3, binding = 5) uniform samplerCube prefilteredMap;
-layout(set = 3, binding = 6) uniform sampler2D   brdfLUT;
+layout(set = 3, binding = 0) uniform samplerCube irradianceMap;
+layout(set = 3, binding = 1) uniform samplerCube prefilteredMap;
+layout(set = 3, binding = 2) uniform sampler2D   brdfLUT;
 
 
 #include "gi_raytrace_func.h"
@@ -42,20 +38,41 @@ layout(set = 3, binding = 6) uniform sampler2D   brdfLUT;
 void main() 
 {
     const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
-    vec4 worldPos = texture(wposTex, uv).rgba;
-    vec3 worldNorm = normalize(texture(normalTex, uv).rgb);
+    const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+    const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
+    vec2 d = inUV * 2.0 - 1.0;
+    
+    vec4 origin    = giParams.viewInverse * vec4(0, 0, 0, 1);
+    vec4 target    = giParams.projInverse * vec4(d.x, d.y, 1, 1);
+    vec4 direction = normalize(giParams.viewInverse * vec4(normalize(target.xyz), 0));
 
     vec4 reservoir =  texture(reservoirSpatial, uv).rgba;
 	imageStore(reservoirPrev, ivec2(gl_LaunchIDEXT.xy), reservoir);
 
 	vec4 indirectColor = texture(indirectInput, uv).rgba;
 
-    if (worldPos.w != 0.0f)
-	{
-        float objIDf = texture(objIDTex, uv).r;
-        vec2 gbufferTexCoord = texture(uvTex, uv).rg;
+    IndirectRayPayload dirPayload =  shootIndirectRay(origin.xyz, direction.xyz);
 
-        DirectInputData inputData = packDirectInputData(objIDf, worldPos.xyz, worldNorm, gbufferTexCoord);
+    float objIDf = dirPayload.worldNormGeometryXYZ_ObjectId.w;
+
+    if (objIDf >= 0.)
+	{
+        const vec3 wo = -direction.xyz;
+        vec3 shading_nrm = unpackWorldNormShading_IndirectRayPayload(dirPayload);
+        vec3 geometry_nrm = unpackWorldNormGeometry_IndirectRayPayload(dirPayload);
+        if (dot(geometry_nrm, wo) <= 0.)
+            geometry_nrm = -geometry_nrm;
+        if (dot(geometry_nrm, shading_nrm) <= 0)
+            shading_nrm = -shading_nrm;
+
+        vec3 worldPos = unpackWorldPos_IndirectRayPayload(dirPayload);
+        vec3 worldNorm = shading_nrm;
+        vec2 uvCoord = unpackUV_IndirectRayPayload(dirPayload);
+
+        // Initialize a random seed, per-pixel, based on a screen position and temporally varying count
+	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, giParams.frameCount);
+
+        DirectInputData inputData = packDirectInputData(objIDf, worldPos.xyz, worldNorm, uvCoord);
 
         uint lightToSample = uint(reservoir.y);
         DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, true);
