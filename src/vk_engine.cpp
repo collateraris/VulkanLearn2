@@ -55,6 +55,8 @@ void VulkanEngine::init()
 	SceneConfig config = vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetCurrentScene();
 	AsimpLoader::processScene(config, _scene, _resManager, config.model);
 
+	_camera.init();
+
 	_logger.init("vulkan.log");
 
 	_rgraph.init(this);
@@ -367,6 +369,7 @@ void VulkanEngine::run()
 		std::chrono::duration<float> elapsed_seconds = end - start;
 		float frametime = elapsed_seconds.count() * 1000.f;
 		_camera.update_camera(frametime);
+		_camera.update_jitter(_windowExtent.width, _windowExtent.height);
 
 		start = std::chrono::system_clock::now();
 

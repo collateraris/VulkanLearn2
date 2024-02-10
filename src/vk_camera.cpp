@@ -2,6 +2,13 @@
 #include "SDL.h"
 
 #include <glm/gtx/transform.hpp>
+void PlayerCamera::init()
+{
+	auto now = std::chrono::high_resolution_clock::now();
+	auto msTime = std::chrono::time_point_cast<std::chrono::milliseconds>(now);
+	rng = std::mt19937(uint32_t(msTime.time_since_epoch().count()));
+}
+
 void PlayerCamera::process_input_event(SDL_Event* ev)
 {
 	if (ev->type == SDL_KEYDOWN)
@@ -113,28 +120,20 @@ void PlayerCamera::update_camera(float deltaSeconds)
 	velocity *= 10 * deltaSeconds;
 
 	position += velocity;
+
+	calculate_view_matrix();
+	calculate_proj_matrix();
 }
 
 
 glm::mat4 PlayerCamera::get_view_matrix()
 {
-	glm::vec3 camPos = position;
-
-	glm::mat4 cam_rot = (get_rotation_matrix());
-
-	glm::mat4 view = glm::translate(glm::mat4{ 1 }, camPos)* cam_rot;
-
-	//we need to invert the camera matrix
-	view = glm::inverse(view);
-
-	return view;
+	return currentViewMatrix;
 }
 
 glm::mat4 PlayerCamera::get_projection_matrix()
 {
-	glm::mat4 pro = glm::perspective(glm::radians(70.f), 1700.f / 900.f, nearDistance, farDistance);
-	pro[1][1] *= -1;
-	return pro;
+	return currentProjMatrix;
 }
 
 glm::mat4 PlayerCamera::get_rotation_matrix()
@@ -143,6 +142,38 @@ glm::mat4 PlayerCamera::get_rotation_matrix()
 	glm::mat4 pitch_rot = glm::rotate(glm::mat4{ yaw_rot }, pitch, { 1,0,0 });
 
 	return pitch_rot;
+}
+
+void PlayerCamera::calculate_view_matrix()
+{
+	glm::vec3 camPos = position;
+
+	glm::mat4 cam_rot = (get_rotation_matrix());
+
+	glm::mat4 view = glm::translate(glm::mat4{ 1 }, camPos) * cam_rot;
+
+	//we need to invert the camera matrix
+	currentViewMatrix = glm::inverse(view);
+}
+
+void PlayerCamera::calculate_proj_matrix()
+{
+	currentProjMatrix = glm::perspective(glm::radians(70.f), 1700.f / 900.f, nearDistance, farDistance);
+	currentProjMatrix[1][1] *= -1;
+
+	if (bUseJitter)
+	{
+
+		// Build jitter matrix
+		// (jitterX and jitterY are expressed as subpixel quantities divided by the screen resolution
+		//  for instance to apply an offset of half pixel along the X axis we set jitterX = 0.5f / Width)
+		glm::mat4 jitterMat(1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			2.0f * jitterX, 2.0f * jitterY, 0.0f, 1.0f);
+
+		currentProjMatrix = jitterMat * currentProjMatrix;
+	}
 }
 
 std::array<glm::vec4, 6> PlayerCamera::calcFrustumPlanes()
@@ -170,4 +201,20 @@ std::array<glm::vec4, 6> PlayerCamera::calcFrustumPlanes()
 	}
 	
 	return frustum;
+}
+
+void PlayerCamera::set_jitter(float x, float y)
+{
+	jitterX = x;
+	jitterY = y;
+}
+
+void PlayerCamera::update_jitter(float w, float h)
+{
+	// Determine our offset in the pixel in the range [-0.5...0.5] 
+	float xOff = rngDist(rng) - 0.5f;
+	float yOff = rngDist(rng) - 0.5f;
+
+	// Give our jitter to the scene camera
+	set_jitter(xOff / w, yOff / h);
 }
