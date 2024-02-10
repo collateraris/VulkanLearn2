@@ -207,6 +207,7 @@ void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, in
 	}
 
 	_counter.accumCount++;
+	_counter.accumCount %= 10;
 	_counter.initLastFrame = 1;
 }
 
