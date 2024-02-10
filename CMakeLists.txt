@@ -20,6 +20,13 @@ set_target_properties( assimp
         FOLDER third_party/assimp
 )
 
+add_subdirectory( third_party/NRD )
+
+set_target_properties( NRD
+    PROPERTIES
+        FOLDER third_party/NRD
+)
+
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 
 add_subdirectory(src)
