@@ -1,6 +1,7 @@
 #include <vk_shaders.h>
 
 #include <vk_initializers.h>
+#include <sys_config/vk_strings.h>
 #include <spirv_reflect.h>
 
 bool ShaderLoader::load_shader_module(VkDevice device, const char* filePath, ShaderModule* outShaderModule)
@@ -46,6 +47,21 @@ bool ShaderLoader::load_shader_module(VkDevice device, const char* filePath, Sha
 	outShaderModule->code = std::move(buffer);
 	outShaderModule->module = shaderModule;
 	return true;
+}
+
+bool ShaderLoader::hlsl_to_spirv_cross_compiler(const std::string& filePath, const std::string& shaderType, const std::string& entryName, const std::vector<std::string>& macros)
+{
+	std::string command = vk_utils::DXT_PATH + " -spirv " + filePath + " -T " + shaderType + " -E " + entryName;
+	for (auto& macro : macros)
+		command += " -D " + macro;
+
+	std::string spirvFilePath = filePath + ".spv";
+
+	command += " -Fo " + spirvFilePath;
+
+	int result = std::system(command.c_str());
+
+	return !result;
 }
 
 // FNV-1a 32bit hashing algorithm.

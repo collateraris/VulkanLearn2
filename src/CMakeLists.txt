@@ -70,6 +70,8 @@ add_executable(vulkan_guide
     graphic_pipeline/vk_simple_accumulation_graphics_pipeline.cpp
     graphic_pipeline/vk_ibl_maps_generator_graphics_pipeline.h
     graphic_pipeline/vk_ibl_maps_generator_graphics_pipeline.cpp
+    graphic_pipeline/vk_raytracer_denoiser_pass.h
+    graphic_pipeline/vk_raytracer_denoiser_pass.cpp
     vk_light_manager.h
     vk_light_manager.cpp
     sys_config/ConfigManager.h
@@ -80,9 +82,7 @@ add_executable(vulkan_guide
     sys_config/XPath.cpp
     sys_config/tinyxml2.h
     sys_config/tinyxml2.cpp
-    sys_config/vk_strings.h
-    sl_wrapper/SLWrapper.h
-    sl_wrapper/SLWrapper.cpp)
+    sys_config/vk_strings.h)
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")

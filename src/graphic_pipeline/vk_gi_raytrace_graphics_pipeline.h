@@ -10,6 +10,7 @@
 #include <graphic_pipeline/vk_restir_spacial_reuse_pass.h>
 #include <graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.h>
 #include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
+#include <graphic_pipeline/vk_raytracer_denoiser_pass.h>
 
 class VulkanEngine;
 class VulkanFrameBuffer;
@@ -72,6 +73,8 @@ private:
 	std::unique_ptr<VulkanReSTIRSpaceReusePass> _restirSpacialGP;
 	std::unique_ptr<VulkanReSTIRUpdateReservoirPlusShadePass> _restirUpdateShadeGP;
 	std::unique_ptr<VulkanSimpleAccumulationGraphicsPipeline> _accumulationGP;
+
+	std::unique_ptr<VulkanRaytracerDenoiserPass> _denoiserPass;
 };
 
 #endif

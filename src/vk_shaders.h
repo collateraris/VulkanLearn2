@@ -12,7 +12,10 @@ struct ShaderModule {
 class ShaderLoader
 {
 public:
+
 	static bool load_shader_module(VkDevice device, const char* filePath, ShaderModule* outShaderModule);
+
+	static bool hlsl_to_spirv_cross_compiler(const std::string& filePath, const std::string& shaderType, const std::string& entryName, const std::vector<std::string>& macros);
 
 	static uint32_t hash_descriptor_layout_info(VkDescriptorSetLayoutCreateInfo* info);
 };

@@ -600,20 +600,52 @@ void VulkanEngine::init_vulkan()
 
 void VulkanEngine::init_samplers()
 {
-	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::NEAREST))
+	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::NEAREST_REPEAT))
 	{
-		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
+		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
 		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
-		alloc_sampler->samplerType = ESamplerType::NEAREST;
+		alloc_sampler->samplerType = ESamplerType::NEAREST_REPEAT;
 	}
 
-	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::LINEAR))
+	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::NEAREST_CLAMP))
 	{
-		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
+		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER);
 
 		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
-		alloc_sampler->samplerType = ESamplerType::LINEAR;
+		alloc_sampler->samplerType = ESamplerType::NEAREST_CLAMP;
+	}
+
+	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::NEAREST_MIRRORED_REPEAT))
+	{
+		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT);
+
+		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
+		alloc_sampler->samplerType = ESamplerType::NEAREST_MIRRORED_REPEAT;
+	}
+
+	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::LINEAR_REPEAT))
+	{
+		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
+
+		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
+		alloc_sampler->samplerType = ESamplerType::LINEAR_REPEAT;
+	}
+
+	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::LINEAR_CLAMP))
+	{
+		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER);
+
+		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
+		alloc_sampler->samplerType = ESamplerType::LINEAR_CLAMP;
+	}
+
+	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::LINEAR_MIRRORED_REPEAT))
+	{
+		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT);
+
+		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
+		alloc_sampler->samplerType = ESamplerType::LINEAR_MIRRORED_REPEAT;
 	}
 }
 

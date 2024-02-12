@@ -33,6 +33,7 @@ add_subdirectory(src)
 
 
 find_program(GLSLC "glslc.exe" $ENV{VULKAN_SDK}/Bin/)
+find_program(DXC "dxc.exe" ${PROJECT_SOURCE_DIR}/third_party/dxc/)
 
 ## find all the shader files under the shaders folder
 file(GLOB_RECURSE GLSL_SOURCE_FILES
@@ -59,6 +60,25 @@ foreach(GLSL_SRC ${GLSL_SOURCE_FILES})
     DEPENDS ${GLSL_SRC})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(GLSL_SRC)
+
+## find all the shader files under the shaders folder
+file(GLOB_RECURSE HLSL_NRD_CS_SOURCE_FILES
+    "${PROJECT_SOURCE_DIR}/third_party/NRD/Shaders/Source/*.cs.hlsl"
+)
+
+## iterate each shader
+foreach(HLSL_NRD_CS_SRC ${HLSL_NRD_CS_SOURCE_FILES})
+  message(STATUS "BUILDING SHADER")
+  get_filename_component(FILE_NAME ${HLSL_NRD_CS_SRC} NAME)
+  set(SPIRV "${PROJECT_SOURCE_DIR}/third_party/NRD/Shaders/Source/${FILE_NAME}.spv")
+  message(STATUS ${HLSL_NRD_CS_SRC})
+  ##execute glslang command to compile that specific shader
+  add_custom_command(
+    OUTPUT ${SPIRV}
+    COMMAND ${DXC} -spirv ${HLSL_NRD_CS_SRC} -Fo ${SPIRV} -T cs_6_0 -E main -D NRD_COMPILER_DXC=1 -D NRD_NORMAL_ENCODING=2 -D NRD_ROUGHNESS_ENCODING=1
+    DEPENDS ${HLSL_NRD_CS_SRC})
+  list(APPEND SPIRV_BINARY_FILES ${SPIRV})
+endforeach(HLSL_NRD_CS_SRC)
 
 add_custom_target(
     Shaders 

@@ -34,6 +34,9 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 
 	_accumulationGP = std::make_unique<VulkanSimpleAccumulationGraphicsPipeline>();
 	_accumulationGP->init(engine, _restirUpdateShadeGP->get_output());
+
+	_denoiserPass = std::make_unique<VulkanRaytracerDenoiserPass>();
+	_denoiserPass->init(engine);
 }
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList)
@@ -85,7 +88,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::create_tlas(const std::vector<Re
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList, VkAccelerationStructureKHR  tlas)
 {
-	VkSampler& sampler = _engine->get_engine_sampler(ESamplerType::NEAREST)->sampler;
+	VkSampler& sampler = _engine->get_engine_sampler(ESamplerType::NEAREST_REPEAT)->sampler;
 
 	{
 		VkDescriptorImageInfo irradMapImageBufferInfo;
@@ -131,7 +134,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std
 		}
 
 		//BIND SAMPLERS
-		VkSampler& blockySampler = _engine->get_engine_sampler(ESamplerType::LINEAR)->sampler;
+		VkSampler& blockySampler = _engine->get_engine_sampler(ESamplerType::LINEAR_REPEAT)->sampler;
 
 		std::vector<VkDescriptorImageInfo> imageInfoList{};
 		imageInfoList.resize(textureList.size());
