@@ -40,12 +40,14 @@ private:
 
 	VulkanEngine* _engine = nullptr;
 
-	bool m_Initialized;
 	nrd::Instance* m_Instance;
 	nrd::Denoiser m_Denoiser;
 	nrd::Identifier m_Identifier;
 
 	AllocatedBuffer m_ConstantBuffer;
+
+	std::vector<Texture> m_PermanentTextures;
+	std::vector<Texture> m_TransientTextures;
 };
 
 #endif

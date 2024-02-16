@@ -413,16 +413,14 @@ ShaderModule* ShaderCache::get_shader(const std::string& path)
 	auto it = module_cache.find(path);
 	if (it == module_cache.end())
 	{
-		ShaderModule newShader;
+		module_cache[path] = std::make_unique<ShaderModule>();
 
-		bool result = ShaderLoader::load_shader_module(_device, path.c_str(), &newShader);
+		bool result = ShaderLoader::load_shader_module(_device, path.c_str(), module_cache[path].get());
 		if (!result)
 		{
 			std::cout << "Error when compiling shader " << path << std::endl;
 			return nullptr;
 		}
-
-		module_cache[path] = newShader;
 	}
-	return &module_cache[path];
+	return module_cache[path].get();
 }

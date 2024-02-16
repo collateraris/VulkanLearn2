@@ -101,5 +101,5 @@ public:
 	void init(VkDevice device) { _device = device; };
 private:
 	VkDevice _device;
-	std::unordered_map<std::string, ShaderModule> module_cache;
+	std::unordered_map<std::string, std::unique_ptr<ShaderModule>> module_cache;
 };

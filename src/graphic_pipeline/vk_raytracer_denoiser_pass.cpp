@@ -93,6 +93,58 @@ ESamplerType get_vk_engine_sampler_mode(nrd::Sampler nrdSamplerMode)
 	}
 }
 
+static VkFormat GetVulkanFormat(nrd::Format format)
+{
+	switch (format)
+	{
+	case nrd::Format::R8_UNORM:             return VkFormat::VK_FORMAT_R8_UNORM;
+	case nrd::Format::R8_SNORM:             return VkFormat::VK_FORMAT_R8_SNORM;
+	case nrd::Format::R8_UINT:              return VkFormat::VK_FORMAT_R8_UINT;
+	case nrd::Format::R8_SINT:              return VkFormat::VK_FORMAT_R8_SINT;
+	case nrd::Format::RG8_UNORM:            return VkFormat::VK_FORMAT_R8G8_UNORM;
+	case nrd::Format::RG8_SNORM:            return VkFormat::VK_FORMAT_R8G8_SNORM;
+	case nrd::Format::RG8_UINT:             return VkFormat::VK_FORMAT_R8G8_UINT;
+	case nrd::Format::RG8_SINT:             return VkFormat::VK_FORMAT_R8G8_SINT;
+	case nrd::Format::RGBA8_UNORM:          return VkFormat::VK_FORMAT_R8G8B8A8_UNORM;
+	case nrd::Format::RGBA8_SNORM:          return VkFormat::VK_FORMAT_R8G8B8A8_SNORM;
+	case nrd::Format::RGBA8_UINT:           return VkFormat::VK_FORMAT_R8G8B8A8_UINT;
+	case nrd::Format::RGBA8_SINT:           return VkFormat::VK_FORMAT_R8G8B8A8_SINT;
+	case nrd::Format::RGBA8_SRGB:           return VkFormat::VK_FORMAT_R8G8B8A8_SRGB;
+	case nrd::Format::R16_UNORM:            return VkFormat::VK_FORMAT_R16_UNORM;
+	case nrd::Format::R16_SNORM:            return VkFormat::VK_FORMAT_R16_SNORM;
+	case nrd::Format::R16_UINT:             return VkFormat::VK_FORMAT_R16_UINT;
+	case nrd::Format::R16_SINT:             return VkFormat::VK_FORMAT_R16_SINT;
+	case nrd::Format::R16_SFLOAT:           return VkFormat::VK_FORMAT_R16_SFLOAT;
+	case nrd::Format::RG16_UNORM:           return VkFormat::VK_FORMAT_R16G16_UNORM;
+	case nrd::Format::RG16_SNORM:           return VkFormat::VK_FORMAT_R16G16_SNORM;
+	case nrd::Format::RG16_UINT:            return VkFormat::VK_FORMAT_R16G16_UINT;
+	case nrd::Format::RG16_SINT:            return VkFormat::VK_FORMAT_R16G16_SINT;
+	case nrd::Format::RG16_SFLOAT:          return VkFormat::VK_FORMAT_R16G16_SFLOAT;
+	case nrd::Format::RGBA16_UNORM:         return VkFormat::VK_FORMAT_R16G16B16A16_UNORM;
+	case nrd::Format::RGBA16_SNORM:         return VkFormat::VK_FORMAT_R16G16B16A16_SNORM;
+	case nrd::Format::RGBA16_UINT:          return VkFormat::VK_FORMAT_R16G16B16A16_UINT;
+	case nrd::Format::RGBA16_SINT:          return VkFormat::VK_FORMAT_R16G16B16A16_SINT;
+	case nrd::Format::RGBA16_SFLOAT:        return VkFormat::VK_FORMAT_R16G16B16A16_SFLOAT;
+	case nrd::Format::R32_UINT:             return VkFormat::VK_FORMAT_R32_UINT;
+	case nrd::Format::R32_SINT:             return VkFormat::VK_FORMAT_R32_SINT;
+	case nrd::Format::R32_SFLOAT:           return VkFormat::VK_FORMAT_R32_SFLOAT;
+	case nrd::Format::RG32_UINT:            return VkFormat::VK_FORMAT_R32G32_UINT;
+	case nrd::Format::RG32_SINT:            return VkFormat::VK_FORMAT_R32G32_SINT;
+	case nrd::Format::RG32_SFLOAT:          return VkFormat::VK_FORMAT_R32G32_SFLOAT;
+	case nrd::Format::RGB32_UINT:           return VkFormat::VK_FORMAT_R32G32B32_UINT;
+	case nrd::Format::RGB32_SINT:           return VkFormat::VK_FORMAT_R32G32B32_SINT;
+	case nrd::Format::RGB32_SFLOAT:         return VkFormat::VK_FORMAT_R32G32B32_SFLOAT;
+	case nrd::Format::RGBA32_UINT:          return VkFormat::VK_FORMAT_R32G32B32A32_UINT;
+	case nrd::Format::RGBA32_SINT:          return VkFormat::VK_FORMAT_R32G32B32A32_SINT;
+	case nrd::Format::RGBA32_SFLOAT:        return VkFormat::VK_FORMAT_R32G32B32A32_SFLOAT;
+	case nrd::Format::R10_G10_B10_A2_UNORM: return VkFormat::VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+	case nrd::Format::R10_G10_B10_A2_UINT:  return VkFormat::VK_FORMAT_UNDEFINED; // not representable and not used
+	case nrd::Format::R11_G11_B10_UFLOAT:   return VkFormat::VK_FORMAT_UNDEFINED;
+	case nrd::Format::R9_G9_B9_E5_UFLOAT:   return VkFormat::VK_FORMAT_UNDEFINED; // not representable and not used
+	default:                                return VkFormat::VK_FORMAT_UNDEFINED;
+	}
+}
+
 void VulkanRaytracerDenoiserPass::init(VulkanEngine* engine)
 {
 	_engine = engine;
@@ -122,12 +174,85 @@ void VulkanRaytracerDenoiserPass::init(VulkanEngine* engine)
 
 	m_ConstantBuffer = _engine->create_cpu_to_gpu_buffer(instanceDesc.constantBufferMaxDataSize * instanceDesc.descriptorPoolDesc.setsMaxNum * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
+	for (uint32_t i = 0; i < instanceDesc.permanentPoolSize; i++)
+	{
+		const nrd::TextureDesc& nrdTextureDesc = instanceDesc.permanentPool[i];
+
+		const VkFormat format = GetVulkanFormat(nrdTextureDesc.format);
+
+		if (format == VkFormat::VK_FORMAT_UNDEFINED)
+		{
+			assert(!"Unknown or unsupported NRD format");
+			continue;
+		}
+
+		VkExtent3D imageExtent = {
+			nrdTextureDesc.width,
+			nrdTextureDesc.height,
+			1
+		};
+
+
+		VulkanTextureBuilder texBuilder;
+		texBuilder.init(_engine);
+		const Texture texture = texBuilder.start()
+			.make_img_info(format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, imageExtent)
+			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+			.make_view_info(format, VK_IMAGE_ASPECT_DEPTH_BIT)
+			.create_texture();
+
+		m_PermanentTextures.push_back(texture);
+	}
+
+	for (uint32_t i = 0; i < instanceDesc.transientPoolSize; i++)
+	{
+		const nrd::TextureDesc& nrdTextureDesc = instanceDesc.transientPool[i];
+
+		const VkFormat format = GetVulkanFormat(nrdTextureDesc.format);
+
+		if (format == VkFormat::VK_FORMAT_UNDEFINED)
+		{
+			assert(!"Unknown or unsupported NRD format");
+			continue;
+		}
+
+		VkExtent3D imageExtent = {
+			nrdTextureDesc.width,
+			nrdTextureDesc.height,
+			1
+		};
+
+		VulkanTextureBuilder texBuilder;
+		texBuilder.init(_engine);
+		const Texture texture = texBuilder.start()
+			.make_img_info(format, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, imageExtent)
+			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+			.make_view_info(format, VK_IMAGE_ASPECT_COLOR_BIT)
+			.create_texture();
+
+		m_TransientTextures.push_back(texture);
+	}
+
 	for (uint32_t pipelineIndex = 0; pipelineIndex < instanceDesc.pipelinesNum; pipelineIndex++)
 	{
 		const nrd::PipelineDesc& nrdPipelineDesc = instanceDesc.pipelines[pipelineIndex];
 
 		std::string fileName = vk_utils::NRD_SHADERS_PATH + nrdPipelineDesc.shaderFileName;
-		ShaderLoader::hlsl_to_spirv_cross_compiler(fileName.c_str(), "cs", "main", { "NRD_COMPILER_DXC = 1",  "NRD_NORMAL_ENCODING = 2", "NRD_ROUGHNESS_ENCODING = 1" }, nullptr);
+		EPipelineType denoiserPipType = static_cast<EPipelineType>(static_cast<uint32_t>(EPipelineType::NRD_RaytraceDenoiseShader_0) + pipelineIndex);
+		_engine->_renderPipelineManager.init_render_pipeline(_engine, denoiserPipType,
+			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
+
+				ShaderEffect computeEffect;
+				computeEffect.add_stage(_engine->_shaderCache.get_shader(fileName + ".hlsl.spv"), VK_SHADER_STAGE_COMPUTE_BIT);
+				computeEffect.reflect_layout(_engine->_device, nullptr, 0);
+
+				ComputePipelineBuilder computePipelineBuilder;
+				computePipelineBuilder.setShaders(&computeEffect);
+				//hook the push constants layout
+				pipelineLayout = computePipelineBuilder._pipelineLayout;
+
+				pipeline = computePipelineBuilder.build_compute_pipeline(engine->_device);
+			});
 	}
 }
 

@@ -47,6 +47,27 @@ struct AllocateDescriptor
 	VkDescriptorSetLayout setLayout;
 };
 
+// identifies the underlying resource type in a binding
+enum class EResourceType : uint8_t
+{
+	None = 0,
+	Texture_SRV,
+	Texture_UAV,
+	TypedBuffer_SRV,
+	TypedBuffer_UAV,
+	StructuredBuffer_SRV,
+	StructuredBuffer_UAV,
+	RawBuffer_SRV,
+	RawBuffer_UAV,
+	ConstantBuffer,
+	VolatileConstantBuffer,
+	Sampler,
+	RayTracingAccelStruct,
+	PushConstants,
+
+	MAX
+};
+
 enum ETexFlags: uint32_t
 {
 	NO_MIPS = BIT(1),
@@ -142,6 +163,30 @@ enum class EPipelineType : uint32_t
 	ReSTIR_Init_Plus_Temporal = 17,
 	ReSTIR_SpaceReuse = 18,
 	ReSTIR_UpdateReservoir_PlusShade = 19,
+	NRD_RaytraceDenoiseShader_0 = 20,
+	NRD_RaytraceDenoiseShader_1 = 21,
+	NRD_RaytraceDenoiseShader_2 = 22,
+	NRD_RaytraceDenoiseShader_3 = 23,
+	NRD_RaytraceDenoiseShader_4 = 24,
+	NRD_RaytraceDenoiseShader_5 = 25,
+	NRD_RaytraceDenoiseShader_6 = 26,
+	NRD_RaytraceDenoiseShader_7 = 27,
+	NRD_RaytraceDenoiseShader_8 = 28,
+	NRD_RaytraceDenoiseShader_9 = 29,
+	NRD_RaytraceDenoiseShader_10 = 30,
+	NRD_RaytraceDenoiseShader_11 = 31,
+	NRD_RaytraceDenoiseShader_12 = 32,
+	NRD_RaytraceDenoiseShader_13 = 33,
+	NRD_RaytraceDenoiseShader_14 = 34,
+	NRD_RaytraceDenoiseShader_15 = 35,
+	NRD_RaytraceDenoiseShader_16 = 36,
+	NRD_RaytraceDenoiseShader_17 = 37,
+	NRD_RaytraceDenoiseShader_18 = 38,
+	NRD_RaytraceDenoiseShader_19 = 39,
+	NRD_RaytraceDenoiseShader_20 = 40,
+	NRD_RaytraceDenoiseShader_21 = 41,
+	NRD_RaytraceDenoiseShader_22 = 42,
+	NRD_RaytraceDenoiseShader_23 = 43,
 	Max,
 };
 
