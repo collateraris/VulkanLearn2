@@ -38,6 +38,8 @@ public:
 
 private:
 
+	void init_denoiser_textures();
+
 	VulkanEngine* _engine = nullptr;
 
 	nrd::Instance* m_Instance;

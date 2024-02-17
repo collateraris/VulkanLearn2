@@ -121,6 +121,13 @@ void PlayerCamera::update_camera(float deltaSeconds)
 
 	position += velocity;
 
+	prevViewMatrix = currentViewMatrix;
+	prevProjMatrix = currentProjMatrix;
+	prevProjWithJitterMatrix = currentProjWithJitterMatrix;
+
+	prevJitterX = jitterX;
+	prevJitterY = jitterY;
+
 	calculate_view_matrix();
 	calculate_proj_matrix();
 }
@@ -131,9 +138,19 @@ glm::mat4 PlayerCamera::get_view_matrix()
 	return currentViewMatrix;
 }
 
-glm::mat4 PlayerCamera::get_projection_matrix()
+glm::mat4 PlayerCamera::get_projection_matrix(bool bUseJitter/* = true*/)
 {
-	return currentProjMatrix;
+	return bUseJitter ? currentProjWithJitterMatrix : currentProjMatrix;
+}
+
+glm::mat4 PlayerCamera::get_prev_view_matrix()
+{
+	return prevViewMatrix;
+}
+
+glm::mat4 PlayerCamera::get_prev_projection_matrix(bool bUseJitter/* = true*/)
+{
+	return bUseJitter ? prevProjWithJitterMatrix : prevProjMatrix;
 }
 
 glm::mat4 PlayerCamera::get_rotation_matrix()
@@ -172,7 +189,7 @@ void PlayerCamera::calculate_proj_matrix()
 			0.0f, 0.0f, 1.0f, 0.0f,
 			2.0f * jitterX, 2.0f * jitterY, 0.0f, 1.0f);
 
-		currentProjMatrix = jitterMat * currentProjMatrix;
+		currentProjWithJitterMatrix = jitterMat * currentProjMatrix;
 	}
 }
 
