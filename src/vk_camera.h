@@ -59,4 +59,7 @@ struct PlayerCamera {
 	void set_jitter(float jitterX, float jitterY);
 	void update_jitter(float w, float h);
 
+	glm::vec2 get_current_jitter();
+	glm::vec2 get_prev_jitter();
+
 };

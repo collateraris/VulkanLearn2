@@ -104,10 +104,6 @@ size_t ShaderEffect::add_stage(ShaderModule* shaderModule, VkShaderStageFlagBits
 
 void ShaderEffect::reflect_layout(VkDevice device, ReflectionOverrides* overrides, int overrideCount)
 {
-	std::vector<DescriptorSetLayoutData> set_layouts;
-
-	std::vector<VkPushConstantRange> constant_ranges;
-
 	for (auto& s : stages) {
 
 		SpvReflectShaderModule spvmodule;

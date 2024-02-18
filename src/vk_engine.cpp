@@ -1101,6 +1101,13 @@ void VulkanEngine::map_buffer(VmaAllocator& allocator, VmaAllocation& allocation
 	vmaUnmapMemory(allocator, allocation);
 }
 
+void VulkanEngine::write_buffer(VmaAllocator& allocator, VmaAllocation& allocation, const void* srcData, size_t dataSize)
+{
+	map_buffer(allocator, allocation, [&](void*& data) {
+		memcpy(data, srcData, dataSize);
+		});
+}
+
 void VulkanEngine::create_image(const VkImageCreateInfo& _img_info, const VmaAllocationCreateInfo& _img_allocinfo, VkImage& img, VmaAllocation& img_alloc, VmaAllocationInfo* vma_allocinfo)
 {
 	vmaCreateImage(_allocator, &_img_info, &_img_allocinfo, &img, &img_alloc, vma_allocinfo);

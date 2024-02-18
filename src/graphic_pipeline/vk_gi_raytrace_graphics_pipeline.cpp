@@ -234,6 +234,8 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, i
 
 	_restirUpdateShadeGP->barrier_for_frag_read(cmd);
 	_accumulationGP->draw(cmd, current_frame_index);
+
+	_denoiserPass->draw(cmd, current_frame_index);
 }
 
 const Texture& VulkanGIShadowsRaytracingGraphicsPipeline::get_output() const

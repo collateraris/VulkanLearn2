@@ -75,7 +75,15 @@ foreach(HLSL_NRD_CS_SRC ${HLSL_NRD_CS_SOURCE_FILES})
   ##execute glslang command to compile that specific shader
   add_custom_command(
     OUTPUT ${SPIRV}
-    COMMAND ${DXC} -spirv ${HLSL_NRD_CS_SRC} -Fo ${SPIRV} -T cs_6_0 -E main -D NRD_COMPILER_DXC=1 -D NRD_NORMAL_ENCODING=2 -D NRD_ROUGHNESS_ENCODING=1
+    COMMAND ${DXC} -spirv  -fvk-auto-shift-bindings -fvk-use-gl-layout ${HLSL_NRD_CS_SRC} -Fo ${SPIRV} -T cs_6_5 -E main -D NRD_COMPILER_DXC=1 -D NRD_NORMAL_ENCODING=2 -D NRD_ROUGHNESS_ENCODING=1 
+        -fvk-s-shift 0 0 -fvk-t-shift 128 0 -fvk-b-shift 256 0 -fvk-u-shift 384 0
+        -fvk-s-shift 0 1 -fvk-t-shift 128 1 -fvk-b-shift 256 1 -fvk-u-shift 384 1
+        -fvk-s-shift 0 2 -fvk-t-shift 128 2 -fvk-b-shift 256 2 -fvk-u-shift 384 2
+        -fvk-s-shift 0 3 -fvk-t-shift 128 3 -fvk-b-shift 256 3 -fvk-u-shift 384 3
+        -fvk-s-shift 0 4 -fvk-t-shift 128 4 -fvk-b-shift 256 4 -fvk-u-shift 384 4
+        -fvk-s-shift 0 5 -fvk-t-shift 128 5 -fvk-b-shift 256 5 -fvk-u-shift 384 5
+        -fvk-s-shift 0 6 -fvk-t-shift 128 6 -fvk-b-shift 256 6 -fvk-u-shift 384 6
+        -fvk-s-shift 0 7 -fvk-t-shift 128 7 -fvk-b-shift 256 7 -fvk-u-shift 384 7
     DEPENDS ${HLSL_NRD_CS_SRC})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(HLSL_NRD_CS_SRC)

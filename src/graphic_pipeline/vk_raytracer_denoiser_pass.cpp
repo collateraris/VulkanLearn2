@@ -7,13 +7,22 @@
 #include <vk_command_buffer.h>
 #include <vk_render_pipeline.h>
 #include <vk_material_system.h>
-#include <vk_material_system.h>
 #include <vk_shaders.h>
 #include <vk_raytracer_builder.h>
 #include <vk_initializers.h>
 #include <sys_config/vk_strings.h>
 
 namespace NrdConfig {
+	
+	#define SAMPLER_SHIFT 0 // sampler (read-only) aka VK_DESCRIPTOR_TYPE_SAMPLER - using s# registers 
+	#define	SRV_SHIFT 128 // shader resource view (read-only) aka VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE - using t# registers
+	#define	CBV_SHIFT 256 // constant buffer view (read-only) aka VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER - using b# registers
+	#define UAV_SHIFT 384 // unordered access view (read-write) aka VK_DESCRIPTOR_TYPE_STORAGE_IMAGE - using u# registers
+
+	#define  kMaxSceneDistance                  50000.0         // used as a general max distance between any two surface points in the scene, excluding environment map - should be less than kMaxRayTravel; 50k is within fp16 floats; note: actual sceneLength can be longer due to bounces.
+	#define  kMaxRayTravel                      (1e15f)         // one AU is ~1.5e11; 1e15 is high enough to use as environment map distance to avoid parallax but low enough to avoid precision issues with various packing and etc.
+
+	#define  cStablePlaneCount                  (3u)            // more than 3 is not supported although 4 could be supported if needed (with some reshuffling)
 
 	nrd::RelaxDiffuseSpecularSettings getDefaultRELAXSettings() {
 
@@ -176,6 +185,34 @@ void VulkanRaytracerDenoiserPass::init(VulkanEngine* engine)
 
 	m_ConstantBuffer = _engine->create_cpu_to_gpu_buffer(instanceDesc.constantBufferMaxDataSize * instanceDesc.descriptorPoolDesc.setsMaxNum * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
+	for (uint32_t samplerIndex = 0; samplerIndex < instanceDesc.samplersNum; samplerIndex++)
+	{
+		const nrd::Sampler& samplerMode = instanceDesc.samplers[samplerIndex];
+
+		ESamplerType samplType;
+
+		switch (samplerMode)
+		{
+		case nrd::Sampler::NEAREST_CLAMP:
+			samplType = ESamplerType::NEAREST_CLAMP;
+			break;
+		case nrd::Sampler::NEAREST_MIRRORED_REPEAT:
+			samplType = ESamplerType::NEAREST_MIRRORED_REPEAT;
+			break;
+		case nrd::Sampler::LINEAR_CLAMP:
+			samplType = ESamplerType::LINEAR_CLAMP;
+			break;
+		case nrd::Sampler::LINEAR_MIRRORED_REPEAT:
+			samplType = ESamplerType::LINEAR_MIRRORED_REPEAT;
+			break;
+		default:
+			assert(!"Unknown NRD sampler mode");
+			break;
+		}
+
+		m_Samplers.push_back(samplType);
+	}
+	
 	for (uint32_t i = 0; i < instanceDesc.permanentPoolSize; i++)
 	{
 		const nrd::TextureDesc& nrdTextureDesc = instanceDesc.permanentPool[i];
@@ -250,18 +287,233 @@ void VulkanRaytracerDenoiserPass::init(VulkanEngine* engine)
 
 				ComputePipelineBuilder computePipelineBuilder;
 				computePipelineBuilder.setShaders(&computeEffect);
+
 				//hook the push constants layout
 				pipelineLayout = computePipelineBuilder._pipelineLayout;
-
 				pipeline = computePipelineBuilder.build_compute_pipeline(engine->_device);
+
+				_pipelineBindingLayouts.push_back({ .shaderName = fileName, .pipType = denoiserPipType });
+				_pipelineBindingLayouts.back().bindings.clear();
+				for (const auto& [_, bind] : computeEffect.bindings)
+				{
+					_pipelineBindingLayouts.back().bindings[bind.type].push_back({ .set = bind.set, .binding = bind.binding });
+					_pipelineBindingLayouts.back().writeDescSet.push_back(
+						{
+							.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+							.dstBinding = bind.binding,
+							.descriptorCount = 1,
+							.descriptorType = bind.type,
+						});
+				}
 			});
 	}
+}
+
+void VulkanRaytracerDenoiserPass::set_params(DenoiserParams&& params)
+{
+	_params = params;
+}
+
+static inline void MatrixToNrd(float* dest, const glm::mat4& m)
+{
+	glm::mat4 tm = glm::transpose(m);
+	memcpy(dest, &m, sizeof(m));
 }
 
 
 void VulkanRaytracerDenoiserPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
+	nrd::CommonSettings commonSettings;
+	MatrixToNrd(commonSettings.worldToViewMatrix, _engine->_camera.get_view_matrix());
+	MatrixToNrd(commonSettings.worldToViewMatrixPrev, _engine->_camera.get_prev_view_matrix());
+	MatrixToNrd(commonSettings.viewToClipMatrix, _engine->_camera.get_projection_matrix(false));
+	MatrixToNrd(commonSettings.viewToClipMatrixPrev, _engine->_camera.get_prev_projection_matrix(false));
 
+	glm::vec2 pixelOffset = _engine->_camera.get_current_jitter();
+	glm::vec2 prevPixelOffset = _engine->_camera.get_prev_jitter();
+	commonSettings.isMotionVectorInWorldSpace = false;
+	commonSettings.motionVectorScale[0] = (commonSettings.isMotionVectorInWorldSpace) ? (1.f) : (1.f / _engine->_windowExtent.width);
+	commonSettings.motionVectorScale[1] = (commonSettings.isMotionVectorInWorldSpace) ? (1.f) : (1.f / _engine->_windowExtent.height);
+	commonSettings.motionVectorScale[2] = 1.0f;
+	commonSettings.cameraJitter[0] = pixelOffset.x;
+	commonSettings.cameraJitter[1] = pixelOffset.y;
+	commonSettings.cameraJitterPrev[0] = prevPixelOffset.x;
+	commonSettings.cameraJitterPrev[1] = prevPixelOffset.y;
+	commonSettings.frameIndex = current_frame_index;
+	commonSettings.denoisingRange = kMaxSceneDistance * 2;   // with various bounces (in non-primary planes or with PSR) the virtual view Z can be much longer, so adding 2x!
+	commonSettings.enableValidation = _params.enableValidation;
+	commonSettings.disocclusionThreshold = _params.disocclusionThreshold;
+	commonSettings.disocclusionThresholdAlternate = _params.disocclusionThresholdAlternate;
+	commonSettings.isDisocclusionThresholdMixAvailable = _params.useDisocclusionThresholdAlternateMix;
+	commonSettings.timeDeltaBetweenFrames = _params.timeDeltaBetweenFrames;
+
+	nrd::SetCommonSettings(*m_Instance, commonSettings);
+
+	const nrd::DispatchDesc* dispatchDescs = nullptr;
+	uint32_t dispatchDescNum = 0;
+	nrd::GetComputeDispatches(*m_Instance, &m_Identifier, 1, dispatchDescs, dispatchDescNum);
+
+	const nrd::InstanceDesc& instanceDesc = nrd::GetInstanceDesc(*m_Instance);
+	for (uint32_t dispatchIndex = 0; dispatchIndex < dispatchDescNum; dispatchIndex++)
+	{
+		const nrd::DispatchDesc& dispatchDesc = dispatchDescs[dispatchIndex];
+
+		PipelineDesc& pipDesc = _pipelineBindingLayouts[dispatchDesc.pipelineIndex];
+
+		if (pipDesc.bindings.find(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) != pipDesc.bindings.end())
+		{
+			_engine->write_buffer(_engine->_allocator, m_ConstantBuffer._allocation, dispatchDesc.constantBufferData, dispatchDesc.constantBufferDataSize);
+
+			pipDesc.bindings[VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER][0].bufferInfo = {
+				.buffer = m_ConstantBuffer._buffer,
+				.offset = 0,
+				.range = m_ConstantBuffer._size
+			};
+
+			for (size_t i = 0; i < pipDesc.writeDescSet.size(); i++)
+			{
+				if (pipDesc.writeDescSet[i].descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+				{
+					pipDesc.writeDescSet[i].pBufferInfo = &pipDesc.bindings[VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER][0].bufferInfo;
+					break;
+				}
+			}
+		}
+
+		if (pipDesc.bindings.find(VK_DESCRIPTOR_TYPE_SAMPLER) != pipDesc.bindings.end())
+		{
+			for (size_t i = 0; i < pipDesc.bindings[VK_DESCRIPTOR_TYPE_SAMPLER].size(); i++)
+			{
+				ESamplerType smpType = m_Samplers[pipDesc.bindings[VK_DESCRIPTOR_TYPE_SAMPLER][i].binding];
+				pipDesc.bindings[VK_DESCRIPTOR_TYPE_SAMPLER][i].imageInfo = {
+					.sampler = _engine->get_engine_sampler(smpType)->sampler
+				};		
+			}
+
+			size_t samplerCount = 0;
+			for (size_t i = 0; i < pipDesc.writeDescSet.size(); i++)
+			{
+				if (pipDesc.writeDescSet[i].descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER)
+				{
+					pipDesc.writeDescSet[i].pImageInfo = &pipDesc.bindings[VK_DESCRIPTOR_TYPE_SAMPLER][samplerCount].imageInfo;
+					samplerCount++;
+				}
+			}
+		}
+
+		const nrd::PipelineDesc& nrdPipelineDesc = instanceDesc.pipelines[dispatchDesc.pipelineIndex];
+		uint32_t resourceIndex = 0;
+
+		std::vector<VkDescriptorImageInfo> imageInfoList = {};
+
+		for (uint32_t descriptorRangeIndex = 0; descriptorRangeIndex < nrdPipelineDesc.resourceRangesNum; descriptorRangeIndex++)
+		{
+			const nrd::ResourceRangeDesc& nrdDescriptorRange = nrdPipelineDesc.resourceRanges[descriptorRangeIndex];
+
+			for (uint32_t descriptorOffset = 0; descriptorOffset < nrdDescriptorRange.descriptorsNum; descriptorOffset++)
+			{
+				assert(resourceIndex < dispatchDesc.resourcesNum);
+				const nrd::ResourceDesc& resource = dispatchDesc.resources[resourceIndex];
+
+				assert(resource.stateNeeded == nrdDescriptorRange.descriptorType);
+
+				Texture* texture;
+				switch (resource.type)
+				{
+				case nrd::ResourceType::IN_MV:
+					texture = _engine->get_engine_texture(ETextureResourceNames::DenoiserMotionVectors);
+					break;
+				case nrd::ResourceType::IN_NORMAL_ROUGHNESS:
+					texture = _engine->get_engine_texture(ETextureResourceNames::DenoiserNormalRoughness);
+					break;
+				case nrd::ResourceType::IN_VIEWZ:
+					texture = _engine->get_engine_texture(ETextureResourceNames::DenoiserViewspaceZ);
+					break;
+				case nrd::ResourceType::IN_SPEC_RADIANCE_HITDIST:
+					texture = _engine->get_engine_texture(ETextureResourceNames::DenoiserSpecRadianceHitDist);
+					break;
+				case nrd::ResourceType::IN_DIFF_RADIANCE_HITDIST:
+					texture = _engine->get_engine_texture(ETextureResourceNames::DenoiserDiffRadianceHitDist);
+					break;
+				case nrd::ResourceType::OUT_SPEC_RADIANCE_HITDIST:
+				{
+					ETextureResourceNames rtName = static_cast<ETextureResourceNames>(static_cast<uint32_t>(ETextureResourceNames::DenoiserOutSpecRadianceHitDist_0) + _params.pass);
+					texture = _engine->get_engine_texture(ETextureResourceNames::DenoiserDiffRadianceHitDist);
+				}
+					break;
+				case nrd::ResourceType::OUT_DIFF_RADIANCE_HITDIST:
+				{
+					ETextureResourceNames rtName = static_cast<ETextureResourceNames>(static_cast<uint32_t>(ETextureResourceNames::DenoiserOutDiffRadianceHitDist_0) + _params.pass);
+					texture = _engine->get_engine_texture(ETextureResourceNames::DenoiserDiffRadianceHitDist);
+				}
+					break;
+				case nrd::ResourceType::OUT_VALIDATION:
+					texture = _engine->get_engine_texture(ETextureResourceNames::DenoiserOutValidation);
+					break;
+				case nrd::ResourceType::IN_DISOCCLUSION_THRESHOLD_MIX:
+					texture = _engine->get_engine_texture(ETextureResourceNames::DenoiserDisocclusionThresholdMix);
+					break;
+				case nrd::ResourceType::TRANSIENT_POOL:
+					texture = &m_TransientTextures[resource.indexInPool];
+					break;
+				case nrd::ResourceType::PERMANENT_POOL:
+					texture = &m_PermanentTextures[resource.indexInPool];
+					break;
+				default:
+					assert(!"Unavailable resource type");
+					break;
+				}
+
+				assert(texture);
+
+				if (pipDesc.bindings.find(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE) != pipDesc.bindings.end())
+				{
+					uint32_t bindingIndex = nrdDescriptorRange.baseRegisterIndex + descriptorOffset;
+
+					pipDesc.bindings[VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE][bindingIndex].imageInfo = {
+						.imageView = texture->imageView,
+						.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+					};
+
+					for (size_t i = 0; i < pipDesc.writeDescSet.size(); i++)
+					{
+						if (pipDesc.writeDescSet[i].dstBinding == bindingIndex + SRV_SHIFT)
+						{
+							pipDesc.writeDescSet[i].pImageInfo = &pipDesc.bindings[VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE][bindingIndex].imageInfo;
+							break;
+						}
+					}
+				} 
+				else if (pipDesc.bindings.find(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) != pipDesc.bindings.end())
+				{
+					uint32_t bindingIndex = nrdDescriptorRange.baseRegisterIndex + descriptorOffset;
+
+					pipDesc.bindings[VK_DESCRIPTOR_TYPE_STORAGE_IMAGE][bindingIndex].imageInfo = {
+						.imageView = texture->imageView,
+						.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+					};
+
+					for (size_t i = 0; i < pipDesc.writeDescSet.size(); i++)
+					{
+						if (pipDesc.writeDescSet[i].dstBinding == bindingIndex + UAV_SHIFT)
+						{
+							pipDesc.writeDescSet[i].pImageInfo = &pipDesc.bindings[VK_DESCRIPTOR_TYPE_STORAGE_IMAGE][bindingIndex].imageInfo;
+							break;
+						}
+					}
+				}
+
+				resourceIndex++;
+			}
+		}
+
+		assert(resourceIndex == dispatchDesc.resourcesNum);
+
+		cmd->dispatch(dispatchDesc.gridWidth, dispatchDesc.gridHeight, 1, [&](VkCommandBuffer cmd) {
+			  vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipeline(pipDesc.pipType));
+			  vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(pipDesc.pipType), 0, pipDesc.writeDescSet.size(), pipDesc.writeDescSet.data());
+			});
+	}
 }
 
 void VulkanRaytracerDenoiserPass::init_denoiser_textures()

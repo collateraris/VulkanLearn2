@@ -235,3 +235,13 @@ void PlayerCamera::update_jitter(float w, float h)
 	// Give our jitter to the scene camera
 	set_jitter(xOff / w, yOff / h);
 }
+
+glm::vec2 PlayerCamera::get_current_jitter()
+{
+	return glm::vec2(jitterX, jitterY);
+}
+
+glm::vec2 PlayerCamera::get_prev_jitter()
+{
+	return glm::vec2(prevJitterX, prevJitterY);
+}

@@ -55,6 +55,10 @@ private:
 		std::vector<VkDescriptorSetLayoutBinding> bindings;
 	};
 
+	std::vector<DescriptorSetLayoutData> set_layouts;
+
+	std::vector<VkPushConstantRange> constant_ranges;
+
 	std::vector<ShaderStage> stages;
 };
 
