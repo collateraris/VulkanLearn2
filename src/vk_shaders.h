@@ -30,6 +30,8 @@ struct ShaderEffect {
 
 	size_t add_stage(ShaderModule* shaderModule, VkShaderStageFlagBits stage);
 
+	void set_user_flag(VkDescriptorSetLayoutCreateFlagBits flag);
+
 	void reflect_layout(VkDevice device, ReflectionOverrides* overrides, int overrideCount);
 
 	void fill_stages(std::vector<VkPipelineShaderStageCreateInfo>& pipelineStages);
@@ -60,6 +62,8 @@ private:
 	std::vector<VkPushConstantRange> constant_ranges;
 
 	std::vector<ShaderStage> stages;
+
+	std::optional<VkDescriptorSetLayoutCreateFlagBits> user_flag;
 };
 
 struct ShaderDescriptorBinder {

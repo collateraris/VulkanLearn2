@@ -283,6 +283,7 @@ void VulkanRaytracerDenoiserPass::init(VulkanEngine* engine)
 
 				ShaderEffect computeEffect;
 				computeEffect.add_stage(_engine->_shaderCache.get_shader(fileName + ".hlsl.spv"), VK_SHADER_STAGE_COMPUTE_BIT);
+				computeEffect.set_user_flag(VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR);
 				computeEffect.reflect_layout(_engine->_device, nullptr, 0);
 
 				ComputePipelineBuilder computePipelineBuilder;
@@ -465,14 +466,19 @@ void VulkanRaytracerDenoiserPass::draw(VulkanCommandBuffer* cmd, int current_fra
 				}
 
 				assert(texture);
+				assert(texture->imageView);
 
-				if (pipDesc.bindings.find(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE) != pipDesc.bindings.end())
+				EResourceType type = (nrdDescriptorRange.descriptorType == nrd::DescriptorType::TEXTURE)
+					? EResourceType::Texture_SRV
+					: EResourceType::Texture_UAV;
+
+				if (type == EResourceType::Texture_SRV && pipDesc.bindings.find(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE) != pipDesc.bindings.end())
 				{
 					uint32_t bindingIndex = nrdDescriptorRange.baseRegisterIndex + descriptorOffset;
 
 					pipDesc.bindings[VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE][bindingIndex].imageInfo = {
 						.imageView = texture->imageView,
-						.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+						.imageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 					};
 
 					for (size_t i = 0; i < pipDesc.writeDescSet.size(); i++)
@@ -480,11 +486,12 @@ void VulkanRaytracerDenoiserPass::draw(VulkanCommandBuffer* cmd, int current_fra
 						if (pipDesc.writeDescSet[i].dstBinding == bindingIndex + SRV_SHIFT)
 						{
 							pipDesc.writeDescSet[i].pImageInfo = &pipDesc.bindings[VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE][bindingIndex].imageInfo;
+							assert(pipDesc.writeDescSet[i].pImageInfo);
 							break;
 						}
 					}
 				} 
-				else if (pipDesc.bindings.find(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) != pipDesc.bindings.end())
+				else if (type == EResourceType::Texture_UAV && pipDesc.bindings.find(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) != pipDesc.bindings.end())
 				{
 					uint32_t bindingIndex = nrdDescriptorRange.baseRegisterIndex + descriptorOffset;
 
@@ -498,6 +505,7 @@ void VulkanRaytracerDenoiserPass::draw(VulkanCommandBuffer* cmd, int current_fra
 						if (pipDesc.writeDescSet[i].dstBinding == bindingIndex + UAV_SHIFT)
 						{
 							pipDesc.writeDescSet[i].pImageInfo = &pipDesc.bindings[VK_DESCRIPTOR_TYPE_STORAGE_IMAGE][bindingIndex].imageInfo;
+							assert(pipDesc.writeDescSet[i].pImageInfo);
 							break;
 						}
 					}

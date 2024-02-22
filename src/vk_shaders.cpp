@@ -102,6 +102,11 @@ size_t ShaderEffect::add_stage(ShaderModule* shaderModule, VkShaderStageFlagBits
 	return index;
 }
 
+void ShaderEffect::set_user_flag(VkDescriptorSetLayoutCreateFlagBits flag)
+{
+	user_flag = flag;
+}
+
 void ShaderEffect::reflect_layout(VkDevice device, ReflectionOverrides* overrides, int overrideCount)
 {
 	for (auto& s : stages) {
@@ -219,6 +224,8 @@ void ShaderEffect::reflect_layout(VkDevice device, ReflectionOverrides* override
 		ly.create_info.bindingCount = (uint32_t)ly.bindings.size();
 		ly.create_info.pBindings = ly.bindings.data();
 		ly.create_info.flags = 0;
+		if (user_flag.has_value())
+			ly.create_info.flags = user_flag.value();
 		ly.create_info.pNext = 0;
 
 
