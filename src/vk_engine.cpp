@@ -126,6 +126,9 @@ void VulkanEngine::init()
 	}
 #endif
 
+#if GBUFFER_ON
+	_gBufGenerateGraphicsPipeline.init(this);
+#endif	
 #if GI_RAYTRACER_ON
 	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
 	_giRtGraphicsPipeline.init(this);
@@ -216,6 +219,14 @@ void VulkanEngine::draw()
 				memcpy(data, &camData, sizeof(GPUCameraData));
 				});
 
+#if GBUFFER_ON
+			{
+				VulkanGbufferGenerateGraphicsPipeline::SGlobalCamera globalCameraData;
+				globalCameraData.viewProj = projection * view;
+				_gBufGenerateGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
+			}
+#endif
+
 #if GI_RAYTRACER_ON
 			{
 				_giRtGraphicsPipeline.try_reset_accumulation(_camera);
@@ -233,7 +244,10 @@ void VulkanEngine::draw()
 		//clear depth at 1
 		VkClearValue depthClear;
 		depthClear.depthStencil.depth = 1.f;
-
+#if GBUFFER_ON
+		_gBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+		_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_shading(&get_current_frame()._mainCommandBuffer);
+#endif		
 #if GI_RAYTRACER_ON
 		_giRtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif
@@ -276,6 +290,11 @@ void VulkanEngine::draw()
 			//finalize the render pass
 			vkCmdEndRenderPass(cmd);
 		}
+#if GBUFFER_ON
+		{
+			_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_generate(&get_current_frame()._mainCommandBuffer);
+		}
+#endif		
 		//_depthReduceRenderPass.compute_pass(cmd, _frameNumber% FRAME_OVERLAP, { Resources{ &_depthTex} });
 
 		vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, get_current_frame().queryPool, 1);

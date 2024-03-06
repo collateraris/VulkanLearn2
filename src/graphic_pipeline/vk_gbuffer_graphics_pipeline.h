@@ -45,7 +45,7 @@ private:
 
 	void init_gbuffer_tex();
 	void init_render_pass();
-	void init_scene_buffer(const std::vector<RenderObject>& renderables, const std::vector<std::unique_ptr<Mesh>>& meshList);
+	void init_scene_buffer(const std::vector<RenderObject>& renderables);
 	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList);
 
 	VulkanEngine* _engine = nullptr;

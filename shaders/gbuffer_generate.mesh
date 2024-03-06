@@ -77,13 +77,13 @@ void main()
 		uint vi = MeshletData[meshletIndex].meshletData[vertexOffset + i];
 		SVertex vert = Vertex[meshletIndex].vertices[vi];
 
-		vec3 position = vec3(vert.vx, vert.vy, vert.vz);
-
+		vec3 position = vert.positionXYZ_normalX.xyz;
 		position = vec3(modelMatrix * vec4(position, 1.0f));
 
-		vec3 normal = vec3(int(vert.nx), int(vert.ny), int(vert.nz)) / 127.0 - 1.0;
+		vec3 normal = vec3(vert.positionXYZ_normalX.w, vert.normalYZ_texCoordUV.x, vert.normalYZ_texCoordUV.y);
 		normal = normalize(normalMatrix * normal);
-		vec2 texcoord = vec2(vert.tu, vert.tv);
+		
+		vec2 texcoord = vec2(vert.normalYZ_texCoordUV.zw);
 
 		gl_MeshVerticesNV[i].gl_Position = cameraData.viewProj * vec4(position, 1.0f);
 		v_out[i].wpos = position;

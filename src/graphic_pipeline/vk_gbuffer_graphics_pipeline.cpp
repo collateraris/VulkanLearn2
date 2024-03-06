@@ -16,7 +16,7 @@ void VulkanGbufferGenerateGraphicsPipeline::init(VulkanEngine* engine)
 
 	init_gbuffer_tex();
 	init_render_pass();
-	init_scene_buffer(_engine->_renderables, _engine->_resManager.meshList);
+	init_scene_buffer(_engine->_resManager.renderables);
 	init_bindless(_engine->_resManager.meshList);
 
 	{
@@ -321,30 +321,8 @@ void VulkanGbufferGenerateGraphicsPipeline::init_render_pass()
 	}
 }
 
-void VulkanGbufferGenerateGraphicsPipeline::init_scene_buffer(const std::vector<RenderObject>& renderables, const std::vector<std::unique_ptr<Mesh>>& meshList)
+void VulkanGbufferGenerateGraphicsPipeline::init_scene_buffer(const std::vector<RenderObject>& renderables)
 {
-	for (auto& mesh : meshList)
-	{
-		mesh->remapVertexToVertexMS()
-			.buildMeshlets();
-
-		{
-			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_verticesMS.size() * sizeof(Vertex_MS));
-
-			mesh->_vertexBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->_verticesMS.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		}
-		{
-			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_meshlets.size() * sizeof(Meshlet));
-
-			mesh->_meshletsBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->_meshlets.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		}
-
-		{
-			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->meshletdata.size() * sizeof(uint32_t));
-
-			mesh->_meshletdataBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->meshletdata.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		}
-	}
 
 	_objectsSize = renderables.size();
 	_objectBuffer = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanGbufferGenerateGraphicsPipeline::ObjectData) * renderables.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -386,9 +364,9 @@ void VulkanGbufferGenerateGraphicsPipeline::init_scene_buffer(const std::vector<
 	_engine->map_buffer(_engine->_allocator, _indirectBuffer._allocation, [&](void*& data) {
 		VkDrawMeshTasksIndirectCommandNV* drawCommands = (VkDrawMeshTasksIndirectCommandNV*)data;
 		//encode the draw data of each object into the indirect draw buffer
-		for (int i = 0; i < _engine->_renderables.size(); i++)
+		for (int i = 0; i < _engine->_resManager.renderables.size(); i++)
 		{
-			RenderObject& object = _engine->_renderables[i];
+			RenderObject& object = _engine->_resManager.renderables[i];
 			drawCommands[i].taskCount = (object.mesh->_meshlets.size() + 31) / 32;
 			drawCommands[i].firstTask = 0;
 		}
@@ -416,9 +394,9 @@ void VulkanGbufferGenerateGraphicsPipeline::init_bindless(const std::vector<std:
 		Mesh* mesh = _engine->_resManager.meshList[meshArrayIndex].get();
 
 		VkDescriptorBufferInfo& vertexBufferInfo = vertexBufferInfoList[meshArrayIndex];
-		vertexBufferInfo.buffer = mesh->_vertexBuffer._buffer;
+		vertexBufferInfo.buffer = mesh->_vertexBufferRT._buffer;
 		vertexBufferInfo.offset = 0;
-		vertexBufferInfo.range = mesh->_vertexBuffer._size;
+		vertexBufferInfo.range = mesh->_vertexBufferRT._size;
 
 		VkDescriptorBufferInfo& meshletBufferInfo = meshletBufferInfoList[meshArrayIndex];
 		meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;

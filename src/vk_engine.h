@@ -150,7 +150,9 @@ public:
 
 	VulkanDepthReduceRenderPass _depthReduceRenderPass;
 	std::vector<VkFramebuffer> _framebuffers;
-
+#if GBUFFER_ON
+	VulkanGbufferGenerateGraphicsPipeline _gBufGenerateGraphicsPipeline;
+#endif
 #if GI_RAYTRACER_ON
 	VulkanGbufferShadingGraphicsPipeline _gBufShadingGraphicsPipeline;
 	VulkanIblMapsGeneratorGraphicsPipeline _iblGenGraphicsPipeline;

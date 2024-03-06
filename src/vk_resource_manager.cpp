@@ -75,26 +75,20 @@ void ResourceManager::load_meshes(VulkanEngine* _engine, const std::vector<std::
 			mesh->_indicesBufferRT = _engine->create_buffer_n_copy_data(bufferSize, mesh->_indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rayTracingFlags);
 		}
 #endif
-#if MESHSHADER_ON
-		mesh->remapVertexToVertexMS()
-			.calcAddInfo()
-			.buildMeshlets();
-		{
-			size_t bufferSize = padSizeToMinStorageBufferOffsetAlignment(mesh._verticesMS.size() * sizeof(Vertex_MS));
+#if MESHSHADER_ON || GBUFFER_ON
+	mesh->buildMeshlets();
 
-			mesh._vertexBuffer = create_buffer_n_copy_data(bufferSize, mesh._verticesMS.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		}
-		{
-			size_t bufferSize = padSizeToMinStorageBufferOffsetAlignment(mesh._meshlets.size() * sizeof(Meshlet));
+	{
+		size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_meshlets.size() * sizeof(Meshlet));
 
-			mesh._meshletsBuffer = create_buffer_n_copy_data(bufferSize, mesh._meshlets.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		}
+		mesh->_meshletsBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->_meshlets.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	}
 
-		{
-			size_t bufferSize = padSizeToMinStorageBufferOffsetAlignment(mesh.meshletdata.size() * sizeof(uint32_t));
+	{
+		size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->meshletdata.size() * sizeof(uint32_t));
 
-			mesh._meshletdataBuffer = create_buffer_n_copy_data(bufferSize, mesh.meshletdata.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		}
+		mesh->_meshletdataBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->meshletdata.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	}
 #endif
 	}
 }

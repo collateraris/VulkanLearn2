@@ -10,9 +10,8 @@ struct SGlobalCamera
 
 struct SVertex
 {
-	float vx, vy, vz;
-	uint8_t nx, ny, nz, nw;
-	float16_t tu, tv;
+	vec4 positionXYZ_normalX;
+	vec4 normalYZ_texCoordUV;
 };
 
 struct SMeshlet

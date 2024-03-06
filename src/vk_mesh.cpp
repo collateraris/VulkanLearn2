@@ -4,30 +4,6 @@
 
 #if MESHSHADER_ON || GBUFFER_ON
 
-Mesh& Mesh::remapVertexToVertexMS()
-{
-	_verticesMS.clear();
-	for (const Vertex& vert: _vertices)
-	{
-		Vertex_MS vertMS;
-		vertMS.vx = vert.positionXYZ_normalX.x;
-		vertMS.vy = vert.positionXYZ_normalX.y;
-		vertMS.vz = vert.positionXYZ_normalX.z;
-
-		vertMS.nx = uint8_t(vert.positionXYZ_normalX.w * 127.f + 127.f);
-		vertMS.ny = uint8_t(vert.normalYZ_texCoordUV.x * 127.f + 127.f);
-		vertMS.nz = uint8_t(vert.normalYZ_texCoordUV.y * 127.f + 127.f);
-		vertMS.nw = 0;
-
-		vertMS.tu = meshopt_quantizeHalf(vert.normalYZ_texCoordUV.z);
-		vertMS.tv = meshopt_quantizeHalf(vert.normalYZ_texCoordUV.w);
-
-		_verticesMS.emplace_back(vertMS);
-	}
-
-	return *this;
-}
-
 void Mesh::buildMeshlets()
 {
 	const size_t max_vertices = 64;
@@ -40,7 +16,7 @@ void Mesh::buildMeshlets()
 	std::vector<unsigned char> meshlet_triangles(max_meshlets * max_triangles * 3);
 
 	size_t meshlet_count = meshopt_buildMeshlets(meshlets.data(), meshlet_vertices.data(), meshlet_triangles.data(), _indices.data(),
-		_indices.size(), &_verticesMS[0].vx, _verticesMS.size(), sizeof(Vertex_MS), max_vertices, max_triangles, cone_weight);
+		_indices.size(), &_vertices[0].positionXYZ_normalX.x, _vertices.size(), sizeof(Vertex), max_vertices, max_triangles, cone_weight);
 
 	meshlets.resize(meshlet_count);
 

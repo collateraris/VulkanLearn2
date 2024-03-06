@@ -19,13 +19,6 @@ struct Vertex {
 	static VertexInputDescription get_vertex_description();
 };
 
-struct Vertex_MS
-{
-	float vx, vy, vz;
-	uint8_t nx, ny, nz, nw;
-	uint16_t tu, tv;
-};
-
 struct Vertex_VisB
 {
 	glm::vec4 position;
@@ -50,7 +43,6 @@ struct alignas(16) GPUObjectData {
 struct Mesh {
 	std::vector<Vertex> _vertices;
 	std::vector<uint32_t> _indices;
-	std::vector<Vertex_MS> _verticesMS;
 #if VBUFFER_ON
 	std::vector<Vertex_VisB> _verticesVisB;
 #endif
@@ -78,7 +70,6 @@ struct Mesh {
 	float _radius = 0;
 
 #if MESHSHADER_ON || GBUFFER_ON
-	Mesh& remapVertexToVertexMS();
 	void buildMeshlets();
 #endif
 #if VBUFFER_ON
