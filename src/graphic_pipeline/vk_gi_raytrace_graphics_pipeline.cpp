@@ -18,8 +18,8 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 
 	{
 		create_blas(_engine->_resManager.meshList);
-		create_tlas(_engine->_renderables);
-		init_global_buffers(_engine->_renderables);
+		create_tlas(_engine->_resManager.renderables);
+		init_global_buffers();
 		init_scene_descriptors(_engine->_resManager.meshList, _engine->_resManager.textureList, _rtBuilder.get_acceleration_structure());
 	}
 
@@ -45,20 +45,6 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::create_blas(const std::vector<st
 	allBlas.reserve(meshList.size());
 	for (auto& mesh : meshList)
 	{
-		VkBufferUsageFlags flag = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-		VkBufferUsageFlags rayTracingFlags =  // used also for building acceleration structures
-			flag | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-		{
-			size_t bufferSize = mesh->_vertices.size() * sizeof(Vertex);
-
-			mesh->_vertexBufferRT = _engine->create_buffer_n_copy_data(bufferSize, mesh->_vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | rayTracingFlags);
-		}
-		{
-			size_t bufferSize = mesh->_indices.size() * sizeof(uint32_t);
-
-			mesh->_indicesBufferRT = _engine->create_buffer_n_copy_data(bufferSize, mesh->_indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rayTracingFlags);
-		}
-
 		allBlas.emplace_back(create_blas_input(*mesh));
 	}
 
@@ -175,9 +161,9 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std
 			lightsInfo.range = _engine->_lightManager.get_light_buffer(i)._size;
 
 			VkDescriptorBufferInfo objectBufferInfo;
-			objectBufferInfo.buffer = _objectBuffer._buffer;
+			objectBufferInfo.buffer = _engine->_resManager.globalObjectBuffer._buffer;
 			objectBufferInfo.offset = 0;
-			objectBufferInfo.range = _objectBuffer._size;
+			objectBufferInfo.range = _engine->_resManager.globalObjectBuffer._size;
 
 			EDescriptorResourceNames currentDesciptor = i == 0 ? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0 : EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
 
@@ -191,26 +177,8 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std
 	}
 }
 
-void VulkanGIShadowsRaytracingGraphicsPipeline::init_global_buffers(const std::vector<RenderObject>& renderables)
+void VulkanGIShadowsRaytracingGraphicsPipeline::init_global_buffers()
 {
-	_objectBuffer = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanGIShadowsRaytracingGraphicsPipeline::ObjectData) * renderables.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-
-	_engine->map_buffer(_engine->_allocator, _objectBuffer._allocation, [&](void*& data) {
-		VulkanGIShadowsRaytracingGraphicsPipeline::ObjectData* objectSSBO = (VulkanGIShadowsRaytracingGraphicsPipeline::ObjectData*)data;
-
-		for (int i = 0; i < renderables.size(); i++)
-		{
-			const RenderObject& object = renderables[i];
-			objectSSBO[i].meshIndex = object.meshIndex;
-			objectSSBO[i].diffuseTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->diffuseTextureIndex;
-			objectSSBO[i].normalTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->normalTextureIndex;
-			objectSSBO[i].metalnessTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->metalnessTextureIndex;
-			objectSSBO[i].roughnessTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->roughnessTextureIndex;
-			objectSSBO[i].emissionTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->emissionTextureIndex;
-			objectSSBO[i].opacityTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->opacityTextureIndex;
-		}
-		});
-
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
 		_globalUniformsBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);

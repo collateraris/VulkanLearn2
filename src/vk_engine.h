@@ -48,8 +48,6 @@ struct Material {
 struct RenderObject {
 	Mesh* mesh;
 
-	Material* material;
-
 	glm::mat4 transformMatrix;
 	int meshIndex;
 	int matDescIndex;
@@ -57,7 +55,7 @@ struct RenderObject {
 
 struct IndirectBatch {
 	Mesh* mesh;
-	Material* material;
+	int matDescIndex;
 	glm::mat4 transformMatrix;
 	uint32_t first;
 	uint32_t count;
@@ -216,11 +214,6 @@ public:
 
 	VmaAllocator _allocator; //vma lib allocator
 
-	//default array of renderable objects
-	std::vector<RenderObject> _renderables;
-
-	std::vector<IndirectBatch> _indirectBatchRO;
-
 	PlayerCamera _camera;
 
 	ShaderCache _shaderCache;
@@ -282,10 +275,6 @@ public:
 
 	VkDeviceAddress get_buffer_device_address(VkBuffer buffer);
 
-	void upload_mesh(Mesh& mesh);
-
-	void load_images();
-
 	static std::string asset_path(std::string_view path);
 
 	static std::string shader_path(std::string_view path);
@@ -298,8 +287,6 @@ public:
 private:
 
 	void init_vulkan();
-
-	void init_samplers();
 
 	void init_swapchain();
 
@@ -316,8 +303,6 @@ private:
 	void init_scene();
 
 	void init_bindless_scene();
-
-	void load_meshes();
 
 	void load_materials(VkPipeline pipeline, VkPipelineLayout layout);
 

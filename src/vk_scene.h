@@ -1,11 +1,6 @@
 #pragma once
 
-#include <string>
-#include <unordered_map>
-#include <vector>
-
-#include <glm/glm.hpp>
-#include <glm/ext.hpp>
+#include <vk_types.h>
 
 class SceneDef
 {

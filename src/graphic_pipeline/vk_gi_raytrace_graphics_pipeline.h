@@ -20,17 +20,6 @@ struct PlayerCamera;
 
 class VulkanGIShadowsRaytracingGraphicsPipeline
 {
-	struct alignas(16) ObjectData
-	{
-		uint32_t meshIndex;
-		uint32_t diffuseTexIndex;
-		int32_t normalTexIndex = -1;
-		int32_t metalnessTexIndex = -1;
-		int32_t roughnessTexIndex = -1;
-		int32_t emissionTexIndex = -1;
-		int32_t opacityTexIndex = -1;
-		uint32_t pad;
-	};
 public:
 	struct alignas(16) GlobalGIParams
 	{
@@ -58,14 +47,13 @@ private:
 	void create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList);
 	void create_tlas(const std::vector<RenderObject>& renderables);
 	void init_scene_descriptors(const std::vector<std::unique_ptr<Mesh>>& meshList, const std::vector<Texture*>& textureList, VkAccelerationStructureKHR  tlas);
-	void init_global_buffers(const std::vector<RenderObject>& renderables);
+	void init_global_buffers();
 
 	VulkanRaytracerBuilder::BlasInput create_blas_input(Mesh& mesh);
 
 	VulkanEngine* _engine = nullptr;
 
 	std::array<AllocatedBuffer, 2> _globalUniformsBuffer;
-	AllocatedBuffer _objectBuffer;
 
 	VulkanRaytracerBuilder _rtBuilder;
 

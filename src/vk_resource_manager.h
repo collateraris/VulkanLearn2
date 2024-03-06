@@ -3,6 +3,11 @@
 #include <vk_types.h>
 #include <vk_mesh.h>
 
+class VulkanEngine;
+struct RenderObject;
+struct IndirectBatch;
+struct Scene;
+
 struct MaterialDesc
 {
 	std::string matName = {};
@@ -20,6 +25,18 @@ struct MaterialDesc
 	int32_t opacityTextureIndex = -1;
 };
 
+struct alignas(16) GlobalObjectData
+{
+	uint32_t meshIndex;
+	uint32_t diffuseTexIndex;
+	int32_t normalTexIndex = -1;
+	int32_t metalnessTexIndex = -1;
+	int32_t roughnessTexIndex = -1;
+	int32_t emissionTexIndex = -1;
+	int32_t opacityTexIndex = -1;
+	uint32_t pad;
+};
+
 class ResourceManager
 {
 public:
@@ -31,6 +48,12 @@ public:
 	std::vector<std::unique_ptr<Mesh>> meshList;
 	std::vector<std::unique_ptr<MaterialDesc>> matDescList; 
 	std::vector<Texture*> textureList;
+
+	//default array of renderable objects
+	std::vector<RenderObject> renderables;
+	std::vector<IndirectBatch> indirectBatchRO;
+	AllocatedBuffer globalObjectBuffer;
+
 
 	glm::vec3 maxCube = { std::numeric_limits<float>::min(), std::numeric_limits<float>::min(), std::numeric_limits<float>::min()};
 	glm::vec3 minCube = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
@@ -45,4 +68,12 @@ public:
 
 	AllocateDescriptor* create_engine_descriptor(EDescriptorResourceNames descrNameId);
 	AllocateDescriptor* get_engine_descriptor(EDescriptorResourceNames descrNameId);
+
+	static void load_meshes(VulkanEngine* _engine, const std::vector<std::unique_ptr<Mesh>>& meshList);
+	static void load_images(VulkanEngine* _engine, const std::unordered_map<std::string, std::unique_ptr<Texture>>& textureCache);
+	static void init_samplers(VulkanEngine* _engine, ResourceManager& resManager);
+
+	static std::vector<IndirectBatch> compact_draws(RenderObject* objects, int count);
+	static void init_scene(VulkanEngine* _engine, ResourceManager& resManager, Scene& scene);
+
 };

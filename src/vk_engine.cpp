@@ -68,7 +68,7 @@ void VulkanEngine::init()
 
 	_shaderCache.init(_device);
 
-	init_samplers();
+	ResourceManager::init_samplers(this, _resManager);
 
 	//create the swapchain
 	init_swapchain();
@@ -85,9 +85,9 @@ void VulkanEngine::init()
 
 	init_imgui();
 
-	load_images();
+	ResourceManager::load_images(this, _resManager.textureCache);
 
-	load_meshes();
+	ResourceManager::load_meshes(this, _resManager.meshList);
 
 	init_scene();
 #if MESHSHADER_ON || VBUFFER_ON || GBUFFER_ON || GI_RAYTRACER_ON || IBL_GENERATOR_ON
@@ -599,57 +599,6 @@ void VulkanEngine::init_vulkan()
 	std::cout << "The GPU has a minimum buffer alignment of " << _gpuProperties.limits.minUniformBufferOffsetAlignment << std::endl;
 }
 
-void VulkanEngine::init_samplers()
-{
-	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::NEAREST_REPEAT))
-	{
-		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST, VK_SAMPLER_ADDRESS_MODE_REPEAT);
-
-		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
-		alloc_sampler->samplerType = ESamplerType::NEAREST_REPEAT;
-	}
-
-	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::NEAREST_CLAMP))
-	{
-		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER);
-
-		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
-		alloc_sampler->samplerType = ESamplerType::NEAREST_CLAMP;
-	}
-
-	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::NEAREST_MIRRORED_REPEAT))
-	{
-		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT);
-
-		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
-		alloc_sampler->samplerType = ESamplerType::NEAREST_MIRRORED_REPEAT;
-	}
-
-	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::LINEAR_REPEAT))
-	{
-		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
-
-		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
-		alloc_sampler->samplerType = ESamplerType::LINEAR_REPEAT;
-	}
-
-	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::LINEAR_CLAMP))
-	{
-		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER);
-
-		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
-		alloc_sampler->samplerType = ESamplerType::LINEAR_CLAMP;
-	}
-
-	if (AllocatedSampler* alloc_sampler = _resManager.create_engine_sampler(ESamplerType::LINEAR_MIRRORED_REPEAT))
-	{
-		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT);
-
-		vkCreateSampler(_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
-		alloc_sampler->samplerType = ESamplerType::LINEAR_MIRRORED_REPEAT;
-	}
-}
-
 void VulkanEngine::init_swapchain()
 {
 	vkb::SwapchainBuilder swapchainBuilder{_chosenPhysicalDeviceGPU, _device, _surface };
@@ -895,57 +844,6 @@ void VulkanEngine::init_pipelines() {
 #if MESHSHADER_ON
 	_depthReduceRenderPass.init_pipelines();
 #endif	
-}
-
-void VulkanEngine::load_meshes()
-{
-	for (auto& mesh: _resManager.meshList)
-	{
-#if MESHSHADER_ON
-		mesh->remapVertexToVertexMS()
-			.calcAddInfo()
-			.buildMeshlets();
-#endif // MESHSHADER_ON
-		upload_mesh(*mesh);
-	}
-}
-
-void VulkanEngine::upload_mesh(Mesh& mesh)
-{
-#if MESHSHADER_ON
-		{
-			size_t bufferSize = padSizeToMinStorageBufferOffsetAlignment(mesh._verticesMS.size() * sizeof(Vertex_MS));
-
-			mesh._vertexBuffer = create_buffer_n_copy_data(bufferSize, mesh._verticesMS.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		}
-		{
-			size_t bufferSize = padSizeToMinStorageBufferOffsetAlignment(mesh._meshlets.size() * sizeof(Meshlet));
-
-			mesh._meshletsBuffer = create_buffer_n_copy_data(bufferSize, mesh._meshlets.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		}
-
-		{
-			size_t bufferSize = padSizeToMinStorageBufferOffsetAlignment(mesh.meshletdata.size() * sizeof(uint32_t));
-
-			mesh._meshletdataBuffer = create_buffer_n_copy_data(bufferSize, mesh.meshletdata.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-		}
-#endif
-
-}
-
-void VulkanEngine::load_images()
-{
-	for (auto& [path, texPtr]: _resManager.textureCache)
-	{
-		Texture* tex = texPtr.get();
-		VkFormat image_format;
-		if (vkutil::load_image_from_file(*this, path, *tex, image_format))
-		{
-			VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(image_format, tex->image._image, VK_IMAGE_ASPECT_COLOR_BIT);
-			imageinfo.subresourceRange.levelCount = tex->mipLevels;
-			vkCreateImageView(_device, &imageinfo, nullptr, &tex->imageView);
-		}	
-	}
 }
 
 std::string VulkanEngine::asset_path(std::string_view path)
@@ -1346,45 +1244,6 @@ Material* VulkanEngine::get_material(const std::string& name)
 	}
 }
 
-std::vector<IndirectBatch> VulkanEngine::compact_draws(RenderObject* objects, int count)
-{
-	std::vector<IndirectBatch> draws;
-
-	IndirectBatch firstDraw;
-	firstDraw.mesh = objects[0].mesh;
-	firstDraw.material = objects[0].material;
-	firstDraw.first = 0;
-	firstDraw.count = 1;
-
-	draws.push_back(firstDraw);
-
-	for (int i = 0; i < count; i++)
-	{
-		//compare the mesh and material with the end of the vector of draws
-		bool sameMesh = objects[i].mesh == draws.back().mesh;
-		bool sameMaterial = objects[i].material == draws.back().material;
-
-		if (sameMesh && sameMaterial)
-		{
-			//all matches, add count
-			draws.back().count++;
-		}
-		else
-		{
-			//add new draw
-			IndirectBatch newDraw;
-			newDraw.mesh = objects[i].mesh;
-			newDraw.material = objects[i].material;
-			newDraw.transformMatrix = objects[i].transformMatrix;
-			newDraw.first = i;
-			newDraw.count = 1;
-
-			draws.push_back(newDraw);
-		}
-	}
-	return draws;
-}
-
 void VulkanEngine::compute_pass(VkCommandBuffer cmd)
 {
 #if MESHSHADER_ON
@@ -1428,27 +1287,7 @@ void VulkanEngine::draw_objects(VkCommandBuffer cmd, RenderObject* first, int co
 
 void VulkanEngine::init_scene()
 {
-	std::unordered_map<int, std::unordered_map<int, std::vector<RenderObject>>> renderablesMap;
-
-	for (int nodeIndex = 1; nodeIndex < _scene._hierarchy.size(); nodeIndex++)
-	{
-		RenderObject map;
-		map.meshIndex = _scene._meshes[nodeIndex];
-		map.mesh = _resManager.meshList[map.meshIndex].get();
-		map.matDescIndex = _scene._matForNode[nodeIndex];
-		const std::string& matName = _resManager.matDescList[map.matDescIndex].get()->matName;
-		map.material = get_material(matName);
-		map.transformMatrix = _scene._localTransforms[nodeIndex];
-
-		renderablesMap[map.meshIndex][map.matDescIndex].push_back(map);
-	}
-
-	_renderables.clear();
-	for (const auto& [meshIndex, matMap]: renderablesMap)
-		for (const auto& [matIndex, mapVector] : matMap)
-			for (const auto& map : mapVector)
-				_renderables.push_back(map);
-	_indirectBatchRO = compact_draws(_renderables.data(), _renderables.size());
+	ResourceManager::init_scene(this, _resManager, _scene);
 
 #if MESHSHADER_ON
 	map_buffer(_allocator, _objectBuffer._allocation, [&](void*& data) {
