@@ -35,8 +35,8 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 	_accumulationGP = std::make_unique<VulkanSimpleAccumulationGraphicsPipeline>();
 	_accumulationGP->init(engine, _restirUpdateShadeGP->get_output());
 
-	_denoiserPass = std::make_unique<VulkanRaytracerDenoiserPass>();
-	_denoiserPass->init(engine);
+	//_denoiserPass = std::make_unique<VulkanRaytracerDenoiserPass>();
+	//_denoiserPass->init(engine);
 }
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::create_blas(const std::vector<std::unique_ptr<Mesh>>& meshList)
@@ -235,7 +235,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, i
 	_restirUpdateShadeGP->barrier_for_frag_read(cmd);
 	_accumulationGP->draw(cmd, current_frame_index);
 
-	_denoiserPass->draw(cmd, current_frame_index);
+	//_denoiserPass->draw(cmd, current_frame_index);
 }
 
 const Texture& VulkanGIShadowsRaytracingGraphicsPipeline::get_output() const

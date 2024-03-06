@@ -65,11 +65,6 @@ void main()
         vec3 worldNorm = shading_nrm;
         vec2 uvCoord = unpackUV_IndirectRayPayload(dirPayload);
 
-        DirectInputData input2Data = packDirectInputData(objIDf,
-            worldPos, 
-            worldNorm,
-            uvCoord);  
-
         // Initialize a random seed, per-pixel, based on a screen position and temporally varying count
 	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, giParams.frameCount);
 
@@ -137,7 +132,7 @@ void main()
         {
             vec4 temporal_reservoir = vec4(0.f, 0.f, 0.f, 0.f);
 			// combine current reservoir
-            lightToSample = uint(reservoir.y);
+            uint lightToSample = uint(reservoir.y);
 			temporal_reservoir = updateReservoir(randSeed, temporal_reservoir, lightToSample, p_hat * reservoir.w * reservoir.z);
 
             lightToSample = uint(prev_reservoir.y);
