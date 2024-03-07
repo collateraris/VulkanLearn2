@@ -14,63 +14,17 @@ void VulkanVbufferGraphicsPipeline::init(VulkanEngine* engine)
 {
 	_engine = engine;
 
-	_vbufferExtent = {
-		_engine->_windowExtent.width,
-		_engine->_windowExtent.height,
-		1
-	};
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		_vbufferTex = texBuilder.start()
-			.make_img_info(_vbufferFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _vbufferExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_vbufferFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		_depthTexture = texBuilder.start()
-			.make_img_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, _vbufferExtent)
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
-			.create_texture();
-	}
-
-	{
-		RenderPassInfo default_rp;
-		default_rp.op_flags = RENDER_PASS_OP_CLEAR_DEPTH_STENCIL_BIT;
-		default_rp.clear_attachments = 1 << 0;
-		default_rp.store_attachments = 1 << 0;
-		default_rp.num_color_attachments = 1;
-		default_rp.color_attachments[0] = &_vbufferTex;
-		default_rp.depth_stencil = &_depthTexture;
-
-		RenderPassInfo::Subpass subpass = {};
-		subpass.num_color_attachments = 1;
-		subpass.depth_stencil_mode = RenderPassInfo::DepthStencil::ReadWrite;
-		subpass.color_attachments[0] = 0;
-		subpass.resolve_attachments[0] = 1;
-
-		default_rp.num_subpasses = 1;
-		default_rp.subpasses = &subpass;
-
-		_engine->_renderPassManager.get_render_pass(ERenderPassType::VisBufferGenerate)->init(_engine, default_rp);
-	}
-
-	{
-		init_scene_buffer(_engine->_renderables, _engine->_resManager.meshList);
-	}
+	init_vbuffer_tex();
+	init_render_pass();
+	init_scene_buffer(_engine->_resManager.renderables);
+	init_bindless(_engine->_resManager.meshList);
 
 	{
 		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::VbufferGenerate,
 			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
 				ShaderEffect defaultEffect;
-				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("vbuffer_generate.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
+				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("vbuffer_generate.task.spv")), VK_SHADER_STAGE_TASK_BIT_NV);
+				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("vbuffer_generate.mesh.spv")), VK_SHADER_STAGE_MESH_BIT_NV);
 				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("vbuffer_generate.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
 
 				defaultEffect.reflect_layout(_engine->_device, nullptr, 0);
@@ -79,7 +33,7 @@ void VulkanVbufferGraphicsPipeline::init(VulkanEngine* engine)
 
 				pipelineBuilder.setShaders(&defaultEffect);
 				VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
-				std::vector<VkDescriptorSetLayout> setLayout = { _globalDescSetLayout };
+				std::vector<VkDescriptorSetLayout> setLayout = { _bindlessSetLayout, _globalDescSetLayout };
 				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
 				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
 
@@ -110,20 +64,15 @@ void VulkanVbufferGraphicsPipeline::init(VulkanEngine* engine)
 				//we dont use multisampling, so just run the default one
 				pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
 
-				//a single blend attachment with no blending and writing to RGBA
-				pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
+				pipelineBuilder.attachment_count = 1;
+				{
+					auto colorBlend = vkinit::color_blend_attachment_state();
+					colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT;
+					pipelineBuilder._colorBlendAttachment.push_back(vkinit::color_blend_attachment_state());
+				}
 
 				//default depthtesting
 				pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
-
-				pipelineBuilder.vertexDescription = Vertex::get_vertex_description();
-				pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
-				//connect the pipeline builder vertex input info to the one we get from Vertex
-				pipelineBuilder._vertexInputInfo.pVertexAttributeDescriptions = pipelineBuilder.vertexDescription.attributes.data();
-				pipelineBuilder._vertexInputInfo.vertexAttributeDescriptionCount = (uint32_t)pipelineBuilder.vertexDescription.attributes.size();
-
-				pipelineBuilder._vertexInputInfo.pVertexBindingDescriptions = pipelineBuilder.vertexDescription.bindings.data();
-				pipelineBuilder._vertexInputInfo.vertexBindingDescriptionCount = (uint32_t)pipelineBuilder.vertexDescription.bindings.size();
 
 				VkPipeline meshPipeline = pipelineBuilder.build_graphic_pipeline(_engine->_device,
 					_engine->_renderPassManager.get_render_pass(ERenderPassType::VisBufferGenerate)->get_render_pass());
@@ -143,58 +92,133 @@ void VulkanVbufferGraphicsPipeline::copy_global_uniform_data(VulkanVbufferGraphi
 
 void VulkanVbufferGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
-
-	vkCmdBindPipeline(cmd->get_cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::VbufferGenerate));
-
-	vkCmdBindDescriptorSets(cmd->get_cmd(), VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::VbufferGenerate), 0, 1, &_globalDescSet[current_frame_index], 0, nullptr);
+	vkutil::image_pipeline_barrier(cmd->get_cmd(), *_engine->get_engine_texture(ETextureResourceNames::VBUFFER), VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 	
-	Mesh* lastMesh = nullptr;
+	//make a clear-color from frame number. This will flash with a 120*pi frame period.
+	VkClearValue clearValue;
+	clearValue.color = { { 0.0f, 0.0f, 0.f, 0.0f } };
 
-	for (IndirectBatch& object : _engine->_indirectBatchRO)
+	//clear depth at 1
+	VkClearValue depthClear;
+	depthClear.depthStencil.depth = 1.f;
+
+	//start the main renderpass. 
+	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
+	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_engine->_renderPassManager.get_render_pass(ERenderPassType::VisBufferGenerate)->get_render_pass(), VkExtent2D(_vbufferExtent.width, _vbufferExtent.height), _vBufFramebuffer);
+
+	//connect clear values
+	rpInfo.clearValueCount = 2;
+
+	VkClearValue clearValues[] = { clearValue,depthClear };
+
+	rpInfo.pClearValues = &clearValues[0];
+
+	vkCmdBeginRenderPass(cmd->get_cmd(), &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	VkViewport viewport;
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = (float)_vbufferExtent.width;
+	viewport.height = (float)_vbufferExtent.height;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+
+	VkRect2D scissor;
+	scissor.offset = { 0, 0 };
+	scissor.extent = VkExtent2D(_vbufferExtent.width, _vbufferExtent.height);
+
+	vkCmdSetViewport(cmd->get_cmd(), 0, 1, &viewport);
+	vkCmdSetScissor(cmd->get_cmd(), 0, 1, &scissor);
+	vkCmdSetDepthBias(cmd->get_cmd(), 0, 0, 0);
+
+	VkDeviceSize indirect_offset = 0 * sizeof(VkDrawMeshTasksIndirectCommandNV);
+	uint32_t draw_stride = sizeof(VkDrawMeshTasksIndirectCommandNV);
+
+	cmd->draw_mesh_tasks_indirect(_indirectBuffer, indirect_offset, _objectsSize, draw_stride,
+		[&](VkCommandBuffer cmd) {
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::VbufferGenerate));
+
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::VbufferGenerate), 0, 1, &_bindlessSet, 0, nullptr);
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::VbufferGenerate), 1, 1, &_globalDescSet[current_frame_index], 0, nullptr);
+		});
+
+	//finalize the render pass
+	vkCmdEndRenderPass(cmd->get_cmd());
+}
+
+void VulkanVbufferGraphicsPipeline::init_vbuffer_tex()
+{
+	_vbufferExtent = {
+	_engine->_windowExtent.width,
+	_engine->_windowExtent.height,
+	1
+	};
+
 	{
-		//only bind the mesh if its a different one from last bind
-		if (object.mesh != lastMesh) {
-			//bind the mesh vertex buffer with offset 0
-			VkDeviceSize offset = 0;
-			vkCmdBindVertexBuffers(cmd->get_cmd(), 0, 1, &object.mesh->_vertexBuffer._buffer, &offset);
-			vkCmdBindIndexBuffer(cmd->get_cmd(), object.mesh->_indicesBuffer._buffer, offset, VK_INDEX_TYPE_UINT32);
-			lastMesh = object.mesh;
-		}
+		VulkanTextureBuilder texBuilder;
+		texBuilder.init(_engine);
+		texBuilder.start()
+			.make_img_info(_vbufferFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, _vbufferExtent)
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
+			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+			.make_view_info(_vbufferFormat, VK_IMAGE_ASPECT_COLOR_BIT)
+			.create_engine_texture(ETextureResourceNames::VBUFFER);
+	}
 
-		VkDeviceSize indirect_offset = object.first * sizeof(VkDrawIndexedIndirectCommand);
-		uint32_t draw_stride = sizeof(VkDrawIndexedIndirectCommand);
-
-		//execute the draw command buffer on each section as defined by the array of draws
-		vkCmdDrawIndexedIndirect(cmd->get_cmd(), _indirectBuffer._buffer, indirect_offset, object.count, draw_stride);
+	{
+		VulkanTextureBuilder texBuilder;
+		texBuilder.init(_engine);
+		texBuilder.start()
+			.make_img_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, _vbufferExtent)
+			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+			.make_view_info(_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
+			.create_engine_texture(ETextureResourceNames::VBUFFER_DEPTH_BUFFER);
 	}
 }
 
-const Texture& VulkanVbufferGraphicsPipeline::get_vbuffer_output() const
+void VulkanVbufferGraphicsPipeline::init_render_pass()
 {
-	return _vbufferTex;
-}
+	RenderPassInfo default_rp;
+	default_rp.op_flags = RENDER_PASS_OP_CLEAR_DEPTH_STENCIL_BIT;
+	default_rp.clear_attachments = 1 << 0;
+	default_rp.store_attachments = 1 << 0;
+	default_rp.num_color_attachments = 1;
+	default_rp.color_attachments[0] = _engine->get_engine_texture(ETextureResourceNames::VBUFFER);
+	default_rp.depth_stencil = _engine->get_engine_texture(ETextureResourceNames::VBUFFER_DEPTH_BUFFER);
 
-const Texture& VulkanVbufferGraphicsPipeline::get_depth_output() const
-{
-	return _depthTexture;
-}
+	RenderPassInfo::Subpass subpass = {};
+	subpass.num_color_attachments = 1;
+	subpass.depth_stencil_mode = RenderPassInfo::DepthStencil::ReadWrite;
+	subpass.color_attachments[0] = 0;
+	subpass.resolve_attachments[0] = 1;
 
-void VulkanVbufferGraphicsPipeline::init_scene_buffer(const std::vector<RenderObject>& renderables, const std::vector<std::unique_ptr<Mesh>>& meshList)
-{
-	for (auto& mesh : meshList)
+	default_rp.num_subpasses = 1;
+	default_rp.subpasses = &subpass;
+
+	_engine->_renderPassManager.get_render_pass(ERenderPassType::VisBufferGenerate)->init(_engine, default_rp);
+
 	{
-		{
-			size_t bufferSize = mesh->_vertices.size() * sizeof(Vertex);
+		VkFramebufferCreateInfo fb_info = {};
+		fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		fb_info.pNext = nullptr;
 
-			mesh->_vertexBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->_vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-		}
-		{
-			size_t bufferSize = mesh->_indices.size() * sizeof(mesh->_indices[0]);
+		fb_info.renderPass = _engine->_renderPassManager.get_render_pass(ERenderPassType::VisBufferGenerate)->get_render_pass();
+		fb_info.width = _vbufferExtent.width;
+		fb_info.height = _vbufferExtent.height;
+		fb_info.layers = 1;
 
-			mesh->_indicesBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->_indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-		}
+		std::array<VkImageView, 2> attachments;
+		attachments[0] = _engine->get_engine_texture(ETextureResourceNames::VBUFFER)->imageView;
+		attachments[1] = _engine->get_engine_texture(ETextureResourceNames::VBUFFER_DEPTH_BUFFER)->imageView;
+
+		fb_info.pAttachments = attachments.data();
+		fb_info.attachmentCount = attachments.size();
+		vkCreateFramebuffer(_engine->_device, &fb_info, nullptr, &_vBufFramebuffer);
 	}
+}
 
+void VulkanVbufferGraphicsPipeline::init_scene_buffer(const std::vector<RenderObject>& renderables)
+{
 	_objectsSize = renderables.size();
 	_objectBuffer = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanVbufferGraphicsPipeline::ObjectData) * renderables.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
@@ -205,16 +229,16 @@ void VulkanVbufferGraphicsPipeline::init_scene_buffer(const std::vector<RenderOb
 		VkDescriptorBufferInfo globalUniformsInfo;
 		globalUniformsInfo.buffer = _globalCameraBuffer[i]._buffer;
 		globalUniformsInfo.offset = 0;
-		globalUniformsInfo.range = _globalCameraBuffer[i]._size;
+		globalUniformsInfo.range = VK_WHOLE_SIZE;
 
 		VkDescriptorBufferInfo objectBufferInfo;
 		objectBufferInfo.buffer = _objectBuffer._buffer;
 		objectBufferInfo.offset = 0;
-		objectBufferInfo.range = _objectBuffer._size;
+		objectBufferInfo.range = VK_WHOLE_SIZE;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-			.bind_buffer(1, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT)
+			.bind_buffer(1, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT)
 			.build(_globalDescSet[i], _globalDescSetLayout);
 	}
 
@@ -225,24 +249,65 @@ void VulkanVbufferGraphicsPipeline::init_scene_buffer(const std::vector<RenderOb
 		{
 			const RenderObject& object = renderables[i];
 			objectSSBO[i].model = object.transformMatrix;
+			objectSSBO[i].meshIndex = object.meshIndex;
+			objectSSBO[i].meshletCount = object.mesh->_meshlets.size();
 		}
 		});
 
-	_indirectBuffer = _engine->create_cpu_to_gpu_buffer(MAX_COMMANDS * sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
+	_indirectBuffer = _engine->create_cpu_to_gpu_buffer(_objectsSize * sizeof(VkDrawMeshTasksIndirectCommandNV), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
 
 	_engine->map_buffer(_engine->_allocator, _indirectBuffer._allocation, [&](void*& data) {
-		VkDrawIndexedIndirectCommand* drawCommands = (VkDrawIndexedIndirectCommand*)data;
+		VkDrawMeshTasksIndirectCommandNV* drawCommands = (VkDrawMeshTasksIndirectCommandNV*)data;
 		//encode the draw data of each object into the indirect draw buffer
-		for (int i = 0; i < _engine->_renderables.size(); i++)
+		for (int i = 0; i < _engine->_resManager.renderables.size(); i++)
 		{
-			RenderObject& object = _engine->_renderables[i];
-			drawCommands[i].indexCount = object.mesh->_indices.size();
-			drawCommands[i].instanceCount = 1;
-			drawCommands[i].vertexOffset = 0;
-			drawCommands[i].firstIndex = 0;
-			drawCommands[i].firstInstance = i; //used to access object matrix in the shader
+			RenderObject& object = _engine->_resManager.renderables[i];
+			drawCommands[i].taskCount = (object.mesh->_meshlets.size() + 31) / 32;
+			drawCommands[i].firstTask = 0;
 		}
 		});
 }
 
+void VulkanVbufferGraphicsPipeline::init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList)
+{
+	const uint32_t meshletsVerticesBinding = 0;
+	const uint32_t meshletsBinding = 1;
+	const uint32_t meshletsDataBinding = 2;
+
+	//BIND MESHDATA
+	std::vector<VkDescriptorBufferInfo> vertexBufferInfoList{};
+	vertexBufferInfoList.resize(_engine->_resManager.meshList.size());
+
+	std::vector<VkDescriptorBufferInfo> meshletBufferInfoList{};
+	meshletBufferInfoList.resize(_engine->_resManager.meshList.size());
+
+	std::vector<VkDescriptorBufferInfo> meshletdataBufferInfoList{};
+	meshletdataBufferInfoList.resize(_engine->_resManager.meshList.size());
+
+	for (uint32_t meshArrayIndex = 0; meshArrayIndex < _engine->_resManager.meshList.size(); meshArrayIndex++)
+	{
+		Mesh* mesh = _engine->_resManager.meshList[meshArrayIndex].get();
+
+		VkDescriptorBufferInfo& vertexBufferInfo = vertexBufferInfoList[meshArrayIndex];
+		vertexBufferInfo.buffer = mesh->_vertexBufferRT._buffer;
+		vertexBufferInfo.offset = 0;
+		vertexBufferInfo.range = VK_WHOLE_SIZE;
+
+		VkDescriptorBufferInfo& meshletBufferInfo = meshletBufferInfoList[meshArrayIndex];
+		meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;
+		meshletBufferInfo.offset = 0;
+		meshletBufferInfo.range = VK_WHOLE_SIZE;
+
+		VkDescriptorBufferInfo& meshletdataBufferInfo = meshletdataBufferInfoList[meshArrayIndex];
+		meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
+		meshletdataBufferInfo.offset = 0;
+		meshletdataBufferInfo.range = VK_WHOLE_SIZE;
+	}
+
+	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
+		.bind_buffer(meshletsVerticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, vertexBufferInfoList.size())
+		.bind_buffer(meshletsBinding, meshletBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshletBufferInfoList.size())
+		.bind_buffer(meshletsDataBinding, meshletdataBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshletdataBufferInfoList.size())
+		.build_bindless(_bindlessSet, _bindlessSetLayout);
+}
 #endif

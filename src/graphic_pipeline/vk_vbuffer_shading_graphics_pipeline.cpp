@@ -1,6 +1,6 @@
 #include "graphic_pipeline/vk_vbuffer_shading_graphics_pipeline.h"
 
-#if VBUFFER_ON
+#if VBUFFER_ON2 
 
 #include <vk_engine.h>
 #include <vk_command_buffer.h>
@@ -16,7 +16,7 @@ void VulkanVbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const Text
 
 	{
 		init_description_set(vbuffer);
-		init_scene_buffer(_engine->_renderables, _engine->_resManager.meshList);
+		init_scene_buffer(_engine->_resManager.renderables, _engine->_resManager.meshList);
 		init_bindless(_engine->_resManager.meshList, _engine->_resManager.textureList);
 	}
 

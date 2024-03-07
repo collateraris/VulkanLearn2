@@ -116,7 +116,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std
 			VkDescriptorBufferInfo& vertexBufferInfo = vertexBufferInfoList[meshArrayIndex];
 			vertexBufferInfo.buffer = mesh->_vertexBufferRT._buffer;
 			vertexBufferInfo.offset = 0;
-			vertexBufferInfo.range = mesh->_vertexBufferRT._size;
+			vertexBufferInfo.range = VK_WHOLE_SIZE;
 		}
 
 		//BIND SAMPLERS
@@ -153,17 +153,17 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std
 			VkDescriptorBufferInfo globalUniformsInfo;
 			globalUniformsInfo.buffer = _globalUniformsBuffer[i]._buffer;
 			globalUniformsInfo.offset = 0;
-			globalUniformsInfo.range = _globalUniformsBuffer[i]._size;
+			globalUniformsInfo.range = VK_WHOLE_SIZE;
 
 			VkDescriptorBufferInfo lightsInfo;
 			lightsInfo.buffer = _engine->_lightManager.get_light_buffer(i)._buffer;
 			lightsInfo.offset = 0;
-			lightsInfo.range = _engine->_lightManager.get_light_buffer(i)._size;
+			lightsInfo.range = VK_WHOLE_SIZE;
 
 			VkDescriptorBufferInfo objectBufferInfo;
 			objectBufferInfo.buffer = _engine->_resManager.globalObjectBuffer._buffer;
 			objectBufferInfo.offset = 0;
-			objectBufferInfo.range = _engine->_resManager.globalObjectBuffer._size;
+			objectBufferInfo.range = VK_WHOLE_SIZE;
 
 			EDescriptorResourceNames currentDesciptor = i == 0 ? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0 : EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
 

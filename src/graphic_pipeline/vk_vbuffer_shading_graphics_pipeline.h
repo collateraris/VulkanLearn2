@@ -2,7 +2,7 @@
 
 #include <vk_types.h>
 
-#if VBUFFER_ON
+#if VBUFFER_ON2
 
 #include <vk_mesh.h>
 

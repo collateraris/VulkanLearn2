@@ -100,32 +100,8 @@ void VulkanEngine::init()
 	_lightManager.create_light_buffers();
 
 #if VBUFFER_ON
-
 	_visBufGenerateGraphicsPipeline.init(this);
-
-	_visBufShadingGraphicsPipeline.init(this, _visBufGenerateGraphicsPipeline.get_vbuffer_output());
-
-	{
-			VkFramebufferCreateInfo fb_info = {};
-			fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-			fb_info.pNext = nullptr;
-
-			fb_info.renderPass = _renderPassManager.get_render_pass(ERenderPassType::VisBufferGenerate)->get_render_pass();
-			fb_info.attachmentCount = 1;
-			fb_info.width = _windowExtent.width;
-			fb_info.height = _windowExtent.height;
-			fb_info.layers = 1;
-
-			VkImageView attachments[2];
-			attachments[0] = _visBufGenerateGraphicsPipeline.get_vbuffer_output().imageView;
-			attachments[1] = _visBufGenerateGraphicsPipeline.get_depth_output().imageView;
-
-			fb_info.pAttachments = attachments;
-			fb_info.attachmentCount = 2;
-			VK_CHECK(vkCreateFramebuffer(_device, &fb_info, nullptr, &_visBufFramebuffer));
-	}
 #endif
-
 #if GBUFFER_ON
 	_gBufGenerateGraphicsPipeline.init(this);
 #endif	
@@ -219,6 +195,13 @@ void VulkanEngine::draw()
 				memcpy(data, &camData, sizeof(GPUCameraData));
 				});
 
+#if VBUFFER_ON
+			{
+				VulkanVbufferGraphicsPipeline::SGlobalCamera globalCameraData;
+				globalCameraData.viewProj = projection * view;
+				_visBufGenerateGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
+			}
+#endif
 #if GBUFFER_ON
 			{
 				VulkanGbufferGenerateGraphicsPipeline::SGlobalCamera globalCameraData;
@@ -244,6 +227,9 @@ void VulkanEngine::draw()
 		//clear depth at 1
 		VkClearValue depthClear;
 		depthClear.depthStencil.depth = 1.f;
+#if VBUFFER_ON
+		_visBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+#endif			
 #if GBUFFER_ON
 		_gBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 		_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_shading(&get_current_frame()._mainCommandBuffer);
@@ -485,7 +471,7 @@ void VulkanEngine::init_vulkan()
 		VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
 		VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,
 		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
-#if MESHSHADER_ON || GBUFFER_ON
+#if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON
 		VK_NV_MESH_SHADER_EXTENSION_NAME,
 #endif
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,

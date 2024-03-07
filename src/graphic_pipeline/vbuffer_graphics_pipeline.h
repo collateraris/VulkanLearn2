@@ -15,6 +15,10 @@ class VulkanVbufferGraphicsPipeline
 	struct alignas(16) ObjectData
 	{
 		glm::mat4 model;
+		uint32_t meshIndex;
+		uint32_t meshletCount;
+		uint32_t pad1;
+		uint32_t pad2;
 	};
 public:
 
@@ -28,21 +32,20 @@ public:
 	void copy_global_uniform_data(VulkanVbufferGraphicsPipeline::SGlobalCamera& camData, int current_frame_index);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
-	const Texture& get_vbuffer_output() const;
-	const Texture& get_depth_output() const;
-
 private:
 
-	void init_scene_buffer(const std::vector<RenderObject>& renderables, const std::vector<std::unique_ptr<Mesh>>& meshList);
+	void init_vbuffer_tex();
+	void init_render_pass();
+	void init_scene_buffer(const std::vector<RenderObject>& renderables);
+	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList);
 
 	VulkanEngine* _engine = nullptr;
 
 	VkExtent3D _vbufferExtent;
-	Texture _vbufferTex;
 	VkFormat      _vbufferFormat{ VK_FORMAT_R32G32_UINT };
-	Texture _depthTexture;
 	VkFormat      _depthFormat{ VK_FORMAT_D32_SFLOAT };
 
+	VkFramebuffer _vBufFramebuffer;
 	AllocatedBuffer _indirectBuffer;
 
 	std::array<AllocatedBuffer, 2> _globalCameraBuffer;
@@ -51,6 +54,9 @@ private:
 
 	VkDescriptorSetLayout          _globalDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _globalDescSet;
+
+	VkDescriptorSet _bindlessSet;
+	VkDescriptorSetLayout _bindlessSetLayout;
 };
 
 #endif

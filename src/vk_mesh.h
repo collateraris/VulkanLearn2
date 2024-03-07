@@ -43,37 +43,28 @@ struct alignas(16) GPUObjectData {
 struct Mesh {
 	std::vector<Vertex> _vertices;
 	std::vector<uint32_t> _indices;
-#if VBUFFER_ON
-	std::vector<Vertex_VisB> _verticesVisB;
-#endif
-#if MESHSHADER_ON || GBUFFER_ON
+#if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON
 	std::vector<Meshlet> _meshlets;
 	VkDescriptorSet meshletsSet{VK_NULL_HANDLE };
 	std::vector<uint32_t> meshletdata;
 #endif
 	AllocatedBuffer _vertexBuffer;
-#if MESHSHADER_ON || GBUFFER_ON
+#if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON
 	AllocatedBuffer _meshletsBuffer;
 	AllocatedBuffer _meshletdataBuffer;
 #endif
-#if VBUFFER_ON || GI_RAYTRACER_ON
+#if GI_RAYTRACER_ON
 	AllocatedBuffer _indicesBuffer;
 #endif
 #if GI_RAYTRACER_ON
 	AllocatedBuffer _vertexBufferRT;
 	AllocatedBuffer _indicesBufferRT;
 #endif
-#if VBUFFER_ON
-	AllocatedBuffer _vertexBufferVisB;
-#endif
 	glm::vec3 _center = glm::vec3(0);
 	float _radius = 0;
 
-#if MESHSHADER_ON || GBUFFER_ON
+#if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON
 	void buildMeshlets();
-#endif
-#if VBUFFER_ON
-	void remapVertexToVertexVisB();
 #endif
 	Mesh& calcAddInfo();
 };
