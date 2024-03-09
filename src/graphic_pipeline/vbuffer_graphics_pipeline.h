@@ -37,7 +37,6 @@ private:
 	void init_vbuffer_tex();
 	void init_render_pass();
 	void init_scene_buffer(const std::vector<RenderObject>& renderables);
-	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList);
 
 	VulkanEngine* _engine = nullptr;
 
@@ -49,14 +48,10 @@ private:
 	AllocatedBuffer _indirectBuffer;
 
 	std::array<AllocatedBuffer, 2> _globalCameraBuffer;
-	AllocatedBuffer _objectBuffer;
 	uint32_t _objectsSize = 0;
 
 	VkDescriptorSetLayout          _globalDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _globalDescSet;
-
-	VkDescriptorSet _bindlessSet;
-	VkDescriptorSetLayout _bindlessSetLayout;
 };
 
 #endif

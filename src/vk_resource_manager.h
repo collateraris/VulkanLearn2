@@ -30,13 +30,13 @@ struct alignas(16) GlobalObjectData
 {
 	glm::mat4 model;
 	uint32_t meshIndex;
+	uint32_t meshletCount;
 	uint32_t diffuseTexIndex;
 	int32_t normalTexIndex = -1;
 	int32_t metalnessTexIndex = -1;
 	int32_t roughnessTexIndex = -1;
 	int32_t emissionTexIndex = -1;
 	int32_t opacityTexIndex = -1;
-	uint32_t pad;
 };
 
 class ResourceManager

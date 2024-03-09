@@ -34,13 +34,13 @@ struct SObjectData
 {
 	mat4 model;
 	uint meshIndex;
+	uint meshletCount;
 	uint diffuseTexIndex;
 	int normalTexIndex;
 	int metalnessTexIndex;
 	int roughnessTexIndex;
 	int emissionTexIndex;
 	int opacityTexIndex;
-	uint pad;
 };
 
 struct AORayPayload

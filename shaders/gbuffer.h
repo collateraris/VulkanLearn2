@@ -26,6 +26,10 @@ struct SObjectData
 	mat4 model;
 	uint meshIndex;
 	uint meshletCount;
-	uint pad1;
-	uint pad2;
+	uint diffuseTexIndex;
+	int normalTexIndex;
+	int metalnessTexIndex;
+	int roughnessTexIndex;
+	int emissionTexIndex;
+	int opacityTexIndex;
 };

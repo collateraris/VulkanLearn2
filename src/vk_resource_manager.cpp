@@ -233,6 +233,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 			const RenderObject& object = resManager.renderables[i];
 			objectSSBO[i].model = object.transformMatrix;
 			objectSSBO[i].meshIndex = object.meshIndex;
+			objectSSBO[i].meshletCount = object.mesh->_meshlets.size();
 			objectSSBO[i].diffuseTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->diffuseTextureIndex;
 			objectSSBO[i].normalTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->normalTextureIndex;
 			objectSSBO[i].metalnessTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->metalnessTextureIndex;
@@ -329,6 +330,8 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	const uint32_t textureBinding = 1;
 	const uint32_t tlasBinding = 2;
 	const uint32_t globalObjectBinding = 3;
+	const uint32_t meshletsBinding = 4;
+	const uint32_t meshletsDataBinding = 5;
 
 	const auto& meshList = resManager.meshList;
 	const auto& textureList = resManager.textureList;
@@ -338,6 +341,11 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	std::vector<VkDescriptorBufferInfo> vertexBufferInfoList{};
 	vertexBufferInfoList.resize(meshList.size());
 
+	std::vector<VkDescriptorBufferInfo> meshletBufferInfoList{};
+	meshletBufferInfoList.resize(_engine->_resManager.meshList.size());
+
+	std::vector<VkDescriptorBufferInfo> meshletdataBufferInfoList{};
+	meshletdataBufferInfoList.resize(_engine->_resManager.meshList.size());
 
 	for (uint32_t meshArrayIndex = 0; meshArrayIndex < meshList.size(); meshArrayIndex++)
 	{
@@ -347,6 +355,16 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		vertexBufferInfo.buffer = mesh->_vertexBufferRT._buffer;
 		vertexBufferInfo.offset = 0;
 		vertexBufferInfo.range = VK_WHOLE_SIZE;
+
+		VkDescriptorBufferInfo& meshletBufferInfo = meshletBufferInfoList[meshArrayIndex];
+		meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;
+		meshletBufferInfo.offset = 0;
+		meshletBufferInfo.range = VK_WHOLE_SIZE;
+
+		VkDescriptorBufferInfo& meshletdataBufferInfo = meshletdataBufferInfoList[meshArrayIndex];
+		meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
+		meshletdataBufferInfo.offset = 0;
+		meshletdataBufferInfo.range = VK_WHOLE_SIZE;
 	}
 
 	//BIND SAMPLERS
@@ -374,9 +392,11 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	objectBufferInfo.range = VK_WHOLE_SIZE;
 
 	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
-		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, vertexBufferInfoList.size())
+		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, vertexBufferInfoList.size())
 		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, imageInfoList.size())
 		.bind_rt_as(tlasBinding, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
-		.bind_buffer(globalObjectBinding, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
+		.bind_buffer(globalObjectBinding, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
+		.bind_buffer(meshletsBinding, meshletBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshletBufferInfoList.size())
+		.bind_buffer(meshletsDataBinding, meshletdataBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshletdataBufferInfoList.size())
 		.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene);
 }

@@ -17,7 +17,6 @@ void VulkanVbufferGraphicsPipeline::init(VulkanEngine* engine)
 	init_vbuffer_tex();
 	init_render_pass();
 	init_scene_buffer(_engine->_resManager.renderables);
-	init_bindless(_engine->_resManager.meshList);
 
 	{
 		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::VbufferGenerate,
@@ -33,7 +32,8 @@ void VulkanVbufferGraphicsPipeline::init(VulkanEngine* engine)
 
 				pipelineBuilder.setShaders(&defaultEffect);
 				VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
-				std::vector<VkDescriptorSetLayout> setLayout = { _bindlessSetLayout, _globalDescSetLayout };
+				std::vector<VkDescriptorSetLayout> setLayout = { _engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->setLayout, 
+					_globalDescSetLayout };
 				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
 				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
 
@@ -138,7 +138,7 @@ void VulkanVbufferGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_f
 		[&](VkCommandBuffer cmd) {
 			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::VbufferGenerate));
 
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::VbufferGenerate), 0, 1, &_bindlessSet, 0, nullptr);
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::VbufferGenerate), 0, 1, &_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set, 0, nullptr);
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::VbufferGenerate), 1, 1, &_globalDescSet[current_frame_index], 0, nullptr);
 		});
 
@@ -220,7 +220,6 @@ void VulkanVbufferGraphicsPipeline::init_render_pass()
 void VulkanVbufferGraphicsPipeline::init_scene_buffer(const std::vector<RenderObject>& renderables)
 {
 	_objectsSize = renderables.size();
-	_objectBuffer = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanVbufferGraphicsPipeline::ObjectData) * renderables.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
@@ -231,28 +230,11 @@ void VulkanVbufferGraphicsPipeline::init_scene_buffer(const std::vector<RenderOb
 		globalUniformsInfo.offset = 0;
 		globalUniformsInfo.range = VK_WHOLE_SIZE;
 
-		VkDescriptorBufferInfo objectBufferInfo;
-		objectBufferInfo.buffer = _objectBuffer._buffer;
-		objectBufferInfo.offset = 0;
-		objectBufferInfo.range = VK_WHOLE_SIZE;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT)
-			.bind_buffer(1, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT)
 			.build(_globalDescSet[i], _globalDescSetLayout);
 	}
-
-	_engine->map_buffer(_engine->_allocator, _objectBuffer._allocation, [&](void*& data) {
-		VulkanVbufferGraphicsPipeline::ObjectData* objectSSBO = (VulkanVbufferGraphicsPipeline::ObjectData*)data;
-
-		for (int i = 0; i < renderables.size(); i++)
-		{
-			const RenderObject& object = renderables[i];
-			objectSSBO[i].model = object.transformMatrix;
-			objectSSBO[i].meshIndex = object.meshIndex;
-			objectSSBO[i].meshletCount = object.mesh->_meshlets.size();
-		}
-		});
 
 	_indirectBuffer = _engine->create_cpu_to_gpu_buffer(_objectsSize * sizeof(VkDrawMeshTasksIndirectCommandNV), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT);
 
@@ -266,48 +248,5 @@ void VulkanVbufferGraphicsPipeline::init_scene_buffer(const std::vector<RenderOb
 			drawCommands[i].firstTask = 0;
 		}
 		});
-}
-
-void VulkanVbufferGraphicsPipeline::init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList)
-{
-	const uint32_t meshletsVerticesBinding = 0;
-	const uint32_t meshletsBinding = 1;
-	const uint32_t meshletsDataBinding = 2;
-
-	//BIND MESHDATA
-	std::vector<VkDescriptorBufferInfo> vertexBufferInfoList{};
-	vertexBufferInfoList.resize(_engine->_resManager.meshList.size());
-
-	std::vector<VkDescriptorBufferInfo> meshletBufferInfoList{};
-	meshletBufferInfoList.resize(_engine->_resManager.meshList.size());
-
-	std::vector<VkDescriptorBufferInfo> meshletdataBufferInfoList{};
-	meshletdataBufferInfoList.resize(_engine->_resManager.meshList.size());
-
-	for (uint32_t meshArrayIndex = 0; meshArrayIndex < _engine->_resManager.meshList.size(); meshArrayIndex++)
-	{
-		Mesh* mesh = _engine->_resManager.meshList[meshArrayIndex].get();
-
-		VkDescriptorBufferInfo& vertexBufferInfo = vertexBufferInfoList[meshArrayIndex];
-		vertexBufferInfo.buffer = mesh->_vertexBufferRT._buffer;
-		vertexBufferInfo.offset = 0;
-		vertexBufferInfo.range = VK_WHOLE_SIZE;
-
-		VkDescriptorBufferInfo& meshletBufferInfo = meshletBufferInfoList[meshArrayIndex];
-		meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;
-		meshletBufferInfo.offset = 0;
-		meshletBufferInfo.range = VK_WHOLE_SIZE;
-
-		VkDescriptorBufferInfo& meshletdataBufferInfo = meshletdataBufferInfoList[meshArrayIndex];
-		meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
-		meshletdataBufferInfo.offset = 0;
-		meshletdataBufferInfo.range = VK_WHOLE_SIZE;
-	}
-
-	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
-		.bind_buffer(meshletsVerticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, vertexBufferInfoList.size())
-		.bind_buffer(meshletsBinding, meshletBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshletBufferInfoList.size())
-		.bind_buffer(meshletsDataBinding, meshletdataBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshletdataBufferInfoList.size())
-		.build_bindless(_bindlessSet, _bindlessSetLayout);
 }
 #endif
