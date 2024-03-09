@@ -69,7 +69,9 @@ void main()
 
         vec4 reservoir = texture(reservoirCurr, uv).rgba;
         uint lightToSample = uint(reservoir.y);
-        DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, false);
+
+        PBRShadeData prbSD = getShadeData(inputData);
+        DirectOutputData outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
         // p_hat of the light is f * Le * G / pdf
         float p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
         // // reservoir.w = weight
@@ -104,7 +106,7 @@ void main()
 			neighborReservoir = texture(reservoirCurr, ivec2(neighborIndex)).rgba;
             lightToSample = uint(neighborReservoir.y);
 
-            DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, false);
+            DirectOutputData outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
             // p_hat of the light is f * Le * G / pdf
             float p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
 
@@ -118,7 +120,7 @@ void main()
 
         // Evaluate visibility for initial candidate and set r.W value
 		lightToSample = uint(reservoirNew.y);
-        outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, false);
+        outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
 
         // p_hat of the light is f * Le * G / pdf
         p_hat = length(unpackLo_DirectOutputData(outputCurrentData));

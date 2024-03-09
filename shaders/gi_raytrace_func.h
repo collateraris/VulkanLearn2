@@ -53,43 +53,50 @@ float getDistanceFalloff(float distSquared)
     return falloff;
 };
 
-
-DirectOutputData ggxDirect(uint lightToSample, DirectInputData inputData, vec3 camPos, bool withShadow)
+PBRShadeData getShadeData(DirectInputData inputData)
 {
+    PBRShadeData data;
+
     int objectId = unpackObjID_DirectInputData(inputData);
     vec2 texCoord = unpackUV_DirectInputData(inputData);
-    vec3 worldPos = unpackWorldPos_DirectInputData(inputData);
-    vec3 worldNorm = unpackWorldNorm_DirectInputData(inputData);
+    data.worldPos.xyz = unpackWorldPos_DirectInputData(inputData);
+    data.worldNorm.xyz = unpackWorldNorm_DirectInputData(inputData);
 
     SObjectData shadeData = objectBuffer.objects[objectId];
 
-    vec3 albedo = texture(texSet[shadeData.diffuseTexIndex], texCoord).rgb;
+    data.albedo_metalness.xyz = texture(texSet[shadeData.diffuseTexIndex], texCoord).rgb;
 
-    vec3 emission = vec3(0., 0., 0);
+    data.emission_roughness.xyz = vec3(0., 0., 0);
     if (shadeData.emissionTexIndex > 0)
-        emission = texture(texSet[shadeData.emissionTexIndex], texCoord).rgb;    
+        data.emission_roughness.xyz = texture(texSet[shadeData.emissionTexIndex], texCoord).rgb;    
 
-    float metalness = 0.;
+    data.albedo_metalness.w = 0.;
     if (shadeData.metalnessTexIndex > 0)
-        metalness = 1. - texture(texSet[shadeData.metalnessTexIndex], texCoord).r;  
+        data.albedo_metalness.w = 1. - texture(texSet[shadeData.metalnessTexIndex], texCoord).r;  
 
-    float roughness = 1.;
+    data.emission_roughness.w = 1.;
     if (shadeData.roughnessTexIndex > 0)
-        roughness = texture(texSet[shadeData.roughnessTexIndex], texCoord).g;    
+        data.emission_roughness.w = texture(texSet[shadeData.roughnessTexIndex], texCoord).g;    
 
     if (shadeData.normalTexIndex > 0)
     {
-        mat3 TBN = getTBN(worldNorm);
+        mat3 TBN = getTBN(data.worldNorm.xyz);
         vec3 normal = texture(texSet[shadeData.normalTexIndex], texCoord).rgb;
         normal = normalize(normal * 2.0 - 1.0);   
-        worldNorm = normalize(TBN * normal);
+        data.worldNorm.xyz = normalize(TBN * normal);
     }  
 
-    vec3 viewDir = normalize(camPos.xyz - worldPos.xyz);
+    return data;
+};
+
+
+DirectOutputData ggxDirect(uint lightToSample, PBRShadeData prbSD, vec3 camPos, bool withShadow)
+{
+    vec3 viewDir = normalize(camPos.xyz - prbSD.worldPos.xyz);
 
     SLight lightInfo = lightsBuffer.lights[lightToSample];
 
-    vec3 lightDir = lightInfo.position.xyz - worldPos.xyz;
+    vec3 lightDir = lightInfo.position.xyz - prbSD.worldPos.xyz;
      // Avoid NaN
     float distSquared = dot(lightDir, lightDir);
     float lightDistance = (distSquared > 1e-5f) ? length(lightDir) : 0.f;
@@ -102,38 +109,30 @@ DirectOutputData ggxDirect(uint lightToSample, DirectInputData inputData, vec3 c
 	vec3 H = normalize(viewDir + lightDir);
 
 	float HdotV = clamp(dot(H, viewDir), 0.f, 1.f);
-	float NdotV = clamp(dot(worldNorm.xyz, viewDir), 0.f, 1.f);
-	float NdotL = clamp(dot(worldNorm.xyz, lightDir), 0.f, 1.f);
+	float NdotV = clamp(dot(prbSD.worldNorm.xyz, viewDir), 0.f, 1.f);
+	float NdotL = clamp(dot(prbSD.worldNorm.xyz, lightDir), 0.f, 1.f);
     
     vec3 F0 = vec3(0.04); 
-	F0      = mix(F0, albedo, metalness);
+	F0      = mix(F0, prbSD.albedo_metalness.xyz, prbSD.albedo_metalness.w);
 
 	vec3 F  = fresnelSchlick(HdotV, F0);
 
-	float NDF = DistributionGGX(worldNorm, H, roughness);
-	float G = GeometrySmith(worldNorm, viewDir, lightDir, roughness);
+	float NDF = DistributionGGX(prbSD.worldNorm.xyz, H, prbSD.emission_roughness.w);
+	float G = GeometrySmith(prbSD.worldNorm.xyz, viewDir, lightDir, prbSD.emission_roughness.w);
 
 	vec3 specular = (NDF * G) * F / (4.0f * NdotV  * NdotL  + 0.001f);
 
 	vec3 kS = F;
 	vec3 kD = vec3(1.0f) - kS;
 	
-	kD *= 1.0f - metalness;
+	kD *= 1.0f - prbSD.albedo_metalness.w;
 
 	float shadowColor = 1.f;
     if (withShadow)
-        shadowColor = shadowRayVisibility(worldPos.xyz, lightDir, lightDistance, giParams.shadowMult);
-    vec3 Lo =  emission + shadowColor * (kD * albedo * M_INV_PI + specular) * lightColor * NdotL;
+        shadowColor = shadowRayVisibility(prbSD.worldPos.xyz, lightDir, lightDistance, giParams.shadowMult);
+    vec3 Lo =  prbSD.emission_roughness.xyz + shadowColor * (kD * prbSD.albedo_metalness.xyz * M_INV_PI + specular) * lightColor * NdotL;
 
-	return packDirectOutputData(worldNorm, albedo, F0, Lo, metalness, roughness);
-};
-
-struct VbufferExtraCommonData
-{
-    vec3 worldPos;
-    vec3 worldNorm;
-    vec2 uvCoord;
-    float pad;
+	return packDirectOutputData(prbSD.worldNorm.xyz, prbSD.albedo_metalness.xyz, F0, Lo, prbSD.albedo_metalness.w, prbSD.emission_roughness.w);
 };
 
 
@@ -177,4 +176,4 @@ VbufferExtraCommonData proccessVbufferData(uvec2 objectID_vertexID, mat4 projVie
 
     data.uvCoord = interpolate(bary, v0_uv, v1_uv, v2_uv).value;
     return data;
-}
+};

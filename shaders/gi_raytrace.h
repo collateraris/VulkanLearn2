@@ -167,6 +167,22 @@ float unpackRoughness_DirectOutputData(DirectOutputData inputData)
 	return inputData.metalness_roughness.y;
 };
 
+struct VbufferExtraCommonData
+{
+    vec3 worldPos;
+    vec3 worldNorm;
+    vec2 uvCoord;
+    float pad;
+};
+
+struct PBRShadeData
+{
+	vec4 albedo_metalness;
+	vec4 emission_roughness;
+	vec4 worldPos;
+	vec4 worldNorm;	
+};
+
 
 #include "ggx_brdf.h"
 #include "restir.h"

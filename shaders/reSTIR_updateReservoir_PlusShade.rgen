@@ -71,7 +71,8 @@ void main()
         DirectInputData inputData = packDirectInputData(objIDf, worldPos.xyz, worldNorm, uvCoord);
 
         uint lightToSample = uint(reservoir.y);
-        DirectOutputData outputCurrentData = ggxDirect(lightToSample, inputData, giParams.camPos.xyz, true);
+        PBRShadeData prbSD = getShadeData(inputData);
+        DirectOutputData outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, true);
         indirectColor += vec4(float(giParams.lightsCount) * unpackLo_DirectOutputData(outputCurrentData) * reservoir.w, 1.f);
 	}
 
