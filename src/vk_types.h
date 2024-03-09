@@ -19,7 +19,7 @@
 #define BIT(x) 1u << x
 
 constexpr uint32_t VULKAN_NUM_ATTACHMENTS = 8;
-constexpr uint32_t VULKAN_MAX_LIGHT_COUNT = 30 * 30 * 30;
+constexpr uint32_t VULKAN_MAX_LIGHT_COUNT = 300 * 300 * 300;
 
 enum class EResOp : uint8_t
 {

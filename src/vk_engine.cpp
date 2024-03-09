@@ -96,8 +96,11 @@ void VulkanEngine::init()
 
 	_lightManager.init(this);
 	//_lightManager.add_sun_light();
-	_lightManager.generateUniformGrid(_resManager.maxCube, _resManager.minCube, 10);
+	_lightManager.generateUniformGrid(_resManager.maxCube, _resManager.minCube, 3);
 	_lightManager.create_light_buffers();
+
+	ResourceManager::init_rt_scene(this, _resManager);
+	ResourceManager::init_global_bindless_descriptor(this, _resManager);
 
 #if VBUFFER_ON
 	_visBufGenerateGraphicsPipeline.init(this);
