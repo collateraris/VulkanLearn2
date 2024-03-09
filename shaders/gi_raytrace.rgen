@@ -46,40 +46,22 @@ void main()
 {
     const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
-    const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
-    vec2 d = inUV * 2.0 - 1.0;
-    
-    vec4 origin    = giParams.viewInverse * vec4(0, 0, 0, 1);
-    vec4 target    = giParams.projInverse * vec4(d.x, d.y, 1, 1);
-    vec4 direction = normalize(giParams.viewInverse * vec4(normalize(target.xyz), 0));
+
+    uvec2 objectID_vertexID = imageLoad(vbufferTex, ivec2(gl_LaunchIDEXT.xy)).xy;
+    float objIDf = float(objectID_vertexID.x) - 1.f;
 
     vec3 indirectColor = vec3(0.f, 0.f, 0.f);
-
-    IndirectRayPayload dirPayload =  shootIndirectRay(origin.xyz, direction.xyz);
-
-    float objIDf = dirPayload.worldNormGeometryXYZ_ObjectId.w;
-    
-    uvec2 objectID_primitiveID = imageLoad(vbufferTex, ivec2(gl_LaunchIDEXT.xy)).rg;
-    //objIDf = float(objectID_primitiveID.x) - 1.f;
-
-    uint primitiveIDfromCHIT = uint(dirPayload.baryCoord.w);
-    if (primitiveIDfromCHIT != objectID_primitiveID.y)
-    {
-            indirectColor = vec3(1., 0., 1.);
-            imageStore(indirectOutput, ivec2(gl_LaunchIDEXT.xy), vec4(indirectColor, 1.0f));
-            return;
-    }
 
     if (objIDf >= 0.)
 	{
         vec2 ndc = uv * 2.0 - 1.0;
 
         SObjectData shadeData = objectBuffer.objects[int(objIDf)];
-        int primitiveID = int(primitiveIDfromCHIT);
+        int vertexID = int(objectID_vertexID.y);
     
-        SVertex v0 = Vertices[shadeData.meshIndex].vertices[primitiveID * 3 + 0];
-        SVertex v1 = Vertices[shadeData.meshIndex].vertices[primitiveID * 3 + 1];
-        SVertex v2 = Vertices[shadeData.meshIndex].vertices[primitiveID * 3 + 2];
+        SVertex v0 = Vertices[shadeData.meshIndex].vertices[vertexID + 0];
+        SVertex v1 = Vertices[shadeData.meshIndex].vertices[vertexID + 1];
+        SVertex v2 = Vertices[shadeData.meshIndex].vertices[vertexID + 2];
 
         vec3 v0_pos = vec3(v0.positionXYZ_normalX.x, v0.positionXYZ_normalX.y, v0.positionXYZ_normalX.z);
         vec3 v1_pos = vec3(v1.positionXYZ_normalX.x, v1.positionXYZ_normalX.y, v1.positionXYZ_normalX.z);
@@ -299,6 +281,12 @@ void main()
 	}
     else
     {
+        const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
+        vec2 d = inUV * 2.0 - 1.0;
+        
+        vec4 origin    = giParams.viewInverse * vec4(0, 0, 0, 1);
+        vec4 target    = giParams.projInverse * vec4(d.x, d.y, 1, 1);
+        vec4 direction = normalize(giParams.viewInverse * vec4(normalize(target.xyz), 0));
         indirectColor = texture(prefilteredMap, direction.xyz).rgb;
     }
 

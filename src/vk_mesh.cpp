@@ -32,8 +32,12 @@ void Mesh::buildMeshlets()
 		for (unsigned int i = 0; i < meshlet.vertex_count; ++i)
 			meshletdata.push_back(meshlet_vertices[meshlet.vertex_offset + i]);
 
-		for (unsigned int i = 0; i < meshlet.triangle_count * 3; ++i)
-			meshletdata.push_back(meshlet_triangles[meshlet.triangle_offset + i]);
+		for (unsigned int i = 0; i < meshlet.triangle_count; ++i)
+		{
+			meshletdata.push_back(meshlet_triangles[meshlet.triangle_offset + i * 3 + 0]);
+			meshletdata.push_back(meshlet_triangles[meshlet.triangle_offset + i * 3 + 1]);
+			meshletdata.push_back(meshlet_triangles[meshlet.triangle_offset + i * 3 + 2]);
+		}
 #if !VBUFFER_ON && !GBUFFER_ON
 		glm::vec3 center = glm::vec3(0);
 		float radius = 0;

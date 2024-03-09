@@ -166,7 +166,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std
 			objectBufferInfo.range = VK_WHOLE_SIZE;
 
 			VkDescriptorImageInfo vbufferImageBufferInfo;
-			vbufferImageBufferInfo.sampler = sampler;
+			vbufferImageBufferInfo.sampler = VK_NULL_HANDLE;
 			vbufferImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::VBUFFER)->imageView;
 			vbufferImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 

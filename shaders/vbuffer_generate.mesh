@@ -42,12 +42,6 @@ in taskNV block
 	uint meshletIndices[32];
 };
 
-// Custom vertex output block
-layout (location = 0) out PerVertexData
-{  
-  flat uint drawID;
-} v_out[];   // [max_vertices]
-
 void main()
 {
 	uint mi = meshletIndices[gl_WorkGroupID.x];
@@ -78,21 +72,21 @@ void main()
 		position = vec3(modelMatrix * vec4(position, 1.0f));
 
 		gl_MeshVerticesNV[i].gl_Position = cameraData.viewProj * vec4(position, 1.0f);
-        v_out[i].drawID = uint(gl_DrawID);
 	}
 
     for (uint i = ti; i < triangleCount; i += 32)
 	{
 		uint index0 = i * 3 + 0;
-		uint index1 = i * 3 + 1;
-		uint index2 = i * 3 + 2;
 
-		uint vertex0Id = uint(MeshletData[meshletIndex].meshletData[indexOffset + index0]);
-		gl_PrimitiveIndicesNV[index0] = vertex0Id;
-		gl_PrimitiveIndicesNV[index1] = uint(MeshletData[meshletIndex].meshletData[indexOffset + index1]);
-		gl_PrimitiveIndicesNV[index2] = uint(MeshletData[meshletIndex].meshletData[indexOffset + index2]);
+		int index = int(MeshletData[meshletIndex].meshletData[indexOffset + index0]);
+		int vertex0Id = int(MeshletData[meshletIndex].meshletData[vertexOffset + index]);
+		
+		gl_PrimitiveIndicesNV[index0] = index;
+		gl_PrimitiveIndicesNV[index0 + 1] = index + 1;
+		gl_PrimitiveIndicesNV[index0 + 2] = index + 2;
 
-		gl_MeshPrimitivesNV[i].gl_PrimitiveID = int(vertex0Id);
+		gl_MeshPrimitivesNV[i].gl_PrimitiveID = vertex0Id;
+		gl_MeshPrimitivesNV[i].gl_Layer = gl_DrawID;
 	}
 
 	if (ti == 0)
