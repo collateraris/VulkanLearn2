@@ -4,6 +4,7 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "gi_raytrace.h"
+#include "vbuffer.h"
 
 layout(location = 0) rayPayloadEXT IndirectRayPayload indirectRpl;
 layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
@@ -40,7 +41,6 @@ layout(set = 3, binding = 2) uniform sampler2D   brdfLUT;
 
 
 #include "gi_raytrace_func.h"
-#include "vbuffer.h"
 
 void main() 
 {
@@ -56,38 +56,11 @@ void main()
 	{
         vec2 ndc = uv * 2.0 - 1.0;
 
-        SObjectData shadeData = objectBuffer.objects[int(objIDf)];
-        int vertexID = int(objectID_vertexID.y);
-    
-        SVertex v0 = Vertices[shadeData.meshIndex].vertices[vertexID + 0];
-        SVertex v1 = Vertices[shadeData.meshIndex].vertices[vertexID + 1];
-        SVertex v2 = Vertices[shadeData.meshIndex].vertices[vertexID + 2];
+        VbufferExtraCommonData vbufferData = proccessVbufferData(objectID_vertexID, giParams.projView, ndc, gl_LaunchSizeEXT.xy);
 
-        vec3 v0_pos = vec3(v0.positionXYZ_normalX.x, v0.positionXYZ_normalX.y, v0.positionXYZ_normalX.z);
-        vec3 v1_pos = vec3(v1.positionXYZ_normalX.x, v1.positionXYZ_normalX.y, v1.positionXYZ_normalX.z);
-        vec3 v2_pos = vec3(v2.positionXYZ_normalX.x, v2.positionXYZ_normalX.y, v2.positionXYZ_normalX.z);
-
-        BarycentricDeriv bary = CalcFullBary(
-            giParams.projView * shadeData.model * vec4(v0_pos, 1.0),
-            giParams.projView * shadeData.model * vec4(v1_pos, 1.0),
-            giParams.projView * shadeData.model * vec4(v2_pos, 1.0),
-            ndc,
-            gl_LaunchSizeEXT.xy
-        );
-
-        vec3 worldPos = interpolate(bary, v0_pos, v1_pos, v2_pos).value;
-
-        vec3 v0_nrm = vec3(v0.positionXYZ_normalX.w, v0.normalYZ_texCoordUV.x, v0.normalYZ_texCoordUV.y);
-        vec3 v1_nrm = vec3(v1.positionXYZ_normalX.w, v1.normalYZ_texCoordUV.x, v1.normalYZ_texCoordUV.y);
-        vec3 v2_nrm = vec3(v2.positionXYZ_normalX.w, v2.normalYZ_texCoordUV.x, v2.normalYZ_texCoordUV.y); 
-
-        vec3 worldNorm = interpolate(bary, v0_nrm, v1_nrm, v2_nrm).value;
-
-        vec2 v0_uv= vec2(v0.normalYZ_texCoordUV.z, v0.normalYZ_texCoordUV.w);
-        vec2 v1_uv = vec2(v1.normalYZ_texCoordUV.z, v1.normalYZ_texCoordUV.w);
-        vec2 v2_uv = vec2(v2.normalYZ_texCoordUV.z, v2.normalYZ_texCoordUV.w);
-
-        vec2 uvCoord = interpolate(bary, v0_uv, v1_uv, v2_uv).value;
+        vec3 worldPos = vbufferData.worldPos;
+        vec3 worldNorm = vbufferData.worldNorm;
+        vec2 uvCoord = vbufferData.uvCoord;
 
         // Initialize a random seed, per-pixel, based on a screen position and temporally varying count
 	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, giParams.frameCount);

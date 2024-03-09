@@ -127,3 +127,54 @@ DirectOutputData ggxDirect(uint lightToSample, DirectInputData inputData, vec3 c
 
 	return packDirectOutputData(worldNorm, albedo, F0, Lo, metalness, roughness);
 };
+
+struct VbufferExtraCommonData
+{
+    vec3 worldPos;
+    vec3 worldNorm;
+    vec2 uvCoord;
+    float pad;
+};
+
+
+VbufferExtraCommonData proccessVbufferData(uvec2 objectID_vertexID, mat4 projView, vec2 ndc, vec2 screenSize)
+{
+    VbufferExtraCommonData data;
+    int objID = int(objectID_vertexID.x) - 1;
+    int vertexID = int(objectID_vertexID.y);
+
+    SObjectData shadeData = objectBuffer.objects[objID];
+
+    SVertex v0 = Vertices[shadeData.meshIndex].vertices[vertexID + 0];
+    SVertex v1 = Vertices[shadeData.meshIndex].vertices[vertexID + 1];
+    SVertex v2 = Vertices[shadeData.meshIndex].vertices[vertexID + 2];
+
+    vec3 v0_pos = vec3(v0.positionXYZ_normalX.x, v0.positionXYZ_normalX.y, v0.positionXYZ_normalX.z);
+    vec3 v1_pos = vec3(v1.positionXYZ_normalX.x, v1.positionXYZ_normalX.y, v1.positionXYZ_normalX.z);
+    vec3 v2_pos = vec3(v2.positionXYZ_normalX.x, v2.positionXYZ_normalX.y, v2.positionXYZ_normalX.z);
+
+    mat4 PVM = projView * shadeData.model;
+
+    BarycentricDeriv bary = CalcFullBary(
+        PVM * vec4(v0_pos, 1.0),
+        PVM * vec4(v1_pos, 1.0),
+        PVM * vec4(v2_pos, 1.0),
+        ndc,
+        screenSize
+    );
+
+    data.worldPos = interpolate(bary, v0_pos, v1_pos, v2_pos).value;
+
+    vec3 v0_nrm = vec3(v0.positionXYZ_normalX.w, v0.normalYZ_texCoordUV.x, v0.normalYZ_texCoordUV.y);
+    vec3 v1_nrm = vec3(v1.positionXYZ_normalX.w, v1.normalYZ_texCoordUV.x, v1.normalYZ_texCoordUV.y);
+    vec3 v2_nrm = vec3(v2.positionXYZ_normalX.w, v2.normalYZ_texCoordUV.x, v2.normalYZ_texCoordUV.y); 
+
+    data.worldNorm = interpolate(bary, v0_nrm, v1_nrm, v2_nrm).value;
+
+    vec2 v0_uv= vec2(v0.normalYZ_texCoordUV.z, v0.normalYZ_texCoordUV.w);
+    vec2 v1_uv = vec2(v1.normalYZ_texCoordUV.z, v1.normalYZ_texCoordUV.w);
+    vec2 v2_uv = vec2(v2.normalYZ_texCoordUV.z, v2.normalYZ_texCoordUV.w);
+
+    data.uvCoord = interpolate(bary, v0_uv, v1_uv, v2_uv).value;
+    return data;
+}

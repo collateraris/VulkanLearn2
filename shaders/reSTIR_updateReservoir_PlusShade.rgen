@@ -4,9 +4,15 @@
 #extension GL_GOOGLE_include_directive : enable
 
 #include "gi_raytrace.h"
+#include "vbuffer.h"
 
 layout(location = 0) rayPayloadEXT IndirectRayPayload indirectRpl;
 layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
+
+layout (set = 0, std140, binding = 0) readonly buffer _vertices
+{
+	SVertex vertices[];
+} Vertices[];
 
 layout(set = 0, binding = 1) uniform sampler2D texSet[];
 layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
@@ -22,6 +28,8 @@ layout(set = 1, binding = 2) readonly buffer ObjectBuffer{
 
 	SObjectData objects[];
 } objectBuffer;
+
+layout(set = 1, binding = 3, rg32ui) uniform  readonly uimage2D vbufferTex;
 
 layout(set = 2, binding = 0) uniform sampler2D indirectInput;
 layout(set = 2, binding = 1) uniform sampler2D reservoirSpatial;
@@ -39,35 +47,24 @@ void main()
 {
     const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
-    const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
-    vec2 d = inUV * 2.0 - 1.0;
-    
-    vec4 origin    = giParams.viewInverse * vec4(0, 0, 0, 1);
-    vec4 target    = giParams.projInverse * vec4(d.x, d.y, 1, 1);
-    vec4 direction = normalize(giParams.viewInverse * vec4(normalize(target.xyz), 0));
+        
+    uvec2 objectID_vertexID = imageLoad(vbufferTex, ivec2(gl_LaunchIDEXT.xy)).xy;
+    float objIDf = float(objectID_vertexID.x) - 1.f;
 
     vec4 reservoir =  texture(reservoirSpatial, uv).rgba;
 	imageStore(reservoirPrev, ivec2(gl_LaunchIDEXT.xy), reservoir);
 
 	vec4 indirectColor = texture(indirectInput, uv).rgba;
 
-    IndirectRayPayload dirPayload =  shootIndirectRay(origin.xyz, direction.xyz);
-
-    float objIDf = dirPayload.worldNormGeometryXYZ_ObjectId.w;
-
     if (objIDf >= 0.)
 	{
-        const vec3 wo = -direction.xyz;
-        vec3 shading_nrm = unpackWorldNormShading_IndirectRayPayload(dirPayload);
-        vec3 geometry_nrm = unpackWorldNormGeometry_IndirectRayPayload(dirPayload);
-        if (dot(geometry_nrm, wo) <= 0.)
-            geometry_nrm = -geometry_nrm;
-        if (dot(geometry_nrm, shading_nrm) <= 0)
-            shading_nrm = -shading_nrm;
+        vec2 ndc = uv * 2.0 - 1.0;
 
-        vec3 worldPos = unpackWorldPos_IndirectRayPayload(dirPayload);
-        vec3 worldNorm = shading_nrm;
-        vec2 uvCoord = unpackUV_IndirectRayPayload(dirPayload);
+        VbufferExtraCommonData vbufferData = proccessVbufferData(objectID_vertexID, giParams.projView, ndc, gl_LaunchSizeEXT.xy);
+
+        vec3 worldPos = vbufferData.worldPos;
+        vec3 worldNorm = vbufferData.worldNorm;
+        vec2 uvCoord = vbufferData.uvCoord;
 
         // Initialize a random seed, per-pixel, based on a screen position and temporally varying count
 	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, giParams.frameCount);
