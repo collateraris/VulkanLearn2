@@ -1,5 +1,6 @@
 struct SGlobalGIParams
 {
+	mat4 projView;
 	mat4 viewInverse;
 	mat4 projInverse;
 	mat4 prevProjView;
@@ -31,6 +32,7 @@ struct SVertex {
 
 struct SObjectData
 {
+	mat4 model;
 	uint meshIndex;
 	uint diffuseTexIndex;
 	int normalTexIndex;
@@ -89,6 +91,7 @@ struct IndirectRayPayload
 	vec4 positionXYZ_normalShadX;
 	vec4 normalShadYZ_texCoordUV;
 	vec4 worldNormGeometryXYZ_ObjectId;
+	vec4 baryCoord;
 };
 
 int unpackObjID_IndirectRayPayload(IndirectRayPayload inputData)

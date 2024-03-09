@@ -23,6 +23,7 @@ class VulkanGIShadowsRaytracingGraphicsPipeline
 public:
 	struct alignas(16) GlobalGIParams
 	{
+		glm::mat4 projView;
 		glm::mat4 viewInverse;
 		glm::mat4 projInverse;
 		glm::mat4 prevProjView;

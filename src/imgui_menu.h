@@ -212,6 +212,7 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, Vulka
     giParams.numRays = std::max(0, numRays);
     giParams.frameCount = frameNumber;
     giParams.camPos = glm::vec4(camera.position, 1.f);
+    giParams.projView = camera.get_projection_matrix() * camera.get_view_matrix();
     giParams.viewInverse = glm::inverse(camera.get_view_matrix());
     giParams.projInverse = glm::inverse(camera.get_projection_matrix());
     giParams.prevProjView = prevCameraMatrix;

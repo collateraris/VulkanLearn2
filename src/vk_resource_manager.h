@@ -27,6 +27,7 @@ struct MaterialDesc
 
 struct alignas(16) GlobalObjectData
 {
+	glm::mat4 model;
 	uint32_t meshIndex;
 	uint32_t diffuseTexIndex;
 	int32_t normalTexIndex = -1;

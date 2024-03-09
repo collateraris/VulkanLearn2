@@ -71,4 +71,6 @@ void main()
   indirectRpl.positionXYZ_normalShadX = vec4(worldPos, worldNorm.x);
   indirectRpl.normalShadYZ_texCoordUV = vec4(worldNorm.yz, texCoord);
   indirectRpl.worldNormGeometryXYZ_ObjectId = vec4(worldNormGeometry, float(gl_InstanceID));
+  indirectRpl.baryCoord.xyz = barycentrics;
+  indirectRpl.baryCoord.w = float(gl_PrimitiveID);
 }

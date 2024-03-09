@@ -231,6 +231,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 		for (int i = 0; i < resManager.renderables.size(); i++)
 		{
 			const RenderObject& object = resManager.renderables[i];
+			objectSSBO[i].model = object.transformMatrix;
 			objectSSBO[i].meshIndex = object.meshIndex;
 			objectSSBO[i].diffuseTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->diffuseTextureIndex;
 			objectSSBO[i].normalTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->normalTextureIndex;

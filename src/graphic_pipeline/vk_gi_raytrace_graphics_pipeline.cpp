@@ -139,7 +139,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std
 		descASInfo.pAccelerationStructures = &tlas;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
-			.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, vertexBufferInfoList.size())
+			.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, vertexBufferInfoList.size())
 			.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, imageInfoList.size())
 			.bind_rt_as(tlasBinding, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 			.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene);
@@ -165,6 +165,11 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std
 			objectBufferInfo.offset = 0;
 			objectBufferInfo.range = VK_WHOLE_SIZE;
 
+			VkDescriptorImageInfo vbufferImageBufferInfo;
+			vbufferImageBufferInfo.sampler = sampler;
+			vbufferImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::VBUFFER)->imageView;
+			vbufferImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
 			EDescriptorResourceNames currentDesciptor = i == 0 ? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0 : EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
 
 
@@ -172,6 +177,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors(const std
 				.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 				.bind_buffer(1, &lightsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 				.bind_buffer(2, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
+				.bind_image(3, &vbufferImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 				.build(_engine, currentDesciptor);
 		}
 	}
@@ -196,6 +202,8 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::copy_global_uniform_data(VulkanG
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
+	vkutil::image_pipeline_barrier(cmd->get_cmd(), *_engine->get_engine_texture(ETextureResourceNames::VBUFFER), VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
 	_restirInitTemporalGP->draw(cmd, current_frame_index);
 	_restirSpacialGP->draw(cmd, current_frame_index);
 	_restirUpdateShadeGP->draw(cmd, current_frame_index);
