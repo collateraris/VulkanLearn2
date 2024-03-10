@@ -207,7 +207,7 @@ void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, in
 	}
 
 	_counter.accumCount++;
-	_counter.accumCount %= 3 * _engine->_lightManager.get_lights().size();
+	_counter.accumCount = std::min(_counter.accumCount, uint32_t(3 * _engine->_lightManager.get_lights().size()));
 	_counter.initLastFrame = 1;
 }
 

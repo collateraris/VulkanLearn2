@@ -65,14 +65,24 @@ void ResourceManager::load_meshes(VulkanEngine* _engine, const std::vector<std::
 		VkBufferUsageFlags rayTracingFlags =  // used also for building acceleration structures
 			flag | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 		{
-			size_t bufferSize = mesh->_vertices.size() * sizeof(Vertex);
-
+			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_vertices.size() * sizeof(Vertex));
 			mesh->_vertexBufferRT = _engine->create_buffer_n_copy_data(bufferSize, mesh->_vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | rayTracingFlags);
 		}
 		{
-			size_t bufferSize = mesh->_indices.size() * sizeof(uint32_t);
-
+			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_indices.size() * sizeof(uint32_t));
 			mesh->_indicesBufferRT = _engine->create_buffer_n_copy_data(bufferSize, mesh->_indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rayTracingFlags);
+		}
+		{
+			std::vector<glm::ivec4> indicesArray;
+			uint32_t triangleCount = mesh->_indices.size() / 3;
+			indicesArray.reserve(triangleCount);
+			for (uint32_t i = 0; i < triangleCount; i++)
+			{
+				indicesArray.push_back(glm::ivec4(mesh->_indices[i * 3 + 0], mesh->_indices[i * 3 + 1], mesh->_indices[i * 3 + 2], -1.f));
+			}
+
+			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(indicesArray.size() * sizeof(glm::ivec4));
+			mesh->_indicesBuffer = _engine->create_buffer_n_copy_data(bufferSize, indicesArray.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		}
 #endif
 #if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON
@@ -334,6 +344,7 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	const uint32_t meshletsBinding = 4;
 	const uint32_t meshletsDataBinding = 5;
 	const uint32_t lightBufferBinding = 6;
+	const uint32_t indicesBinding = 7;
 
 	const auto& meshList = resManager.meshList;
 	const auto& textureList = resManager.textureList;
@@ -344,10 +355,13 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	vertexBufferInfoList.resize(meshList.size());
 
 	std::vector<VkDescriptorBufferInfo> meshletBufferInfoList{};
-	meshletBufferInfoList.resize(_engine->_resManager.meshList.size());
+	meshletBufferInfoList.resize(meshList.size());
 
 	std::vector<VkDescriptorBufferInfo> meshletdataBufferInfoList{};
-	meshletdataBufferInfoList.resize(_engine->_resManager.meshList.size());
+	meshletdataBufferInfoList.resize(meshList.size());
+
+	std::vector<VkDescriptorBufferInfo> indexBufferInfoList{};
+	indexBufferInfoList.resize(meshList.size());
 
 	for (uint32_t meshArrayIndex = 0; meshArrayIndex < meshList.size(); meshArrayIndex++)
 	{
@@ -367,6 +381,11 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
 		meshletdataBufferInfo.offset = 0;
 		meshletdataBufferInfo.range = VK_WHOLE_SIZE;
+
+		VkDescriptorBufferInfo& indexBufferInfo = indexBufferInfoList[meshArrayIndex];
+		indexBufferInfo.buffer = mesh->_indicesBuffer._buffer;
+		indexBufferInfo.offset = 0;
+		indexBufferInfo.range = VK_WHOLE_SIZE;
 	}
 
 	//BIND SAMPLERS
@@ -406,5 +425,6 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		.bind_buffer(meshletsBinding, meshletBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MESH_BIT_NV, meshletBufferInfoList.size())
 		.bind_buffer(meshletsDataBinding, meshletdataBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MESH_BIT_NV, meshletdataBufferInfoList.size())
 		.bind_buffer(lightBufferBinding, &lightsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_buffer(indicesBinding, indexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, indexBufferInfoList.size())
 		.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene);
 }

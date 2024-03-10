@@ -23,15 +23,22 @@ layout(set = 0, std140, binding = 3) readonly buffer ObjectBuffer{
 	SObjectData objects[];
 } objectBuffer;
 
+layout (set = 0, std140, binding = 7) readonly buffer _indices
+{
+	ivec4 indices[];
+} Indices[];
+
 layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams; };
 
 void main()
 {
   SObjectData shadeData = objectBuffer.objects[gl_InstanceID];
+
+  ivec4 index = Indices[shadeData.meshIndex].indices[gl_PrimitiveID];
   
-  SVertex v0 = Vertices[shadeData.meshIndex].vertices[gl_PrimitiveID * 3 + 0];
-  SVertex v1 = Vertices[shadeData.meshIndex].vertices[gl_PrimitiveID * 3 + 1];
-  SVertex v2 = Vertices[shadeData.meshIndex].vertices[gl_PrimitiveID * 3 + 2];
+  SVertex v0 = Vertices[shadeData.meshIndex].vertices[index.x];
+  SVertex v1 = Vertices[shadeData.meshIndex].vertices[index.y];
+  SVertex v2 = Vertices[shadeData.meshIndex].vertices[index.z];
 
   const vec3 barycentrics = vec3(1.0 - baryCoord.x - baryCoord.y, baryCoord.x, baryCoord.y);
 
