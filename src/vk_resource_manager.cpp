@@ -332,6 +332,7 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	const uint32_t globalObjectBinding = 3;
 	const uint32_t meshletsBinding = 4;
 	const uint32_t meshletsDataBinding = 5;
+	const uint32_t indicesBinding = 6;
 
 	const auto& meshList = resManager.meshList;
 	const auto& textureList = resManager.textureList;
@@ -346,6 +347,9 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 
 	std::vector<VkDescriptorBufferInfo> meshletdataBufferInfoList{};
 	meshletdataBufferInfoList.resize(_engine->_resManager.meshList.size());
+
+	std::vector<VkDescriptorBufferInfo> indexBufferInfoList{};
+	indexBufferInfoList.resize(meshList.size());
 
 	for (uint32_t meshArrayIndex = 0; meshArrayIndex < meshList.size(); meshArrayIndex++)
 	{
@@ -365,6 +369,11 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
 		meshletdataBufferInfo.offset = 0;
 		meshletdataBufferInfo.range = VK_WHOLE_SIZE;
+
+		VkDescriptorBufferInfo& indexBufferInfo = indexBufferInfoList[meshArrayIndex];
+		indexBufferInfo.buffer = mesh->_indicesBufferRT._buffer;
+		indexBufferInfo.offset = 0;
+		indexBufferInfo.range = VK_WHOLE_SIZE;
 	}
 
 	//BIND SAMPLERS
@@ -398,5 +407,6 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		.bind_buffer(globalObjectBinding, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 		.bind_buffer(meshletsBinding, meshletBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshletBufferInfoList.size())
 		.bind_buffer(meshletsDataBinding, meshletdataBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV, meshletdataBufferInfoList.size())
+		.bind_buffer(indicesBinding, indexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, indexBufferInfoList.size())
 		.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene);
 }
