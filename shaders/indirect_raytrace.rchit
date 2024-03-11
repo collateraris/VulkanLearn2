@@ -23,11 +23,6 @@ layout(set = 0, binding = 3) readonly buffer ObjectBuffer{
 	SObjectData objects[];
 } objectBuffer;
 
-layout (set = 0, std140, binding = 6) readonly buffer _indices
-{
-	uint indices[];
-} Indices[];
-
 layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams; };
 
 layout(set = 1, binding = 1) readonly buffer _Lights{
@@ -38,14 +33,10 @@ layout(set = 1, binding = 1) readonly buffer _Lights{
 void main()
 {
   SObjectData shadeData = objectBuffer.objects[gl_InstanceID];
-
-  uint index0 = Indices[shadeData.meshIndex].indices[gl_PrimitiveID];
-  uint index1 = Indices[shadeData.meshIndex].indices[gl_PrimitiveID + 1];
-  uint index2 = Indices[shadeData.meshIndex].indices[gl_PrimitiveID + 2];
   
-  SVertex v0 = Vertices[shadeData.meshIndex].vertices[index0];
-  SVertex v1 = Vertices[shadeData.meshIndex].vertices[index1];
-  SVertex v2 = Vertices[shadeData.meshIndex].vertices[index2];
+  SVertex v0 = Vertices[shadeData.meshIndex].vertices[gl_PrimitiveID * 3 + 0];
+  SVertex v1 = Vertices[shadeData.meshIndex].vertices[gl_PrimitiveID * 3 + 1];
+  SVertex v2 = Vertices[shadeData.meshIndex].vertices[gl_PrimitiveID * 3 + 2];
 
   const vec3 barycentrics = vec3(1.0 - baryCoord.x - baryCoord.y, baryCoord.x, baryCoord.y);
 
