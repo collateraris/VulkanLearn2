@@ -79,14 +79,13 @@ void main()
 		uint index0 = i * 3 + 0;
 
 		int index = int(MeshletData[meshletIndex].meshletData[indexOffset + index0]);
-		int vertex0Id = int(MeshletData[meshletIndex].meshletData[vertexOffset + index]);
 		
 		gl_PrimitiveIndicesNV[index0] = index;
-		gl_PrimitiveIndicesNV[index0 + 1] = index + 1;
-		gl_PrimitiveIndicesNV[index0 + 2] = index + 2;
+		gl_PrimitiveIndicesNV[index0 + 1] = int(MeshletData[meshletIndex].meshletData[indexOffset + index0 + 1]);
+		gl_PrimitiveIndicesNV[index0 + 2] = int(MeshletData[meshletIndex].meshletData[indexOffset + index0 + 2]);
 
-		gl_MeshPrimitivesNV[i].gl_PrimitiveID = vertex0Id;
-		gl_MeshPrimitivesNV[i].gl_Layer = gl_DrawID;
+		gl_MeshPrimitivesNV[i].gl_PrimitiveID = int(index0);
+		gl_MeshPrimitivesNV[i].gl_Layer = gl_DrawID << 16 | int(mi);
 	}
 
 	if (ti == 0)

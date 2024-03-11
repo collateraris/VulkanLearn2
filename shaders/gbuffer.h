@@ -17,8 +17,9 @@ struct SVertex
 struct SMeshlet
 {
 	uint dataOffset;
-	uint8_t triangleCount;
-	uint8_t vertexCount;
+	uint triangleCount;
+	uint vertexCount;
+	uint pad;
 };
 
 struct SObjectData

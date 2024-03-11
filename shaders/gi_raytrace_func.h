@@ -136,17 +136,32 @@ DirectOutputData ggxDirect(uint lightToSample, PBRShadeData prbSD, vec3 camPos, 
 };
 
 
-VbufferExtraCommonData proccessVbufferData(uvec2 objectID_vertexID, mat4 projView, vec2 ndc, vec2 screenSize)
+VbufferExtraCommonData proccessVbufferData(uvec3 objectID_meshletsID_primitiveID, mat4 projView, vec2 ndc, vec2 screenSize)
 {
     VbufferExtraCommonData data;
-    int objID = int(objectID_vertexID.x) - 1;
-    int vertexID = int(objectID_vertexID.y);
-
+    int objID = int(objectID_meshletsID_primitiveID.x) - 1;
+    int meshletIndex = int(objectID_meshletsID_primitiveID.y);
+    int indexId = int(objectID_meshletsID_primitiveID.z);
+    
     SObjectData shadeData = objectBuffer.objects[objID];
 
-    SVertex v0 = Vertices[shadeData.meshIndex].vertices[vertexID + 0];
-    SVertex v1 = Vertices[shadeData.meshIndex].vertices[vertexID + 1];
-    SVertex v2 = Vertices[shadeData.meshIndex].vertices[vertexID + 2];
+    SMeshlet currMeshlet = Meshlet[shadeData.meshIndex].meshlets[meshletIndex];
+
+    int vertexCount = int(currMeshlet.vertexCount);
+	int dataOffset = int(currMeshlet.dataOffset);
+	int vertexOffset = int(dataOffset);
+	int indexOffset = int(dataOffset + vertexCount);
+
+    int index0 = int(MeshletData[shadeData.meshIndex].meshletData[indexOffset + indexId]);
+    int index1 = int(MeshletData[shadeData.meshIndex].meshletData[indexOffset + indexId + 1]);
+    int index2 = int(MeshletData[shadeData.meshIndex].meshletData[indexOffset + indexId + 2]);
+    int vertexId0 = int(MeshletData[shadeData.meshIndex].meshletData[vertexOffset + index0]);
+    int vertexId1 = int(MeshletData[shadeData.meshIndex].meshletData[vertexOffset + index1]);
+    int vertexId2 = int(MeshletData[shadeData.meshIndex].meshletData[vertexOffset + index2]);
+
+    SVertex v0 = Vertices[shadeData.meshIndex].vertices[vertexId0];
+    SVertex v1 = Vertices[shadeData.meshIndex].vertices[vertexId1];
+    SVertex v2 = Vertices[shadeData.meshIndex].vertices[vertexId2];
 
     vec3 v0_pos = vec3(v0.positionXYZ_normalX.x, v0.positionXYZ_normalX.y, v0.positionXYZ_normalX.z);
     vec3 v1_pos = vec3(v1.positionXYZ_normalX.x, v1.positionXYZ_normalX.y, v1.positionXYZ_normalX.z);

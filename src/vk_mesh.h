@@ -24,11 +24,12 @@ struct Vertex_VisB
 	glm::vec4 position;
 };
 
-struct Meshlet
+struct alignas(16) Meshlet
 {
 	uint32_t dataOffset; // dataOffset..dataOffset+vertexCount-1 stores vertex indices, we store indices packed in 4b units after that
-	uint8_t triangleCount;
-	uint8_t vertexCount;
+	uint32_t triangleCount;
+	uint32_t vertexCount;
+	uint32_t pad;
 };
 
 struct alignas(16) GPUObjectData {

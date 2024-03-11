@@ -119,3 +119,17 @@ interpolate(BarycentricDeriv deriv, vec3 v0, vec3 v1, vec3 v2) {
     interp.dy.z = z.z;
     return interp;
 };
+
+uvec2 packVBuffer(uint objectID, uint meshletsID, uint primitiveID)
+{
+    uint rchanel = objectID << 16 | meshletsID;
+    return uvec2(rchanel, primitiveID);
+}   
+
+uvec3 unpackVBuffer(uvec2 vbuffer)
+{
+    uint objectID = (vbuffer.x >> 16);
+    uint meshletsID = vbuffer.x & 0xFFFF;
+    uint primitiveID = vbuffer.y;
+    return uvec3(objectID, meshletsID, primitiveID);
+}

@@ -21,6 +21,16 @@ layout(set = 0, binding = 3) readonly buffer ObjectBuffer{
 	SObjectData objects[];
 } objectBuffer;
 
+layout (set = 0, binding = 4) readonly buffer _meshlets
+{
+	SMeshlet meshlets[];
+} Meshlet[];
+
+layout(set = 0, binding = 5) readonly buffer _meshletData
+{
+	uint meshletData[];
+} MeshletData[];
+
 layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams; };
 
 layout(set = 1, binding = 1) readonly buffer _Lights{
@@ -28,7 +38,7 @@ layout(set = 1, binding = 1) readonly buffer _Lights{
 	SLight lights[];
 } lightsBuffer;
 
-layout(set = 1, binding = 3, rg32ui) uniform  readonly uimage2D vbufferTex;
+layout(set = 1, binding = 3, rgba32ui) uniform  readonly uimage2D vbufferTex;
 
 layout(set = 2, binding = 0) uniform sampler2D indirectInput;
 layout(set = 2, binding = 1) uniform sampler2D reservoirSpatial;
@@ -47,8 +57,8 @@ void main()
     const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
         
-    uvec2 objectID_vertexID = imageLoad(vbufferTex, ivec2(gl_LaunchIDEXT.xy)).xy;
-    float objIDf = float(objectID_vertexID.x) - 1.f;
+    uvec3 objectID_meshletsID_primitiveID = unpackVBuffer(imageLoad(vbufferTex, ivec2(gl_LaunchIDEXT.xy)).xy);
+    float objIDf = float(objectID_meshletsID_primitiveID.x) - 1.f;
 
     vec4 reservoir =  texture(reservoirSpatial, uv).rgba;
 	imageStore(reservoirPrev, ivec2(gl_LaunchIDEXT.xy), reservoir);
@@ -59,7 +69,7 @@ void main()
 	{
         vec2 ndc = uv * 2.0 - 1.0;
 
-        VbufferExtraCommonData vbufferData = proccessVbufferData(objectID_vertexID, giParams.projView, ndc, gl_LaunchSizeEXT.xy);
+        VbufferExtraCommonData vbufferData = proccessVbufferData(objectID_meshletsID_primitiveID, giParams.projView, ndc, gl_LaunchSizeEXT.xy);
 
         vec3 worldPos = vbufferData.worldPos;
         vec3 worldNorm = vbufferData.worldNorm;

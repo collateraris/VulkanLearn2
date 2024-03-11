@@ -65,11 +65,7 @@ void VulkanVbufferGraphicsPipeline::init(VulkanEngine* engine)
 				pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
 
 				pipelineBuilder.attachment_count = 1;
-				{
-					auto colorBlend = vkinit::color_blend_attachment_state();
-					colorBlend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT;
-					pipelineBuilder._colorBlendAttachment.push_back(vkinit::color_blend_attachment_state());
-				}
+				pipelineBuilder._colorBlendAttachment.push_back(vkinit::color_blend_attachment_state());
 
 				//default depthtesting
 				pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);

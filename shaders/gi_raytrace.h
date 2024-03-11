@@ -30,6 +30,14 @@ struct SVertex {
 	vec4 normalYZ_texCoordUV;
 };
 
+struct SMeshlet
+{
+	uint dataOffset;
+	uint triangleCount;
+	uint vertexCount;
+	uint pad;
+};
+
 struct SObjectData
 {
 	mat4 model;
