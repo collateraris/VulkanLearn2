@@ -31,7 +31,10 @@ using namespace vk_utils;
 using namespace std;
 void VK_CHECK(VkResult result_) {
 	if (result_ != VK_SUCCESS)
+	{
+		assert(false);
 		std::cout << "VkResult";
+	}
 }
 
 void VulkanEngine::init()
@@ -96,8 +99,7 @@ void VulkanEngine::init()
 
 	_lightManager.init(this);
 	//_lightManager.add_sun_light();
-	_lightManager.generateUniformGrid(_resManager.maxCube, _resManager.minCube, 3);
-	_lightManager.create_light_buffers();
+	_lightManager.generateUniformGrid(_resManager.maxCube, _resManager.minCube, 7);
 
 	ResourceManager::init_rt_scene(this, _resManager);
 	ResourceManager::init_global_bindless_descriptor(this, _resManager);

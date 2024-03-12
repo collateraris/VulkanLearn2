@@ -32,11 +32,11 @@ struct alignas(16) GlobalObjectData
 	uint32_t meshIndex;
 	uint32_t meshletCount;
 	uint32_t diffuseTexIndex;
-	int32_t normalTexIndex = -1;
-	int32_t metalnessTexIndex = -1;
-	int32_t roughnessTexIndex = -1;
-	int32_t emissionTexIndex = -1;
-	int32_t opacityTexIndex = -1;
+	int32_t normalTexIndex;
+	int32_t metalnessTexIndex;
+	int32_t roughnessTexIndex;
+	int32_t emissionTexIndex;
+	int32_t opacityTexIndex;
 };
 
 class ResourceManager

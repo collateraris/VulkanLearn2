@@ -18,17 +18,12 @@ layout (set = 0, std140, binding = 0) readonly buffer _vertices
 
 layout(set = 0, binding = 1) uniform sampler2D texSet[];
 layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
-layout(set = 0, binding = 3) readonly buffer ObjectBuffer{
+layout(set = 0, std140, binding = 3) readonly buffer ObjectBuffer{
 
 	SObjectData objects[];
 } objectBuffer;
 
 layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams; };
-
-layout(set = 1, binding = 1) readonly buffer _Lights{
-
-	SLight lights[];
-} lightsBuffer;
 
 void main()
 {

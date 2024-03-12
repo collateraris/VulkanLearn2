@@ -75,11 +75,6 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors()
 			globalUniformsInfo.offset = 0;
 			globalUniformsInfo.range = VK_WHOLE_SIZE;
 
-			VkDescriptorBufferInfo lightsInfo;
-			lightsInfo.buffer = _engine->_lightManager.get_light_buffer(i)._buffer;
-			lightsInfo.offset = 0;
-			lightsInfo.range = VK_WHOLE_SIZE;
-
 			VkDescriptorImageInfo vbufferImageBufferInfo;
 			vbufferImageBufferInfo.sampler = VK_NULL_HANDLE;
 			vbufferImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::VBUFFER)->imageView;
@@ -89,8 +84,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors()
 
 			vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 				.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
-				.bind_buffer(1, &lightsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
-				.bind_image(3, &vbufferImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+				.bind_image(1, &vbufferImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 				.build(_engine, currentDesciptor);
 		}
 	}

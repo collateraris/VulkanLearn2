@@ -49,7 +49,7 @@ IndirectRayPayload shootDirectRay(vec3 orig, vec3 dir)
 
 float getDistanceFalloff(float distSquared)
 {
-    float falloff = 1 / ((0.01 * 0.01) + distSquared); // The 0.01 is to avoid infs when the light source is close to the shading point
+    float falloff = 1000.f / ((0.01 * 0.01) + distSquared); // The 0.01 is to avoid infs when the light source is close to the shading point
     return falloff;
 };
 
@@ -104,7 +104,7 @@ DirectOutputData ggxDirect(uint lightToSample, PBRShadeData prbSD, vec3 camPos, 
     
     // Calculate the falloff
     float falloff = getDistanceFalloff(distSquared);
-    vec3 lightColor = lightInfo.color.xyz * falloff;
+    vec3 lightColor = lightInfo.color_type.xyz * falloff;
 
 	vec3 H = normalize(viewDir + lightDir);
 

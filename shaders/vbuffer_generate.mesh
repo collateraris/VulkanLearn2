@@ -20,7 +20,7 @@ layout (set = 0, binding = 0) readonly buffer _vertices
 	SVertex vertices[];
 } Vertex[];
 
-layout(set = 0, binding = 3) readonly buffer ObjectBuffer{
+layout(set = 0, std140, binding = 3) readonly buffer ObjectBuffer{
 
 	SObjectData objects[];
 } objectBuffer;

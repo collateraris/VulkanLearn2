@@ -223,25 +223,26 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 
 	//create global object buffer
 
-	resManager.globalObjectBuffer = _engine->create_cpu_to_gpu_buffer(sizeof(GlobalObjectData) * resManager.renderables.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	std::vector<GlobalObjectData> objectSSBO;
+	objectSSBO.reserve(resManager.renderables.size());
+	for (int i = 0; i < resManager.renderables.size(); i++)
+	{
+		const RenderObject& object = resManager.renderables[i];
+		objectSSBO.push_back({
+			.model = object.transformMatrix,
+			.meshIndex = static_cast<uint32_t>(object.meshIndex),
+			.meshletCount = static_cast<uint32_t>(object.mesh->_meshlets.size()),
+			.diffuseTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->diffuseTextureIndex,
+			.normalTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->normalTextureIndex,
+			.metalnessTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->metalnessTextureIndex,
+			.roughnessTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->roughnessTextureIndex,
+			.emissionTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->emissionTextureIndex,
+			.opacityTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->opacityTextureIndex,
+		});
+	}
 
-	_engine->map_buffer(_engine->_allocator, resManager.globalObjectBuffer._allocation, [&](void*& data) {
-		GlobalObjectData* objectSSBO = (GlobalObjectData*)data;
-
-		for (int i = 0; i < resManager.renderables.size(); i++)
-		{
-			const RenderObject& object = resManager.renderables[i];
-			objectSSBO[i].model = object.transformMatrix;
-			objectSSBO[i].meshIndex = object.meshIndex;
-			objectSSBO[i].meshletCount = object.mesh->_meshlets.size();
-			objectSSBO[i].diffuseTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->diffuseTextureIndex;
-			objectSSBO[i].normalTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->normalTextureIndex;
-			objectSSBO[i].metalnessTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->metalnessTextureIndex;
-			objectSSBO[i].roughnessTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->roughnessTextureIndex;
-			objectSSBO[i].emissionTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->emissionTextureIndex;
-			objectSSBO[i].opacityTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->opacityTextureIndex;
-		}
-	});
+	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(objectSSBO.size() * sizeof(GlobalObjectData));
+	resManager.globalObjectBuffer = _engine->create_buffer_n_copy_data(bufferSize, objectSSBO.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 }
 
 void ResourceManager::init_rt_scene(VulkanEngine* _engine, ResourceManager& resManager)
@@ -332,6 +333,7 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	const uint32_t globalObjectBinding = 3;
 	const uint32_t meshletsBinding = 4;
 	const uint32_t meshletsDataBinding = 5;
+	const uint32_t lightBufferBinding = 6;
 
 	const auto& meshList = resManager.meshList;
 	const auto& textureList = resManager.textureList;
@@ -391,6 +393,11 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	objectBufferInfo.offset = 0;
 	objectBufferInfo.range = VK_WHOLE_SIZE;
 
+	VkDescriptorBufferInfo lightsInfo;
+	lightsInfo.buffer = _engine->_lightManager.get_light_buffer()._buffer;
+	lightsInfo.offset = 0;
+	lightsInfo.range = VK_WHOLE_SIZE;
+
 	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
 		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, vertexBufferInfoList.size())
 		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, imageInfoList.size())
@@ -398,5 +405,6 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		.bind_buffer(globalObjectBinding, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 		.bind_buffer(meshletsBinding, meshletBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MESH_BIT_NV, meshletBufferInfoList.size())
 		.bind_buffer(meshletsDataBinding, meshletdataBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MESH_BIT_NV, meshletdataBufferInfoList.size())
+		.bind_buffer(lightBufferBinding, &lightsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene);
 }

@@ -166,37 +166,6 @@ static void ShowFPSLog(Stats stats)
     log.Draw("Example: Log", &p_open);
 }
 
-static void EditSun(VulkanLightManager& lightManager, int current_frame_index)
-{
-    static bool p_open = true;
-    static VulkanLightManager::Light* pSun = nullptr;
-    static bool bChangedValue = true;
-
-    if (!pSun)
-    {
-        pSun = lightManager.get_sun_light();
-    }
-
-    ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
-    ImGui::Begin("EditSun", &p_open);
-    static float direction[4] = { -1.f, -1.f, 0.f, 1.f };
-    bChangedValue |= ImGui::InputFloat3("direction", direction);
-    static float position[4] = { 2.10f, 0.20f, 0.30f, 0.44f };
-    bChangedValue |= ImGui::InputFloat3("position", position);
-    static float col1[3] = { 1.0f, 1.0f, 1.0f };
-    bChangedValue |= ImGui::ColorEdit3("color", col1);
-    if (bChangedValue)
-    {
-        bChangedValue = false;
-        pSun->direction = glm::vec4(direction[0], direction[1], direction[2], 1.);
-        pSun->position = glm::vec4(position[0], position[1], position[2], 1.);
-        pSun->color = glm::vec4(col1[0], col1[1], col1[2], 1.);
-        lightManager.update_light_buffer(current_frame_index);
-    }
-    ImGui::End();
-}
-
-
 #if GI_RAYTRACER_ON
 static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeline& giGP, int current_frame_index, int frameNumber)
 {
@@ -235,7 +204,6 @@ static void ShowVkMenu(VulkanEngine& engine)
 {
     ImguiAppLog::ShowFPSLog(engine._stats);
 
-    ImguiAppLog::EditSun(engine._lightManager, engine.get_current_frame_index());
 #if GI_RAYTRACER_ON
     ImguiAppLog::EditGI(engine._lightManager, engine._camera, engine._giRtGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
 #endif

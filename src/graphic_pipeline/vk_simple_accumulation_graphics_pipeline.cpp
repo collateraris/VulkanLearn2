@@ -207,7 +207,7 @@ void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, in
 	}
 
 	_counter.accumCount++;
-	_counter.accumCount %= 10;
+	_counter.accumCount %= 3 * _engine->_lightManager.get_lights().size();
 	_counter.initLastFrame = 1;
 }
 
