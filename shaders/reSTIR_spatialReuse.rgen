@@ -40,12 +40,8 @@ layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams;
 
 layout(set = 1, binding = 1, rg32ui) uniform  readonly uimage2D vbufferTex;
 
-layout(set = 2, binding = 0) uniform sampler2D reservoirCurr;
-layout(set = 2, binding = 1, rgba32f) uniform image2D spatialReuse;
-
-layout(set = 3, binding = 0) uniform samplerCube irradianceMap;
-layout(set = 3, binding = 1) uniform samplerCube prefilteredMap;
-layout(set = 3, binding = 2) uniform sampler2D   brdfLUT;
+layout(set = 2, binding = 0) uniform sampler2D reservoir_DI_Curr;
+layout(set = 2, binding = 1, rgba16f) uniform image2D reservoir_DI_Spatial;
 
 
 #include "gi_raytrace_func.h"
@@ -77,7 +73,7 @@ void main()
 
         DirectInputData inputData = packDirectInputData(objIDf, worldPos.xyz, worldNorm, uvCoord);
 
-        vec4 reservoir = texture(reservoirCurr, uv).rgba;
+        vec4 reservoir = texture(reservoir_DI_Curr, uv).rgba;
         uint lightToSample = uint(reservoir.y);
 
         PBRShadeData prbSD = getShadeData(inputData);
@@ -113,7 +109,7 @@ void main()
 			neighborIndex.x = max(0, min(gl_LaunchSizeEXT.x - 1, gl_LaunchIDEXT.x + neighborOffset.x));
 			neighborIndex.y = max(0, min(gl_LaunchSizeEXT.y - 1, gl_LaunchIDEXT.y + neighborOffset.y));
 
-			neighborReservoir = texture(reservoirCurr, ivec2(neighborIndex)).rgba;
+			neighborReservoir = texture(reservoir_DI_Curr, ivec2(neighborIndex)).rgba;
             lightToSample = uint(neighborReservoir.y);
 
             DirectOutputData outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
@@ -137,5 +133,5 @@ void main()
 		reservoirNew.w = (1.f / max(p_hat, 0.0001f)) * (reservoirNew.x / max(reservoirNew.z, 0.0001f));
 	}
 
-    imageStore(spatialReuse, ivec2(gl_LaunchIDEXT.xy), reservoirNew);
+    imageStore(reservoir_DI_Spatial, ivec2(gl_LaunchIDEXT.xy), reservoirNew);
 }

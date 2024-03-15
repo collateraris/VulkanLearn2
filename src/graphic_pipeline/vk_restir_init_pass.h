@@ -13,26 +13,17 @@ class VulkanFrameBuffer;
 class VulkanCommandBuffer;
 class RenderObject;
 
-class VulkanReSTIRInitPlusTemporalPass
+class VulkanReSTIRInitPass
 {
 public:
 
-	VulkanReSTIRInitPlusTemporalPass() = default;
+	VulkanReSTIRInitPass() = default;
 	void init(VulkanEngine* engine);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
-	void indirectOutput_barrier_for_raytrace_read(VulkanCommandBuffer* cmd);
-	void indirectOutput_barrier_for_raytrace_write(VulkanCommandBuffer* cmd);
-	void reservoirPrevTex_barrier_for_raytrace_read(VulkanCommandBuffer* cmd);
-	void reservoirPrevTex_barrier_for_raytrace_write(VulkanCommandBuffer* cmd);
-	void reservoirCurrTex_barrier_for_raytrace_read(VulkanCommandBuffer* cmd);
-	void reservoirCurrTex_barrier_for_raytrace_write(VulkanCommandBuffer* cmd);
-
 private:
 
-	Texture& get_indirectOutput() const;
-	Texture& get_reservoirCurrTex() const;
-	Texture& get_reservoirPrevTex() const;
+	Texture& get_tex(ETextureResourceNames name) const;
 
 	void init_description_set_global_buffer();
 

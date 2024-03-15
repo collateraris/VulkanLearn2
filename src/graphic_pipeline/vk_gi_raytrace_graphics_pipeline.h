@@ -5,7 +5,8 @@
 #if GI_RAYTRACER_ON
 #include <vk_render_pass.h>
 #include <vk_mesh.h>
-#include <graphic_pipeline/vk_restir_init_plus_temporal_pass.h>
+#include <graphic_pipeline/vk_restir_init_pass.h>
+#include <graphic_pipeline/vk_restir_temporal_pass.h>
 #include <graphic_pipeline/vk_restir_spacial_reuse_pass.h>
 #include <graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.h>
 #include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
@@ -33,6 +34,7 @@ public:
 		uint32_t  numRays;
 	};
 	VulkanGIShadowsRaytracingGraphicsPipeline() = default;
+	void init_textures(VulkanEngine* engine);
 	void init(VulkanEngine* engine);
 	void copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams& aoData, int current_frame_index);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
@@ -49,9 +51,13 @@ private:
 
 	VulkanEngine* _engine = nullptr;
 
+	VkExtent3D _imageExtent;
+	VkFormat    _colorFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
+
 	std::array<AllocatedBuffer, 2> _globalUniformsBuffer;
 
-	std::unique_ptr<VulkanReSTIRInitPlusTemporalPass> _restirInitTemporalGP;
+	std::unique_ptr<VulkanReSTIRInitPass> _restirInitGP;
+	std::unique_ptr<VulkanReSTIRTemporalPass> _restirTemporalGP;
 	std::unique_ptr<VulkanReSTIRSpaceReusePass> _restirSpacialGP;
 	std::unique_ptr<VulkanReSTIRUpdateReservoirPlusShadePass> _restirUpdateShadeGP;
 	std::unique_ptr<VulkanSimpleAccumulationGraphicsPipeline> _accumulationGP;

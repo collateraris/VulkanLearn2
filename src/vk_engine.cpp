@@ -100,7 +100,9 @@ void VulkanEngine::init()
 	_lightManager.init(this);
 	//_lightManager.add_sun_light();
 	_lightManager.generateUniformGrid(_resManager.maxCube, _resManager.minCube, 7);
-
+#if GI_RAYTRACER_ON
+	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
+#endif
 	ResourceManager::init_rt_scene(this, _resManager);
 	ResourceManager::init_global_bindless_descriptor(this, _resManager);
 
@@ -111,7 +113,7 @@ void VulkanEngine::init()
 	_gBufGenerateGraphicsPipeline.init(this);
 #endif	
 #if GI_RAYTRACER_ON
-	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
+	_giRtGraphicsPipeline.init_textures(this);
 	_giRtGraphicsPipeline.init(this);
 	_gBufShadingGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
 #endif
@@ -468,6 +470,7 @@ void VulkanEngine::init_vulkan()
 	required_features.shaderSampledImageArrayDynamicIndexing = 1;
 	required_features.shaderStorageBufferArrayDynamicIndexing = 1;
 	required_features.shaderStorageImageArrayDynamicIndexing = 1;
+	required_features.geometryShader = 1;
 
 	std::vector<const char*> extensions = {
 		VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
@@ -478,6 +481,7 @@ void VulkanEngine::init_vulkan()
 		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
 #if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON
 		VK_NV_MESH_SHADER_EXTENSION_NAME,
+		VK_KHR_MAINTENANCE_4_EXTENSION_NAME,
 #endif
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
 #if GI_RAYTRACER_ON
@@ -527,6 +531,10 @@ void VulkanEngine::init_vulkan()
 	descriptor_indexing_features.descriptorBindingPartiallyBound = true;
 	descriptor_indexing_features.runtimeDescriptorArray = true;
 
+	VkPhysicalDeviceVulkan13Features phys_dev_13_features{};
+	phys_dev_13_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+	phys_dev_13_features.maintenance4 = true;
+
 #if GI_RAYTRACER_ON
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
 	acceleration_structure_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
@@ -545,6 +553,7 @@ void VulkanEngine::init_vulkan()
 		.add_pNext(&featuresMesh)
 		.add_pNext(&buffer_device_address_features)
 		.add_pNext(&descriptor_indexing_features)
+		.add_pNext(&phys_dev_13_features)
 #if GI_RAYTRACER_ON
 		.add_pNext(&acceleration_structure_features)
 		.add_pNext(&rt_features)

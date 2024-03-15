@@ -41,13 +41,9 @@ layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams;
 layout(set = 1, binding = 1, rgba32ui) uniform  readonly uimage2D vbufferTex;
 
 layout(set = 2, binding = 0) uniform sampler2D indirectInput;
-layout(set = 2, binding = 1) uniform sampler2D reservoirSpatial;
-layout(set = 2, binding = 2, rgba32f) uniform image2D reservoirPrev;
-layout(set = 2, binding = 3, rgba32f) uniform image2D outputTex;
-
-layout(set = 3, binding = 0) uniform samplerCube irradianceMap;
-layout(set = 3, binding = 1) uniform samplerCube prefilteredMap;
-layout(set = 3, binding = 2) uniform sampler2D   brdfLUT;
+layout(set = 2, binding = 1) uniform sampler2D reservoir_DI_Spatial;
+layout(set = 2, binding = 2, rgba16f) uniform image2D reservoir_DI_Prev;
+layout(set = 2, binding = 3, rgba16f) uniform image2D outputTex;
 
 
 #include "gi_raytrace_func.h"
@@ -60,8 +56,8 @@ void main()
     uvec3 objectID_meshletsID_primitiveID = unpackVBuffer(imageLoad(vbufferTex, ivec2(gl_LaunchIDEXT.xy)).xy);
     float objIDf = float(objectID_meshletsID_primitiveID.x) - 1.f;
 
-    vec4 reservoir =  texture(reservoirSpatial, uv).rgba;
-	imageStore(reservoirPrev, ivec2(gl_LaunchIDEXT.xy), reservoir);
+    vec4 reservoir =  texture(reservoir_DI_Spatial, uv).rgba;
+	imageStore(reservoir_DI_Prev, ivec2(gl_LaunchIDEXT.xy), reservoir);
 
 	vec4 indirectColor = texture(indirectInput, uv).rgba;
 

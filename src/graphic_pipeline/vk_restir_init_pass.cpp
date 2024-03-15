@@ -1,4 +1,4 @@
-#include <graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.h>
+#include <graphic_pipeline/vk_restir_init_pass.h>
 
 #if GI_RAYTRACER_ON
 
@@ -7,41 +7,30 @@
 #include <vk_command_buffer.h>
 #include <vk_render_pipeline.h>
 #include <vk_material_system.h>
-#include <vk_material_system.h>
 #include <vk_shaders.h>
 #include <vk_raytracer_builder.h>
 #include <vk_initializers.h>
+#include <vk_utils.h>
 
-void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine)
+void VulkanReSTIRInitPass::init(VulkanEngine* engine)
 {
 	_engine = engine;
 
 	_imageExtent = {
-		_engine->_windowExtent.width,
-		_engine->_windowExtent.height,
+		engine->_windowExtent.width,
+		engine->_windowExtent.height,
 		1
 	};
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		_outputTex = texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
-	}
 
 	{
 		init_description_set_global_buffer();
 	}
 
 	{
-		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::ReSTIR_UpdateReservoir_PlusShade,
+		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::ReSTIR_Init,
 			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
 				ShaderEffect defaultEffect;
-				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("reSTIR_updateReservoir_PlusShade.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
+				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("gi_raytrace.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
 				uint32_t rayIndirectMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("ao_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayIndirectClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
@@ -104,60 +93,52 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine)
 			});
 	}
 
-	_rtSBTBuffer = VulkanRaytracerBuilder::create_SBTBuffer(engine, 2, 1, EPipelineType::ReSTIR_UpdateReservoir_PlusShade,
+	_rtSBTBuffer = VulkanRaytracerBuilder::create_SBTBuffer(engine, 2, 1, EPipelineType::ReSTIR_Init,
 		_rgenRegion,
 		_missRegion,
 		_hitRegion,
 		_callRegion);
 }
 
-void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffer()
+Texture& VulkanReSTIRInitPass::get_tex(ETextureResourceNames name) const
+{
+	return *_engine->get_engine_texture(name);
+}
+
+void VulkanReSTIRInitPass::init_description_set_global_buffer()
 {
 	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-		.bind_image(0, ETextureResourceNames::ReSTIR_INDIRECT_LO, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(1, ETextureResourceNames::ReSTIR_DI_SPACIAL_RESERVOIRS, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(2, ETextureResourceNames::ReSTIR_DI_PREV_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(3, _outputTex, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(0, ETextureResourceNames::ReSTIR_INIT_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(1, ETextureResourceNames::ReSTIR_INDIRECT_LO, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.create_desciptor_manager();
 }
 
-void VulkanReSTIRUpdateReservoirPlusShadePass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanReSTIRInitPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
-	VkClearValue clear_value = { 0., 0., 0., 0. };
-	cmd->clear_image(_outputTex, clear_value);
+	{
+		VkClearValue clear_value = { 0., 0., 0., 0. };
+		cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_INDIRECT_LO), clear_value);
+	}
 
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+	{
+		VkClearValue clear_value = { 0., 0., 0., 0. };
+		cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_INIT_RESERVOIRS), clear_value);
+	}
 
 	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
 		[&](VkCommandBuffer cmd) {
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_UpdateReservoir_PlusShade));
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_UpdateReservoir_PlusShade), 0,
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_Init));
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_Init), 0,
 				1, &_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set, 0, nullptr);
 
-			EDescriptorResourceNames currentGlobalUniformsDesc = current_frame_index % 2 == 0
-				? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
+			EDescriptorResourceNames currentGlobalUniformsDesc = current_frame_index % 2 ==  0 
+				? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0 
 				: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
 
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_UpdateReservoir_PlusShade), 1,
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_Init), 1,
 				1, &_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set, 0, nullptr);
 
-			_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_UpdateReservoir_PlusShade), 2);
+			_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_Init), 2);
 		});
 }
-
-const Texture& VulkanReSTIRUpdateReservoirPlusShadePass::get_output() const
-{
-	return _outputTex;
-}
-
-void VulkanReSTIRUpdateReservoirPlusShadePass::barrier_for_frag_read(VulkanCommandBuffer* cmd)
-{
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-}
-
-void VulkanReSTIRUpdateReservoirPlusShadePass::barrier_for_raytrace_write(VulkanCommandBuffer* cmd)
-{
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-}
-
 #endif

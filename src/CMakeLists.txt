@@ -60,8 +60,10 @@ add_executable(vulkan_guide
     graphic_pipeline/vk_gbuffer_shading_graphics_pipeline.cpp
     graphic_pipeline/vk_gi_raytrace_graphics_pipeline.h
     graphic_pipeline/vk_gi_raytrace_graphics_pipeline.cpp    
-    graphic_pipeline/vk_restir_init_plus_temporal_pass.h
-    graphic_pipeline/vk_restir_init_plus_temporal_pass.cpp
+    graphic_pipeline/vk_restir_init_pass.h
+    graphic_pipeline/vk_restir_init_pass.cpp
+    graphic_pipeline/vk_restir_temporal_pass.h
+    graphic_pipeline/vk_restir_temporal_pass.cpp
     graphic_pipeline/vk_restir_spacial_reuse_pass.h
     graphic_pipeline/vk_restir_spacial_reuse_pass.cpp
     graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.h

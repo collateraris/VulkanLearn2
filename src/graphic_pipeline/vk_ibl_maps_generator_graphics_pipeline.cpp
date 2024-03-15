@@ -523,7 +523,7 @@ void VulkanIblMapsGeneratorGraphicsPipeline::drawBRDFLUT()
 		default_rp.clear_attachments = BIT(0);
 		default_rp.store_attachments = BIT(0);
 		default_rp.num_color_attachments = 1;
-		default_rp.color_attachments[0] = &_offscreenRT;
+		default_rp.color_attachments[0] = _engine->get_engine_texture(ETextureResourceNames::IBL_BRDFLUT);
 		default_rp.depth_stencil = nullptr;
 
 		RenderPassInfo::Subpass subpass = {};

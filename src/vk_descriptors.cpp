@@ -429,6 +429,11 @@ vkutil::DescriptorManagerBuilder vkutil::DescriptorManagerBuilder::begin(VulkanE
 	return builder;
 }
 
+vkutil::DescriptorManagerBuilder& vkutil::DescriptorManagerBuilder::bind_image(uint32_t binding, ETextureResourceNames texture, EResOp operation, VkShaderStageFlags stageFlags)
+{
+	return bind_image(binding, *_engine->_resManager.get_engine_texture(texture), operation, stageFlags);
+}
+
 vkutil::DescriptorManagerBuilder& vkutil::DescriptorManagerBuilder::bind_image(uint32_t binding, Texture& texture, EResOp operation, VkShaderStageFlags stageFlags)
 {
 	VkSampler& sampler = _engine->get_engine_sampler(texture.samplerType)->sampler;

@@ -1,0 +1,140 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_nonuniform_qualifier:enable
+#extension GL_GOOGLE_include_directive : enable
+
+#include "gi_raytrace.h"
+#include "vbuffer.h"
+
+layout(location = 0) rayPayloadEXT IndirectRayPayload indirectRpl;
+layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
+
+layout (set = 0, std140, binding = 0) readonly buffer _vertices
+{
+	SVertex vertices[];
+} Vertices[];
+
+layout(set = 0, binding = 1) uniform sampler2D texSet[];
+layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
+layout(set = 0, std140, binding = 3) readonly buffer ObjectBuffer{
+
+	SObjectData objects[];
+} objectBuffer;
+
+layout (set = 0, binding = 4) readonly buffer _meshlets
+{
+	SMeshlet meshlets[];
+} Meshlet[];
+
+layout(set = 0, binding = 5) readonly buffer _meshletData
+{
+	uint meshletData[];
+} MeshletData[];
+
+layout(set = 0, std140, binding = 6) readonly buffer _Lights{
+
+	SLight lights[];
+} lightsBuffer;
+
+layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams; };
+
+
+layout(set = 1, binding = 1, rg32ui) uniform  readonly uimage2D vbufferTex;
+
+layout(set = 2, binding = 0) uniform sampler2D reservoir_DI_Prev;
+layout(set = 2, binding = 1) uniform sampler2D reservoir_Init;
+layout(set = 2, binding = 2) uniform sampler2D indirectOutput;
+layout(set = 2, binding = 3, rgba16f) uniform image2D reservoir_DI_Curr;
+
+
+#include "gi_raytrace_func.h"
+
+void main() 
+{
+    const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
+    const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+
+    uvec3 objectID_meshletsID_primitiveID = unpackVBuffer(imageLoad(vbufferTex, ivec2(gl_LaunchIDEXT.xy)).xy);
+    float objIDf = float(objectID_meshletsID_primitiveID.x) - 1.f;
+
+    vec4 reservoir = vec4(0.f, 0.f, 0.f, 0.f);
+
+    if (objIDf >= 0.)
+	{
+        vec2 ndc = uv * 2.0 - 1.0;
+
+        VbufferExtraCommonData vbufferData = proccessVbufferData(objectID_meshletsID_primitiveID, giParams.projView, ndc, gl_LaunchSizeEXT.xy);
+
+        vec3 worldPos = vbufferData.worldPos;
+        vec3 worldNorm = vbufferData.worldNorm;
+        vec2 uvCoord = vbufferData.uvCoord;
+
+        // Initialize a random seed, per-pixel, based on a screen position and temporally varying count
+	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, giParams.frameCount);
+
+        DirectInputData inputData = packDirectInputData(objIDf, worldPos.xyz, worldNorm, uvCoord);
+
+        // Reservoir reminder:
+        // .x: weight sum
+        // .y: chosen light for the pixel
+        // .z: the number of samples seen for this current light
+        // .w: the final adjusted weight for the current pixel following the formula in algorithm 3 (r.W)        
+
+        reservoir = texture(reservoir_Init, uv).rgba;
+        float p_hat = texture(indirectOutput, uv).a;
+
+        float shadowColor = 0.f;
+
+        PBRShadeData prbSD = getShadeData(inputData);
+
+        DirectOutputData outputCurrentData;
+
+        vec4 prev_reservoir = vec4(0.f, 0.f, 0.f, 0.f);
+
+        vec4 screen_space = giParams.prevProjView * vec4(worldPos, 1.);
+        screen_space /= screen_space.w;
+        vec2 prevIndex = vec2(gl_LaunchIDEXT.xy);
+        prevIndex.x = ((screen_space.x + 1.f) / 2.f) * gl_LaunchSizeEXT.x;
+        prevIndex.y = ((1.f - screen_space.y) / 2.f) * gl_LaunchSizeEXT.y;
+
+        if (prevIndex.x >= 0 && prevIndex.x < gl_LaunchSizeEXT.x && prevIndex.y >= 0 && prevIndex.y < gl_LaunchSizeEXT.y) {
+            prev_reservoir = texture(reservoir_DI_Prev, uv).rgba;
+        }
+        //Temporal reuse
+        {
+            vec4 temporal_reservoir = vec4(0.f, 0.f, 0.f, 0.f);
+			// combine current reservoir
+            uint lightToSample = uint(reservoir.y);
+			temporal_reservoir = updateReservoir(randSeed, temporal_reservoir, lightToSample, p_hat * reservoir.w * reservoir.z);
+
+            lightToSample = uint(prev_reservoir.y);
+            outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
+            // p_hat of the light is f * Le * G / pdf
+            p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
+            prev_reservoir.z = min(20.f * reservoir.z, prev_reservoir.z);    
+            temporal_reservoir = updateReservoir(randSeed, temporal_reservoir, lightToSample, p_hat * prev_reservoir.w * prev_reservoir.z);
+
+            // set M value
+			temporal_reservoir.z = reservoir.z + prev_reservoir.z;
+
+			// set W value
+            lightToSample = uint(temporal_reservoir.y);
+            outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
+            // p_hat of the light is f * Le * G / pdf
+            p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
+			temporal_reservoir.w = (1.f / max(p_hat, 0.0001f)) * (temporal_reservoir.x / max(temporal_reservoir.z, 0.0001f));
+
+			// set current reservoir to the combined temporal reservoir
+			reservoir = temporal_reservoir;
+        }
+
+        //DRAW WITH ReSTIR result
+        // {
+        //     lightToSample = uint(reservoir.y);
+        //     DirectOutputData outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, true);
+        //     indirectColor += float(giParams.lightsCount) * unpackLo_DirectOutputData(outputCurrentData) * reservoir.w;
+        // }
+	}
+
+    imageStore(reservoir_DI_Curr, ivec2(gl_LaunchIDEXT.xy), reservoir);
+}

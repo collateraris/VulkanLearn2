@@ -135,6 +135,7 @@ namespace vkutil {
 	public:
 		static DescriptorManagerBuilder begin(VulkanEngine* engine, DescriptorLayoutCache* layoutCache, DescriptorAllocator* allocator);
 
+		DescriptorManagerBuilder& bind_image(uint32_t binding, ETextureResourceNames texture, EResOp operation, VkShaderStageFlags stageFlags);
 		DescriptorManagerBuilder& bind_image(uint32_t binding, Texture& texture, EResOp operation, VkShaderStageFlags stageFlags);
 
 		DescriptorManager create_desciptor_manager();
