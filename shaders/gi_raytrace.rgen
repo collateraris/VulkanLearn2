@@ -234,16 +234,6 @@ void main()
             }
         }
 	}
-    else
-    {
-        const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
-        vec2 d = inUV * 2.0 - 1.0;
-        
-        vec4 origin    = giParams.viewInverse * vec4(0, 0, 0, 1);
-        vec4 target    = giParams.projInverse * vec4(d.x, d.y, 1, 1);
-        vec4 direction = normalize(giParams.viewInverse * vec4(normalize(target.xyz), 0));
-        indirectColor.xyz = texture(prefilteredMap, direction.xyz).rgb;
-    }
 
 
     imageStore(indirectLoInitOutput, ivec2(gl_LaunchIDEXT.xy), indirectColor);

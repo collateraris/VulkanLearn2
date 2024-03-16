@@ -108,9 +108,9 @@ void VulkanReSTIR_GI_TemporalPass::init_description_set_global_buffer()
 		.bind_image(6, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_PREV, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 
 		.bind_image(7, ETextureResourceNames::ReSTIR_GI_CURRENT_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(8, ETextureResourceNames::ReSTIR_INDIRECT_LO_CURRENT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(9, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_CURRENT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(10, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_CURRENT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(8, ETextureResourceNames::ReSTIR_INDIRECT_LO_CURRENT, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(9, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_CURRENT, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(10, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_CURRENT, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.create_desciptor_manager();
 }
 
@@ -121,11 +121,6 @@ Texture& VulkanReSTIR_GI_TemporalPass::get_tex(ETextureResourceNames name) const
 
 void VulkanReSTIR_GI_TemporalPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
-	{
-		VkClearValue clear_value = { 0., 0., 0., 0. };
-		cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_DI_CURRENT_RESERVOIRS), clear_value);
-	}
-
 	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
 		[&](VkCommandBuffer cmd) {
 			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_GI_Temporal));

@@ -36,14 +36,25 @@ layout(set = 0, std140, binding = 6) readonly buffer _Lights{
 	SLight lights[];
 } lightsBuffer;
 
+layout(set = 0, binding = 9) uniform samplerCube prefilteredMap;
+
 layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams; };
 
 layout(set = 1, binding = 1, rgba32ui) uniform  readonly uimage2D vbufferTex;
 
-layout(set = 2, binding = 0) uniform sampler2D indirectInput;
-layout(set = 2, binding = 1) uniform sampler2D reservoir_DI_Spatial;
-layout(set = 2, binding = 2, rgba16f) uniform image2D reservoir_DI_Prev;
-layout(set = 2, binding = 3, rgba16f) uniform image2D outputTex;
+layout(set = 2, binding = 0) uniform sampler2D reservoir_DI_Spatial;
+layout(set = 2, binding = 1, rgba16f) uniform image2D reservoir_DI_Prev;
+layout(set = 2, binding = 2, rgba16f) uniform image2D outputTex;
+
+layout(set = 2, binding = 3) uniform sampler2D reservoir_GI_Spatial;
+layout(set = 2, binding = 4) uniform sampler2D indirectLoSpatialInput;
+layout(set = 2, binding = 5) uniform sampler2D giSamplesPosSpatialInput;
+layout(set = 2, binding = 6) uniform sampler2D giSamplesNormSpatialInput;
+
+layout(set = 2, binding = 7, rgba16f) uniform image2D reservoir_GI_Prev;
+layout(set = 2, binding = 8, rgba16f) uniform image2D indirectLoPrevOutput;
+layout(set = 2, binding = 9, rgba32f) uniform image2D giSamplesPosPrevOutput;
+layout(set = 2, binding = 10, rgba32f) uniform image2D giSamplesNormPrevOutput;
 
 
 #include "gi_raytrace_func.h"
@@ -59,7 +70,7 @@ void main()
     vec4 reservoir =  texture(reservoir_DI_Spatial, uv).rgba;
 	imageStore(reservoir_DI_Prev, ivec2(gl_LaunchIDEXT.xy), reservoir);
 
-	vec4 indirectColor = texture(indirectInput, uv).rgba;
+	vec4 sceneColor = vec4(0.f, 0.f, 0.f, 0.f);
 
     if (objIDf >= 0.)
 	{
@@ -79,8 +90,34 @@ void main()
         uint lightToSample = uint(reservoir.y);
         PBRShadeData prbSD = getShadeData(inputData);
         DirectOutputData outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, true);
-        indirectColor += vec4(float(giParams.lightsCount) * unpackLo_DirectOutputData(outputCurrentData) * reservoir.w, 1.f);
-	}
+        sceneColor += vec4(float(giParams.lightsCount) * unpackLo_DirectOutputData(outputCurrentData) * reservoir.w, 1.f);
 
-	imageStore(outputTex, ivec2(gl_LaunchIDEXT.xy), indirectColor);
+
+        reservoir =  texture(reservoir_GI_Spatial, uv).rgba;
+        vec4 Lo = texture(indirectLoSpatialInput, uv).rgba;
+        vec4 giSamplesPos = texture(giSamplesPosSpatialInput, uv).rgba;
+        vec4 giSamplesNorm = texture(giSamplesNormSpatialInput, uv).rgba;
+
+        imageStore(reservoir_GI_Prev, ivec2(gl_LaunchIDEXT.xy), reservoir);
+        imageStore(indirectLoPrevOutput, ivec2(gl_LaunchIDEXT.xy), Lo);
+        imageStore(giSamplesPosPrevOutput, ivec2(gl_LaunchIDEXT.xy), giSamplesPos);
+        imageStore(giSamplesNormPrevOutput, ivec2(gl_LaunchIDEXT.xy), giSamplesNorm);
+
+        if (reservoir.w > 0)
+        {
+            sceneColor.xyz += Lo.xyz * reservoir.w;
+        }
+	}
+    else
+    {
+        const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
+        vec2 d = inUV * 2.0 - 1.0;
+        
+        vec4 origin    = giParams.viewInverse * vec4(0, 0, 0, 1);
+        vec4 target    = giParams.projInverse * vec4(d.x, d.y, 1, 1);
+        vec4 direction = normalize(giParams.viewInverse * vec4(normalize(target.xyz), 0));
+        sceneColor.xyz = texture(prefilteredMap, direction.xyz).rgb;
+    }
+
+	imageStore(outputTex, ivec2(gl_LaunchIDEXT.xy), sceneColor);
 }

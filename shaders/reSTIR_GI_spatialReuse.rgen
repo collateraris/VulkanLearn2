@@ -41,8 +41,14 @@ layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams;
 layout(set = 1, binding = 1, rg32ui) uniform  readonly uimage2D vbufferTex;
 
 layout(set = 2, binding = 0) uniform sampler2D reservoir_GI_Curr;
-layout(set = 2, binding = 1, rgba16f) uniform image2D reservoir_GI_Spatial;
+layout(set = 2, binding = 1) uniform sampler2D indirectLoCurrInput;
+layout(set = 2, binding = 2) uniform sampler2D giSamplesPosCurrInput;
+layout(set = 2, binding = 3) uniform sampler2D giSamplesNormCurrInput;
 
+layout(set = 2, binding = 4, rgba16f) uniform image2D reservoir_GI_Spatial;
+layout(set = 2, binding = 5, rgba16f) uniform image2D indirectLoSpatialOutput;
+layout(set = 2, binding = 6, rgba32f) uniform image2D giSamplesPosSpatialOutput;
+layout(set = 2, binding = 7, rgba32f) uniform image2D giSamplesNormSpatialOutput;
 
 #include "gi_raytrace_func.h"
 
@@ -53,42 +59,55 @@ void main()
     const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
 
+	vec4 Lo = texture(indirectLoCurrInput, uv).rgba;
+    vec4 giSamplesPos = texture(giSamplesPosCurrInput, uv).rgba;
+    vec4 giSamplesNorm = texture(giSamplesNormCurrInput, uv).rgba;
+
     uvec3 objectID_meshletsID_primitiveID = unpackVBuffer(imageLoad(vbufferTex, ivec2(gl_LaunchIDEXT.xy)).xy);
     float objIDf = float(objectID_meshletsID_primitiveID.x) - 1.f;
 
     vec3 indirectColor = vec3(0.f, 0.f, 0.f);
 
-    if (objIDf >= 0.)
+    if (length(giSamplesNorm.xyz) != 0 && objIDf >= 0.)
 	{
         vec2 ndc = uv * 2.0 - 1.0;
 
         VbufferExtraCommonData vbufferData = proccessVbufferData(objectID_meshletsID_primitiveID, giParams.projView, ndc, gl_LaunchSizeEXT.xy);
 
         vec3 worldPos = vbufferData.worldPos;
-        vec3 worldNorm = vbufferData.worldNorm;
-        vec2 uvCoord = vbufferData.uvCoord;
 
         // Initialize a random seed, per-pixel, based on a screen position and temporally varying count
 	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, giParams.frameCount);
 
-        DirectInputData inputData = packDirectInputData(objIDf, worldPos.xyz, worldNorm, uvCoord);
-
+        // Reservoir reminder:
+        // .x: weight sum
+        // .y: chosen light for the pixel
+        // .z: the number of samples seen for this current light
+        // .w: the final adjusted weight for the current pixel following the formula in algorithm 3 (r.W)
         vec4 reservoir = texture(reservoir_GI_Curr, uv).rgba;
-        uint lightToSample = uint(reservoir.y);
 
-        PBRShadeData prbSD = getShadeData(inputData);
-        DirectOutputData outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
-        // p_hat of the light is f * Le * G / pdf
-        float p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
-        // // reservoir.w = weight
-	    //reservoir.z = r.M
-        reservoirNew = updateReservoir(randSeed, reservoirNew, lightToSample, p_hat * reservoir.w * reservoir.z);
+        // target_pdf of the light is f * Le * G / pdf
+        float target_pdf = length(Lo.xyz);
+		float weight = target_pdf * reservoir.w * reservoir.z;
+        
+        reservoirNew.x += weight;
+        reservoirNew.z += 1.f;
+
+        vec4 giSamplesPos_New = vec4(0.f, 0.f, 0.f, 0.f);
+        vec4 giSamplesNorm_New = vec4(0.f, 0.f, 0.f, 0.f);   
+        vec4 Lo_New = vec4(0.f, 0.f, 0.f, 0.f);        
+
+        if (nextRand(randSeed) < weight / reservoirNew.x) 
+        {
+            giSamplesPos_New = giSamplesPos;
+            giSamplesNorm_New = giSamplesNorm;
+            Lo_New = Lo;
+        }
 
         float lightSamplesCount = reservoir.z;
 
         uvec2 neighborOffset;
 		uvec2	neighborIndex;
-		vec4 neighborReservoir;
 
 		int neighborsCount = 15;
 		int neighborsRange = 5; // Want to sample neighbors within [-neighborsRange, neighborsRange] offset
@@ -109,29 +128,45 @@ void main()
 			neighborIndex.x = max(0, min(gl_LaunchSizeEXT.x - 1, gl_LaunchIDEXT.x + neighborOffset.x));
 			neighborIndex.y = max(0, min(gl_LaunchSizeEXT.y - 1, gl_LaunchIDEXT.y + neighborOffset.y));
 
-			neighborReservoir = texture(reservoir_GI_Curr, ivec2(neighborIndex)).rgba;
-            lightToSample = uint(neighborReservoir.y);
+			reservoir  = texture(reservoir_GI_Curr, ivec2(neighborIndex)).rgba;
+			Lo = texture(indirectLoCurrInput, ivec2(neighborIndex)).rgba;
+			giSamplesPos = texture(giSamplesPosCurrInput, ivec2(neighborIndex)).rgba;
+			giSamplesNorm = texture(giSamplesNormCurrInput, ivec2(neighborIndex)).rgba;
 
-            DirectOutputData outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
-            // p_hat of the light is f * Le * G / pdf
-            float p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
+            // target_pdf of the light is f * Le * G / pdf
+			target_pdf = length(Lo.xyz);
+			weight = target_pdf * reservoir.w * reservoir.z;
 
-			reservoirNew = updateReservoir(randSeed, reservoirNew, lightToSample, p_hat * neighborReservoir.w * neighborReservoir.z);
+			reservoirNew.x += weight;
+			reservoirNew.z += 1.f;       
 
-			lightSamplesCount += neighborReservoir.z;
+			if (nextRand(randSeed) < weight / reservoirNew.x) 
+			{
+				giSamplesPos_New = giSamplesPos;
+				giSamplesNorm_New = giSamplesNorm;
+				Lo_New = Lo;
+			}
+
+			lightSamplesCount += reservoir.z;
 		} 
 
  		// Update the correct number of candidates considered for this pixel
 		reservoirNew.z = lightSamplesCount;              
 
         // Evaluate visibility for initial candidate and set r.W value
-		lightToSample = uint(reservoirNew.y);
-        outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
+		// target_pdf of the light is f * Le * G / pdf
+		target_pdf = length(Lo_New.xyz);
+		weight = target_pdf * reservoirNew.w * reservoirNew.z;
+		reservoirNew.w = (1.f / max(target_pdf, 0.0001f)) * (reservoirNew.x / max(reservoirNew.z, 0.0001f));
 
-        // p_hat of the light is f * Le * G / pdf
-        p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
-		reservoirNew.w = (1.f / max(p_hat, 0.0001f)) * (reservoirNew.x / max(reservoirNew.z, 0.0001f));
+        Lo = Lo_New;
+        giSamplesPos = giSamplesPos_New;
+        giSamplesNorm = giSamplesNorm_New;   
 	}
 
     imageStore(reservoir_GI_Spatial, ivec2(gl_LaunchIDEXT.xy), reservoirNew);
+
+    imageStore(indirectLoSpatialOutput, ivec2(gl_LaunchIDEXT.xy), Lo);
+    imageStore(giSamplesPosSpatialOutput, ivec2(gl_LaunchIDEXT.xy), giSamplesPos);
+    imageStore(giSamplesNormSpatialOutput, ivec2(gl_LaunchIDEXT.xy), giSamplesNorm);
 }

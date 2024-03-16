@@ -103,16 +103,18 @@ void VulkanReSTIR_GI_SpaceReusePass::init_description_set_global_buffer()
 {
 	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 		.bind_image(0, ETextureResourceNames::ReSTIR_GI_CURRENT_RESERVOIRS, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(1, ETextureResourceNames::ReSTIR_GI_SPACIAL_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(1, ETextureResourceNames::ReSTIR_INDIRECT_LO_CURRENT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(2, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_CURRENT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(3, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_CURRENT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+
+		.bind_image(4, ETextureResourceNames::ReSTIR_GI_SPACIAL_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(5, ETextureResourceNames::ReSTIR_INDIRECT_LO_SPACIAL, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(6, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_SPACIAL, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(7, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_SPACIAL, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.create_desciptor_manager();
 }
 void VulkanReSTIR_GI_SpaceReusePass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
-	{
-		VkClearValue clear_value = { 0., 0., 0., 0. };
-		cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_GI_SPACIAL_RESERVOIRS), clear_value);
-	}
-
 	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
 		[&](VkCommandBuffer cmd) {
 			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_GI_SpaceReuse));

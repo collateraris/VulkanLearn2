@@ -114,10 +114,20 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine)
 void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffer()
 {
 	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-		.bind_image(0, ETextureResourceNames::ReSTIR_INDIRECT_LO_INIT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(1, ETextureResourceNames::ReSTIR_DI_SPACIAL_RESERVOIRS, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(2, ETextureResourceNames::ReSTIR_DI_PREV_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(3, _outputTex, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(0, ETextureResourceNames::ReSTIR_DI_SPACIAL_RESERVOIRS, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(1, ETextureResourceNames::ReSTIR_DI_PREV_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(2, _outputTex, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+
+		.bind_image(3, ETextureResourceNames::ReSTIR_GI_SPACIAL_RESERVOIRS, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(4, ETextureResourceNames::ReSTIR_INDIRECT_LO_SPACIAL, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(5, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_SPACIAL, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(6, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_SPACIAL, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+
+		.bind_image(7, ETextureResourceNames::ReSTIR_GI_PREV_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(8, ETextureResourceNames::ReSTIR_INDIRECT_LO_PREV, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(9, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_PREV, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(10, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_PREV, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+
 		.create_desciptor_manager();
 }
 
