@@ -114,7 +114,7 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine)
 void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffer()
 {
 	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-		.bind_image(0, ETextureResourceNames::ReSTIR_INDIRECT_LO, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(0, ETextureResourceNames::ReSTIR_INDIRECT_LO_INIT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(1, ETextureResourceNames::ReSTIR_DI_SPACIAL_RESERVOIRS, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(2, ETextureResourceNames::ReSTIR_DI_PREV_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(3, _outputTex, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)

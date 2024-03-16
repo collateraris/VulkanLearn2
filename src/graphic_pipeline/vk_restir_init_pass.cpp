@@ -109,7 +109,9 @@ void VulkanReSTIRInitPass::init_description_set_global_buffer()
 {
 	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 		.bind_image(0, ETextureResourceNames::ReSTIR_INIT_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(1, ETextureResourceNames::ReSTIR_INDIRECT_LO, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(1, ETextureResourceNames::ReSTIR_INDIRECT_LO_INIT, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(2, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_INIT, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(3, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_INIT, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.create_desciptor_manager();
 }
 
@@ -117,7 +119,7 @@ void VulkanReSTIRInitPass::draw(VulkanCommandBuffer* cmd, int current_frame_inde
 {
 	{
 		VkClearValue clear_value = { 0., 0., 0., 0. };
-		cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_INDIRECT_LO), clear_value);
+		cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_INDIRECT_LO_INIT), clear_value);
 	}
 
 	{

@@ -44,8 +44,9 @@ layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams;
 layout(set = 1, binding = 1, rg32ui) uniform  readonly uimage2D vbufferTex;
 
 layout(set = 2, binding = 0, rgba16f) uniform image2D reservoir_Init;
-layout(set = 2, binding = 1, rgba16f) uniform image2D indirectOutput;
-
+layout(set = 2, binding = 1, rgba16f) uniform image2D indirectLoInitOutput;
+layout(set = 2, binding = 2, rgba32f) uniform image2D giSamplesPosInitOutput;
+layout(set = 2, binding = 3, rgba32f) uniform image2D giSamplesNormInitOutput;
 
 
 #include "gi_raytrace_func.h"
@@ -59,6 +60,9 @@ void main()
     float objIDf = float(objectID_meshletsID_primitiveID.x) - 1.f;
 
     vec4 indirectColor = vec4(0.f, 0.f, 0.f, 1.f);
+
+    vec4 giSamplesPos = vec4(0.f, 0.f, 0.f, 0.f);
+    vec4 giSamplesNorm = vec4(0.f, 0.f, 0.f, 0.f);
 
     if (objIDf >= 0.)
 	{
@@ -82,7 +86,7 @@ void main()
         // .w: the final adjusted weight for the current pixel following the formula in algorithm 3 (r.W)        
 
         vec4 reservoir = vec4(0.f, 0.f, 0.f, 0.f);
-        float p_hat;
+        float target_pdf;
 
         uint lightToSample = 1;
         float shadowColor = 0.f;
@@ -98,18 +102,18 @@ void main()
 
             outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
 
-            // p_hat of the light is f * Le * G / pdf
-            p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
-            reservoir = updateReservoir(randSeed, reservoir, lightToSample, p_hat);
+            // target_pdf of the light is f * Le * G / pdf
+            target_pdf = length(unpackLo_DirectOutputData(outputCurrentData));
+            reservoir = updateReservoir(randSeed, reservoir, lightToSample, target_pdf);
 		};
 
 		// Evaluate visibility for initial candidate and set r.W value
 		lightToSample = uint(reservoir.y);
         outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
 
-        // p_hat of the light is f * Le * G / pdf
-        p_hat = length(unpackLo_DirectOutputData(outputCurrentData));
-		reservoir.w = (1.f / max(p_hat, 0.0001f)) * (reservoir.x / max(reservoir.z, 0.0001f));
+        // target_pdf of the light is f * Le * G / pdf
+        target_pdf = length(unpackLo_DirectOutputData(outputCurrentData));
+		reservoir.w = (1.f / max(target_pdf, 0.0001f)) * (reservoir.x / max(reservoir.z, 0.0001f));
 
         {
             SLight lightInfo = lightsBuffer.lights[lightToSample];
@@ -126,7 +130,7 @@ void main()
             }
         }
 
-        indirectColor.w = p_hat;
+        indirectColor.w = target_pdf;
         imageStore(reservoir_Init, ivec2(gl_LaunchIDEXT.xy), reservoir);
 
         uint INDIRECT_BOUND = giParams.numRays;
@@ -185,14 +189,26 @@ void main()
                 if (dot(geometry_nrm, shading_nrm) <= 0)
                     shading_nrm = -shading_nrm;
 
+                //for next bound
+                worldPos.xyz = unpackWorldPos_IndirectRayPayload(indirPayload);
+
+                if (i == 0)
+                {
+                    giSamplesPos.xyz = worldPos.xyz;
+                    giSamplesNorm.xyz = shading_nrm;
+                }                                    
+
                 DirectInputData input2Data = packDirectInputData(objectId,
-                    unpackWorldPos_IndirectRayPayload(indirPayload), 
+                    worldPos, 
                     shading_nrm, 
                     unpackUV_IndirectRayPayload(indirPayload));
 
                 prbSD = getShadeData(input2Data);    
 
-                DirectOutputData outputBoundData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, true);
+                DirectOutputData outputBoundData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, true);\
+
+                //for next bound
+                outputCurrentData = outputBoundData;  
 
                 // Compute some dot products needed for shading
                 float  NdotR = clamp(dot(outputCurrentData_worldNorm, R), 0.f, 1.f);
@@ -214,10 +230,7 @@ void main()
                 vec3 kD = 1.0 - kS;
                 kD *= 1.0 - outputCurrentData_metalness;
                 indirectColor.xyz +=  NdotR * float(giParams.lightsCount) * unpackLo_DirectOutputData(outputBoundData) * (kD *outputCurrentData_albedo * M_INV_PI + ggxTerm) / max(1e-3, ggxProb);
-
-                //for next bound
-                worldPos.xyz = unpackWorldPos_IndirectRayPayload(indirPayload);
-                outputCurrentData = outputBoundData;               
+             
             }
         }
 	}
@@ -232,5 +245,8 @@ void main()
         indirectColor.xyz = texture(prefilteredMap, direction.xyz).rgb;
     }
 
-    imageStore(indirectOutput, ivec2(gl_LaunchIDEXT.xy), indirectColor);
+
+    imageStore(indirectLoInitOutput, ivec2(gl_LaunchIDEXT.xy), indirectColor);
+    imageStore(giSamplesPosInitOutput, ivec2(gl_LaunchIDEXT.xy), giSamplesPos);
+    imageStore(giSamplesNormInitOutput, ivec2(gl_LaunchIDEXT.xy), giSamplesNorm);
 }

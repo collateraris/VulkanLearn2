@@ -1,4 +1,4 @@
-#include <graphic_pipeline/vk_restir_temporal_pass.h>
+#include <graphic_pipeline/vk_restir_gi_temporal_pass.h>
 
 #if GI_RAYTRACER_ON
 
@@ -12,7 +12,7 @@
 #include <vk_initializers.h>
 #include <vk_utils.h>
 
-void VulkanReSTIRTemporalPass::init(VulkanEngine* engine)
+void VulkanReSTIR_GI_TemporalPass::init(VulkanEngine* engine)
 {
 	_engine = engine;
 
@@ -27,10 +27,10 @@ void VulkanReSTIRTemporalPass::init(VulkanEngine* engine)
 	}
 
 	{
-		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::ReSTIR_DI_Temporal,
+		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::ReSTIR_GI_Temporal,
 			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
 				ShaderEffect defaultEffect;
-				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("reSTIR_Temporal.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
+				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("reSTIR_GI_Temporal.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
 				uint32_t rayIndirectMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayIndirectClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
@@ -88,29 +88,38 @@ void VulkanReSTIRTemporalPass::init(VulkanEngine* engine)
 			});
 	}
 
-	_rtSBTBuffer = VulkanRaytracerBuilder::create_SBTBuffer(engine, 1, 1, EPipelineType::ReSTIR_DI_Temporal,
+	_rtSBTBuffer = VulkanRaytracerBuilder::create_SBTBuffer(engine, 1, 1, EPipelineType::ReSTIR_GI_Temporal,
 		_rgenRegion,
 		_missRegion,
 		_hitRegion,
 		_callRegion);
 }
 
-void VulkanReSTIRTemporalPass::init_description_set_global_buffer()
+void VulkanReSTIR_GI_TemporalPass::init_description_set_global_buffer()
 {
 	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-		.bind_image(0, ETextureResourceNames::ReSTIR_DI_PREV_RESERVOIRS, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(1, ETextureResourceNames::ReSTIR_INIT_RESERVOIRS, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(2, ETextureResourceNames::ReSTIR_INDIRECT_LO_INIT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(3, ETextureResourceNames::ReSTIR_DI_CURRENT_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(0, ETextureResourceNames::ReSTIR_INDIRECT_LO_INIT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(1, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_INIT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(2, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_INIT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+
+		.bind_image(3, ETextureResourceNames::ReSTIR_GI_PREV_RESERVOIRS, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(4, ETextureResourceNames::ReSTIR_INDIRECT_LO_PREV, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(5, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_PREV, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(6, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_PREV, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+
+		.bind_image(7, ETextureResourceNames::ReSTIR_GI_CURRENT_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(8, ETextureResourceNames::ReSTIR_INDIRECT_LO_CURRENT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(9, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_CURRENT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(10, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_CURRENT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.create_desciptor_manager();
 }
 
-Texture& VulkanReSTIRTemporalPass::get_tex(ETextureResourceNames name) const
+Texture& VulkanReSTIR_GI_TemporalPass::get_tex(ETextureResourceNames name) const
 {
 	return *_engine->get_engine_texture(name);
 }
 
-void VulkanReSTIRTemporalPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanReSTIR_GI_TemporalPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
 	{
 		VkClearValue clear_value = { 0., 0., 0., 0. };
@@ -119,18 +128,18 @@ void VulkanReSTIRTemporalPass::draw(VulkanCommandBuffer* cmd, int current_frame_
 
 	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
 		[&](VkCommandBuffer cmd) {
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_DI_Temporal));
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_DI_Temporal), 0,
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_GI_Temporal));
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_GI_Temporal), 0,
 				1, &_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set, 0, nullptr);
 
 			EDescriptorResourceNames currentGlobalUniformsDesc = current_frame_index % 2 ==  0 
 				? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0 
 				: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
 
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_DI_Temporal), 1,
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_GI_Temporal), 1,
 				1, &_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set, 0, nullptr);
 
-			_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_DI_Temporal), 2);
+			_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_GI_Temporal), 2);
 		});
 }
 

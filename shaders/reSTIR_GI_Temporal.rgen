@@ -1,0 +1,158 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_nonuniform_qualifier:enable
+#extension GL_GOOGLE_include_directive : enable
+
+#include "gi_raytrace.h"
+#include "vbuffer.h"
+
+layout(location = 0) rayPayloadEXT IndirectRayPayload indirectRpl;
+layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
+
+layout (set = 0, std140, binding = 0) readonly buffer _vertices
+{
+	SVertex vertices[];
+} Vertices[];
+
+layout(set = 0, binding = 1) uniform sampler2D texSet[];
+layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
+layout(set = 0, std140, binding = 3) readonly buffer ObjectBuffer{
+
+	SObjectData objects[];
+} objectBuffer;
+
+layout (set = 0, binding = 4) readonly buffer _meshlets
+{
+	SMeshlet meshlets[];
+} Meshlet[];
+
+layout(set = 0, binding = 5) readonly buffer _meshletData
+{
+	uint meshletData[];
+} MeshletData[];
+
+layout(set = 0, std140, binding = 6) readonly buffer _Lights{
+
+	SLight lights[];
+} lightsBuffer;
+
+layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams; };
+
+
+layout(set = 1, binding = 1, rg32ui) uniform  readonly uimage2D vbufferTex;
+
+layout(set = 2, binding = 0) uniform sampler2D indirectLoInitInput;
+layout(set = 2, binding = 1) uniform sampler2D giSamplesPosInitInput;
+layout(set = 2, binding = 2) uniform sampler2D giSamplesNormInitInput; 
+
+layout(set = 2, binding = 3) uniform sampler2D reservoir_GI_Prev;
+layout(set = 2, binding = 4) uniform sampler2D indirectLoPrevInput;
+layout(set = 2, binding = 5) uniform sampler2D giSamplesPosPrevInput;
+layout(set = 2, binding = 6) uniform sampler2D giSamplesNormPrevInput;
+
+layout(set = 2, binding = 7, rgba16f) uniform image2D reservoir_GI_Curr;
+layout(set = 2, binding = 8, rgba16f) uniform image2D indirectLoCurrOutput;
+layout(set = 2, binding = 9, rgba32f) uniform image2D giSamplesPosCurrOutput;
+layout(set = 2, binding = 10, rgba32f) uniform image2D giSamplesNormCurrOutput;
+
+
+#include "gi_raytrace_func.h"
+
+void main() 
+{
+    const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
+    const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+
+    vec4 Lo = texture(indirectLoInitInput, uv).rgba;
+    vec4 giSamplesPos = texture(giSamplesPosInitInput, uv).rgba;
+    vec4 giSamplesNorm = texture(giSamplesNormInitInput, uv).rgba;
+
+    uvec3 objectID_meshletsID_primitiveID = unpackVBuffer(imageLoad(vbufferTex, ivec2(gl_LaunchIDEXT.xy)).xy);
+    float objIDf = float(objectID_meshletsID_primitiveID.x) - 1.f;
+
+    vec4 reservoir = vec4(0.f, 0.f, 0.f, 0.f);
+
+    if (length(giSamplesNorm.xyz) != 0 && objIDf >= 0.)
+	{
+
+        vec2 ndc = uv * 2.0 - 1.0;
+
+        VbufferExtraCommonData vbufferData = proccessVbufferData(objectID_meshletsID_primitiveID, giParams.projView, ndc, gl_LaunchSizeEXT.xy);
+
+        vec3 worldPos = vbufferData.worldPos;
+
+        // Initialize a random seed, per-pixel, based on a screen position and temporally varying count
+	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, giParams.frameCount);
+
+        // Reservoir reminder:
+        // .x: weight sum
+        // .y: chosen light for the pixel
+        // .z: the number of samples seen for this current light
+        // .w: the final adjusted weight for the current pixel following the formula in algorithm 3 (r.W)        
+
+        float target_pdf = length(Lo.xyz);
+
+        vec4 prev_reservoir = vec4(0.f, 0.f, 0.f, 0.f);
+
+        vec4 screen_space = giParams.prevProjView * vec4(worldPos, 1.);
+        screen_space /= screen_space.w;
+        vec2 prevIndex = vec2(gl_LaunchIDEXT.xy);
+        prevIndex.x = ((screen_space.x + 1.f) / 2.f) * gl_LaunchSizeEXT.x;
+        prevIndex.y = ((1.f - screen_space.y) / 2.f) * gl_LaunchSizeEXT.y;
+
+        if (prevIndex.x >= 0 && prevIndex.x < gl_LaunchSizeEXT.x && prevIndex.y >= 0 && prevIndex.y < gl_LaunchSizeEXT.y) {
+            prev_reservoir = texture(reservoir_GI_Prev, uv).rgba;
+        }
+        //Temporal reuse
+        reservoir.x += target_pdf;
+        reservoir.z += 1.f;
+        reservoir.w = (1.f / max(target_pdf, 0.0001f)) * (reservoir.x / max(reservoir.z, 0.0001f));
+
+        // Combine new
+        float weight = target_pdf * reservoir.w * reservoir.z;
+        vec4 reservoir_t = vec4(0.f, 0.f, 0.f, 0.f);
+        reservoir_t.x += weight;
+        reservoir_t.z += 1.f;
+
+        vec4 giSamplesPos_t = vec4(0.f, 0.f, 0.f, 0.f);
+        vec4 giSamplesNorm_t = vec4(0.f, 0.f, 0.f, 0.f);   
+        vec4 Lo_t = vec4(0.f, 0.f, 0.f, 0.f);        
+
+        if (nextRand(randSeed) < weight / reservoir_t.x) 
+        {
+            giSamplesPos_t = giSamplesPos;
+            giSamplesNorm_t = giSamplesNorm;
+            Lo_t = Lo;
+        }
+
+        // Combine previous
+        vec3 Lo_prev = texture(indirectLoPrevInput, uv).rgb;
+        float target_pdf_prev = length(Lo_prev.xyz);
+        weight = target_pdf_prev * prev_reservoir.w * prev_reservoir.z;
+        reservoir_t.x += weight;
+        reservoir_t.z += 1.f;
+
+        if (nextRand(randSeed) < weight / reservoir_t.x) 
+        {
+            giSamplesPos_t = texture(giSamplesPosPrevInput, uv).rgba;
+            giSamplesNorm_t = texture(giSamplesNormPrevInput, uv).rgba;
+            Lo_t.xyz = Lo_prev;
+        }
+
+        reservoir_t.z = reservoir_t.z + prev_reservoir.z;      
+
+        float target_pdf_t = length(Lo_t);
+        reservoir_t.w = (1.f / max(target_pdf_t, 0.0001f)) * (reservoir_t.x / max(reservoir_t.z, 0.0001f));
+
+        reservoir =  reservoir_t;
+        Lo = Lo_t;
+        giSamplesPos = giSamplesPos_t;
+        giSamplesNorm = giSamplesNorm_t;      
+
+	}
+
+    imageStore(reservoir_GI_Curr, ivec2(gl_LaunchIDEXT.xy), reservoir);
+    imageStore(indirectLoCurrOutput, ivec2(gl_LaunchIDEXT.xy), Lo);
+    imageStore(giSamplesPosCurrOutput, ivec2(gl_LaunchIDEXT.xy), giSamplesPos);
+    imageStore(giSamplesNormCurrOutput, ivec2(gl_LaunchIDEXT.xy), giSamplesNorm);
+}
