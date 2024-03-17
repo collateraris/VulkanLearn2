@@ -133,11 +133,12 @@ void main()
         indirectColor.w = target_pdf;
         imageStore(reservoir_Init, ivec2(gl_LaunchIDEXT.xy), reservoir);
 
+        bool bRestirGI_ON = (giParams.mode & (1u << 1)) > 0;
+
         uint INDIRECT_BOUND = giParams.numRays;
         //INDIRECT ILLUMINATION
         for (int i = 0; i < INDIRECT_BOUND; i++)
         {   
-
             vec3 outputCurrentData_worldNorm = unpackWorldNorm_DirectOutputData(outputCurrentData);
             float outputCurrentData_roughness = unpackRoughness_DirectOutputData(outputCurrentData);
             float outputCurrentData_metalness = unpackMetalness_DirectOutputData(outputCurrentData);
@@ -189,23 +190,20 @@ void main()
                 if (dot(geometry_nrm, shading_nrm) <= 0)
                     shading_nrm = -shading_nrm;
 
-                //for next bound
-                worldPos.xyz = unpackWorldPos_IndirectRayPayload(indirPayload);
-
                 if (i == 0)
                 {
-                    giSamplesPos.xyz = worldPos.xyz;
+                    giSamplesPos.xyz = unpackWorldPos_IndirectRayPayload(indirPayload);
                     giSamplesNorm.xyz = shading_nrm;
                 }                                    
 
                 DirectInputData input2Data = packDirectInputData(objectId,
-                    worldPos, 
+                    unpackWorldPos_IndirectRayPayload(indirPayload), 
                     shading_nrm, 
                     unpackUV_IndirectRayPayload(indirPayload));
 
                 prbSD = getShadeData(input2Data);    
 
-                DirectOutputData outputBoundData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, true);
+                DirectOutputData outputBoundData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, !bRestirGI_ON);
 
                 // Compute some dot products needed for shading
                 float  NdotR = clamp(dot(outputCurrentData_worldNorm, R), 0.f, 1.f);
@@ -226,9 +224,10 @@ void main()
                 vec3 kS = F;
                 vec3 kD = 1.0 - kS;
                 kD *= 1.0 - outputCurrentData_metalness;
-                indirectColor.xyz +=  NdotR * float(giParams.lightsCount) * unpackLo_DirectOutputData(outputBoundData) * (kD *outputCurrentData_albedo * M_INV_PI + ggxTerm) / max(1e-3, ggxProb);
+                indirectColor.xyz +=  NdotR * float(giParams.lightsCount) * unpackLo_DirectOutputData(outputBoundData) * (kD *unpackAlbedo_DirectOutputData(outputBoundData) * M_INV_PI + ggxTerm / max(1e-3, ggxProb));
              
                 //for next bound
+                worldPos.xyz = unpackWorldPos_IndirectRayPayload(indirPayload);
                 outputCurrentData = outputBoundData;  
             }
         }

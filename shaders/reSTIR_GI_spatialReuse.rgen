@@ -68,7 +68,7 @@ void main()
     vec3 indirectColor = vec3(0.f, 0.f, 0.f);
 
 	uint bRestirGI_ON = giParams.mode & (1u << 1);
-	uint bRestirGI_SpacialReuse_ON = giParams.mode & (1u << 3);
+	uint bRestirGI_SpacialReuse_ON = giParams.mode & (1u << 3);	
 
     if (bRestirGI_SpacialReuse_ON > 0 && bRestirGI_ON > 0 && length(giSamplesNorm.xyz) != 0 && objIDf >= 0.)
 	{
@@ -77,6 +77,7 @@ void main()
         VbufferExtraCommonData vbufferData = proccessVbufferData(objectID_meshletsID_primitiveID, giParams.projView, ndc, gl_LaunchSizeEXT.xy, giParams.camPos.xyz);
 
         vec3 worldPos = vbufferData.worldPos;
+		vec3 worldNorm = vbufferData.worldNorm;	
 
         // Initialize a random seed, per-pixel, based on a screen position and temporally varying count
 	    uint randSeed = initRand(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x, giParams.frameCount);
@@ -88,7 +89,7 @@ void main()
         // .w: the final adjusted weight for the current pixel following the formula in algorithm 3 (r.W)
         vec4 reservoir = reservoirNew;
 		reservoirNew = vec4(0.f, 0.f, 0.f, 0.f);
-
+		
         // target_pdf of the light is f * Le * G / pdf
         float target_pdf = length(Lo.xyz);
 		float weight = target_pdf * reservoir.w * reservoir.z;
@@ -115,6 +116,19 @@ void main()
 		int neighborsCount = 15;
 		int neighborsRange = 5; // Want to sample neighbors within [-neighborsRange, neighborsRange] offset
 
+		const float dist_threshold = 0.01f;
+    	const float angle_threshold = 25.f * M_PI / 180.f;
+		
+		vec4 reservoirNeighbor = vec4(0.f, 0.f, 0.f, 0.f);
+        vec4 giSamplesPos_Neighbor = vec4(0.f, 0.f, 0.f, 0.f);
+        vec4 giSamplesNorm_Neighbor = vec4(0.f, 0.f, 0.f, 0.f);   
+        vec4 Lo_Neighbor = vec4(0.f, 0.f, 0.f, 0.f);
+
+		VbufferExtraCommonData vbufferData_Neighbor;
+        vec3 worldPos_Neighbor;
+		vec3 worldNorm_Neighbor;
+		vec2 uv_Neighbor;	  
+
 		for (int i = 0; i < neighborsCount; i++) {
 			// Reservoir reminder:
 			// .x: weight sum
@@ -131,26 +145,73 @@ void main()
 			neighborIndex.x = max(0, min(gl_LaunchSizeEXT.x - 1, gl_LaunchIDEXT.x + neighborOffset.x));
 			neighborIndex.y = max(0, min(gl_LaunchSizeEXT.y - 1, gl_LaunchIDEXT.y + neighborOffset.y));
 
-			reservoir  = imageLoad(reservoir_GI_Curr, ivec2(neighborIndex));
-			Lo = imageLoad(indirectLoCurrInput, ivec2(neighborIndex));
-			giSamplesPos = imageLoad(giSamplesPosCurrInput, ivec2(neighborIndex));
-			giSamplesNorm = imageLoad(giSamplesNormCurrInput, ivec2(neighborIndex));
+			reservoirNeighbor  = imageLoad(reservoir_GI_Curr, ivec2(neighborIndex));
+			Lo_Neighbor = imageLoad(indirectLoCurrInput, ivec2(neighborIndex));
+			giSamplesPos_Neighbor = imageLoad(giSamplesPosCurrInput, ivec2(neighborIndex));
+			giSamplesNorm_Neighbor = imageLoad(giSamplesNormCurrInput, ivec2(neighborIndex));
+		
+			if (length(giSamplesNorm_Neighbor) == 0)
+				continue;
+
+			objectID_meshletsID_primitiveID = unpackVBuffer(imageLoad(vbufferTex, ivec2(neighborIndex)).xy);
+    		objIDf = float(objectID_meshletsID_primitiveID.x) - 1.f;
+
+			if (objIDf <= 0.f)
+				continue;
+
+			uv_Neighbor = vec2(neighborIndex)/vec2(gl_LaunchSizeEXT.xy);
+            ndc = uv_Neighbor * 2.0 - 1.0;		
+
+			vbufferData_Neighbor = proccessVbufferData(objectID_meshletsID_primitiveID, giParams.projView, ndc, gl_LaunchSizeEXT.xy, giParams.camPos.xyz);
+
+			worldPos_Neighbor = vbufferData_Neighbor.worldPos;
+			worldNorm_Neighbor = vbufferData_Neighbor.worldNorm;	
+
+			// Geometric similarity
+			float dist = dot(worldPos_Neighbor.xyz - worldPos.xyz, worldPos_Neighbor.xyz - worldPos.xyz);
+			if (dist > dist_threshold ||
+				(dot(worldNorm_Neighbor.xyz, worldNorm.xyz)) < cos(angle_threshold)) {
+					continue;
+			}	
 
             // target_pdf of the light is f * Le * G / pdf
-			target_pdf = length(Lo.xyz);
-			weight = target_pdf * reservoir.w * reservoir.z;
+			target_pdf = length(Lo_Neighbor.xyz);
+
+			// //check visibility
+			// vec3 wi = giSamplesPos_Neighbor.xyz - worldPos.xyz;
+			// const float wi_len = length(wi);
+			// wi /= wi_len;
+
+			// float shadowColor = shadowRayVisibility(worldPos.xyz, wi, wi_len, giParams.shadowMult);
+			// if (shadowColor < 0.001f) {
+			// 	target_pdf = 0.f;
+			// }			
+
+			// Calculate Jacobian
+			vec3 w_qq = worldPos.xyz - giSamplesPos.xyz;
+			const float w_qq_len = length(w_qq);
+			w_qq /= w_qq_len;
+			vec3 w_rq = worldPos_Neighbor.xyz - giSamplesPos.xyz;
+			const float w_rq_len = length(w_rq);
+			w_rq /= w_rq_len;
+			const float qq = w_qq_len * w_qq_len;
+			const float rq = w_rq_len * w_rq_len;
+			const float div = rq * abs(dot(w_qq, giSamplesNorm.xyz));
+			target_pdf *= div == 0 ? 0 : abs(dot(w_rq, giSamplesNorm.xyz)) * qq / div;					
+
+			weight = target_pdf * reservoirNeighbor.w * reservoirNeighbor.z;
 
 			reservoirNew.x += weight;
 			reservoirNew.z += 1.f;       
 
 			if (nextRand(randSeed) < weight / reservoirNew.x) 
 			{
-				giSamplesPos_New = giSamplesPos;
-				giSamplesNorm_New = giSamplesNorm;
+				giSamplesPos_New = giSamplesPos_Neighbor;
+				giSamplesNorm_New = giSamplesNorm_Neighbor;
 				Lo_New = Lo;
 			}
 
-			lightSamplesCount += reservoir.z;
+			lightSamplesCount += reservoirNeighbor.z;
 		} 
 
  		// Update the correct number of candidates considered for this pixel
