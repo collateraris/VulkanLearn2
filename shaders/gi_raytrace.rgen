@@ -182,7 +182,7 @@ void main()
             {
                 //closest hit               
                 const vec3 wo = -R;
-                vec3 shading_nrm = unpackWorldNormShading_IndirectRayPayload(indirPayload);
+                vec3 shading_nrm = normalize(unpackWorldNormShading_IndirectRayPayload(indirPayload));
                 vec3 geometry_nrm = unpackWorldNormGeometry_IndirectRayPayload(indirPayload);
                 if (dot(geometry_nrm, wo) <= 0.)
                     geometry_nrm = -geometry_nrm;
@@ -205,10 +205,7 @@ void main()
 
                 prbSD = getShadeData(input2Data);    
 
-                DirectOutputData outputBoundData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, true);\
-
-                //for next bound
-                outputCurrentData = outputBoundData;  
+                DirectOutputData outputBoundData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, true);
 
                 // Compute some dot products needed for shading
                 float  NdotR = clamp(dot(outputCurrentData_worldNorm, R), 0.f, 1.f);
@@ -231,6 +228,8 @@ void main()
                 kD *= 1.0 - outputCurrentData_metalness;
                 indirectColor.xyz +=  NdotR * float(giParams.lightsCount) * unpackLo_DirectOutputData(outputBoundData) * (kD *outputCurrentData_albedo * M_INV_PI + ggxTerm) / max(1e-3, ggxProb);
              
+                //for next bound
+                outputCurrentData = outputBoundData;  
             }
         }
 	}

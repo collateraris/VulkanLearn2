@@ -41,9 +41,9 @@ layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams;
 
 layout(set = 1, binding = 1, rg32ui) uniform  readonly uimage2D vbufferTex;
 
-layout(set = 2, binding = 0) uniform sampler2D reservoir_DI_Prev;
-layout(set = 2, binding = 1) uniform sampler2D reservoir_Init;
-layout(set = 2, binding = 2) uniform sampler2D indirectLoInitOutput;
+layout(set = 2, binding = 0, rgba16f) uniform readonly image2D reservoir_DI_Prev;
+layout(set = 2, binding = 1, rgba16f) uniform readonly image2D reservoir_Init;
+layout(set = 2, binding = 2, rgba16f) uniform readonly image2D indirectLoInitOutput;
 layout(set = 2, binding = 3, rgba16f) uniform image2D reservoir_DI_Curr;
 
 
@@ -80,8 +80,8 @@ void main()
         // .z: the number of samples seen for this current light
         // .w: the final adjusted weight for the current pixel following the formula in algorithm 3 (r.W)        
 
-        reservoir = texture(reservoir_Init, uv).rgba;
-        float target_pdf = texture(indirectLoInitOutput, uv).a;
+        reservoir = imageLoad(reservoir_Init, ivec2(gl_LaunchIDEXT.xy));
+        float target_pdf = imageLoad(indirectLoInitOutput, ivec2(gl_LaunchIDEXT.xy)).a;
 
         float shadowColor = 0.f;
 
@@ -98,7 +98,7 @@ void main()
         prevIndex.y = ((1.f - screen_space.y) / 2.f) * gl_LaunchSizeEXT.y;
 
         if (prevIndex.x >= 0 && prevIndex.x < gl_LaunchSizeEXT.x && prevIndex.y >= 0 && prevIndex.y < gl_LaunchSizeEXT.y) {
-            prev_reservoir = texture(reservoir_DI_Prev, uv).rgba;
+            prev_reservoir = imageLoad(reservoir_DI_Prev, ivec2(gl_LaunchIDEXT.xy));
         }
         //Temporal reuse
         {
@@ -122,7 +122,7 @@ void main()
             outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
             // target_pdf of the light is f * Le * G / pdf
             target_pdf = length(unpackLo_DirectOutputData(outputCurrentData));
-			temporal_reservoir.w = (1.f / max(target_pdf, 0.0001f)) * (temporal_reservoir.x / max(temporal_reservoir.z, 0.0001f));
+			temporal_reservoir.w = target_pdf * temporal_reservoir.z == 0.f ? 0.f : temporal_reservoir.x / max(target_pdf * temporal_reservoir.z, 0.0001f);;
 
 			// set current reservoir to the combined temporal reservoir
 			reservoir = temporal_reservoir;

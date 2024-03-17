@@ -40,10 +40,10 @@ layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams;
 
 layout(set = 1, binding = 1, rg32ui) uniform  readonly uimage2D vbufferTex;
 
-layout(set = 2, binding = 0) uniform sampler2D reservoir_GI_Curr;
-layout(set = 2, binding = 1) uniform sampler2D indirectLoCurrInput;
-layout(set = 2, binding = 2) uniform sampler2D giSamplesPosCurrInput;
-layout(set = 2, binding = 3) uniform sampler2D giSamplesNormCurrInput;
+layout(set = 2, binding = 0, rgba16f) uniform  readonly image2D reservoir_GI_Curr;
+layout(set = 2, binding = 1, rgba16f) uniform  readonly image2D indirectLoCurrInput;
+layout(set = 2, binding = 2, rgba32f) uniform  readonly image2D giSamplesPosCurrInput;
+layout(set = 2, binding = 3, rgba32f) uniform  readonly image2D giSamplesNormCurrInput;
 
 layout(set = 2, binding = 4, rgba16f) uniform image2D reservoir_GI_Spatial;
 layout(set = 2, binding = 5, rgba16f) uniform image2D indirectLoSpatialOutput;
@@ -54,21 +54,23 @@ layout(set = 2, binding = 7, rgba32f) uniform image2D giSamplesNormSpatialOutput
 
 void main() 
 {
-    vec4 reservoirNew = vec4(0.f, 0.f, 0.f, 0.f);
-
     const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
 
-	vec4 Lo = texture(indirectLoCurrInput, uv).rgba;
-    vec4 giSamplesPos = texture(giSamplesPosCurrInput, uv).rgba;
-    vec4 giSamplesNorm = texture(giSamplesNormCurrInput, uv).rgba;
+	vec4 reservoirNew = imageLoad(reservoir_GI_Curr, ivec2(gl_LaunchIDEXT.xy));
+	vec4 Lo = imageLoad(indirectLoCurrInput, ivec2(gl_LaunchIDEXT.xy));
+    vec4 giSamplesPos = imageLoad(giSamplesPosCurrInput, ivec2(gl_LaunchIDEXT.xy));
+    vec4 giSamplesNorm = imageLoad(giSamplesNormCurrInput, ivec2(gl_LaunchIDEXT.xy));
 
     uvec3 objectID_meshletsID_primitiveID = unpackVBuffer(imageLoad(vbufferTex, ivec2(gl_LaunchIDEXT.xy)).xy);
     float objIDf = float(objectID_meshletsID_primitiveID.x) - 1.f;
 
     vec3 indirectColor = vec3(0.f, 0.f, 0.f);
 
-    if (length(giSamplesNorm.xyz) != 0 && objIDf >= 0.)
+	uint bRestirGI_ON = giParams.mode & (1u << 1);
+	uint bRestirGI_SpacialReuse_ON = giParams.mode & (1u << 3);
+
+    if (bRestirGI_SpacialReuse_ON > 0 && bRestirGI_ON > 0 && length(giSamplesNorm.xyz) != 0 && objIDf >= 0.)
 	{
         vec2 ndc = uv * 2.0 - 1.0;
 
@@ -84,7 +86,8 @@ void main()
         // .y: chosen light for the pixel
         // .z: the number of samples seen for this current light
         // .w: the final adjusted weight for the current pixel following the formula in algorithm 3 (r.W)
-        vec4 reservoir = texture(reservoir_GI_Curr, uv).rgba;
+        vec4 reservoir = reservoirNew;
+		reservoirNew = vec4(0.f, 0.f, 0.f, 0.f);
 
         // target_pdf of the light is f * Le * G / pdf
         float target_pdf = length(Lo.xyz);
@@ -128,10 +131,10 @@ void main()
 			neighborIndex.x = max(0, min(gl_LaunchSizeEXT.x - 1, gl_LaunchIDEXT.x + neighborOffset.x));
 			neighborIndex.y = max(0, min(gl_LaunchSizeEXT.y - 1, gl_LaunchIDEXT.y + neighborOffset.y));
 
-			reservoir  = texture(reservoir_GI_Curr, ivec2(neighborIndex)).rgba;
-			Lo = texture(indirectLoCurrInput, ivec2(neighborIndex)).rgba;
-			giSamplesPos = texture(giSamplesPosCurrInput, ivec2(neighborIndex)).rgba;
-			giSamplesNorm = texture(giSamplesNormCurrInput, ivec2(neighborIndex)).rgba;
+			reservoir  = imageLoad(reservoir_GI_Curr, ivec2(neighborIndex));
+			Lo = imageLoad(indirectLoCurrInput, ivec2(neighborIndex));
+			giSamplesPos = imageLoad(giSamplesPosCurrInput, ivec2(neighborIndex));
+			giSamplesNorm = imageLoad(giSamplesNormCurrInput, ivec2(neighborIndex));
 
             // target_pdf of the light is f * Le * G / pdf
 			target_pdf = length(Lo.xyz);
@@ -157,7 +160,7 @@ void main()
 		// target_pdf of the light is f * Le * G / pdf
 		target_pdf = length(Lo_New.xyz);
 		weight = target_pdf * reservoirNew.w * reservoirNew.z;
-		reservoirNew.w = (1.f / max(target_pdf, 0.0001f)) * (reservoirNew.x / max(reservoirNew.z, 0.0001f));
+		reservoirNew.w = target_pdf * reservoirNew.z == 0.f ? 0.f : reservoirNew.x / max(target_pdf * reservoirNew.z, 0.0001f);
 
         Lo = Lo_New;
         giSamplesPos = giSamplesPos_New;

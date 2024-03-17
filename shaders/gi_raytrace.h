@@ -9,6 +9,10 @@ struct SGlobalGIParams
 	float shadowMult;
 	uint lightsCount;
 	uint  numRays;
+	uint mode;
+	uint pad1;
+	uint pad2;
+	uint pad3;
 };
 
 const uint SUN_COLOR_TYPE = 0;
@@ -110,7 +114,7 @@ vec3 unpackWorldPos_IndirectRayPayload(IndirectRayPayload inputData)
 
 vec3 unpackWorldNormShading_IndirectRayPayload(IndirectRayPayload inputData)
 {
-	return vec3(inputData.positionXYZ_normalShadX.x, inputData.normalShadYZ_texCoordUV.xy);
+	return vec3(inputData.positionXYZ_normalShadX.w, inputData.normalShadYZ_texCoordUV.xy);
 };
 
 vec3 unpackWorldNormGeometry_IndirectRayPayload(IndirectRayPayload inputData)

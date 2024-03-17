@@ -40,7 +40,7 @@ layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams;
 
 layout(set = 1, binding = 1, rg32ui) uniform  readonly uimage2D vbufferTex;
 
-layout(set = 2, binding = 0) uniform sampler2D reservoir_DI_Curr;
+layout(set = 2, binding = 0, rgba16f) uniform readonly image2D reservoir_DI_Curr;
 layout(set = 2, binding = 1, rgba16f) uniform image2D reservoir_DI_Spatial;
 
 
@@ -48,7 +48,7 @@ layout(set = 2, binding = 1, rgba16f) uniform image2D reservoir_DI_Spatial;
 
 void main() 
 {
-    vec4 reservoirNew = vec4(0.f, 0.f, 0.f, 0.f);
+    vec4 reservoirNew = imageLoad(reservoir_DI_Curr, ivec2(gl_LaunchIDEXT.xy));
 
     const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
@@ -58,7 +58,9 @@ void main()
 
     vec3 indirectColor = vec3(0.f, 0.f, 0.f);
 
-    if (objIDf >= 0.)
+	uint bRestirDI_SpacialReuse_ON = giParams.mode & (1u << 2);
+
+    if (bRestirDI_SpacialReuse_ON > 0 && objIDf >= 0.)
 	{
         vec2 ndc = uv * 2.0 - 1.0;
 
@@ -73,7 +75,9 @@ void main()
 
         DirectInputData inputData = packDirectInputData(objIDf, worldPos.xyz, worldNorm, uvCoord);
 
-        vec4 reservoir = texture(reservoir_DI_Curr, uv).rgba;
+        vec4 reservoir = reservoirNew;
+		reservoirNew = reservoir;
+
         uint lightToSample = uint(reservoir.y);
 
         PBRShadeData prbSD = getShadeData(inputData);
@@ -109,7 +113,7 @@ void main()
 			neighborIndex.x = max(0, min(gl_LaunchSizeEXT.x - 1, gl_LaunchIDEXT.x + neighborOffset.x));
 			neighborIndex.y = max(0, min(gl_LaunchSizeEXT.y - 1, gl_LaunchIDEXT.y + neighborOffset.y));
 
-			neighborReservoir = texture(reservoir_DI_Curr, ivec2(neighborIndex)).rgba;
+			neighborReservoir = imageLoad(reservoir_DI_Curr, ivec2(neighborIndex));
             lightToSample = uint(neighborReservoir.y);
 
             DirectOutputData outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
@@ -130,7 +134,7 @@ void main()
 
         // target_pdf of the light is f * Le * G / pdf
         target_pdf = length(unpackLo_DirectOutputData(outputCurrentData));
-		reservoirNew.w = (1.f / max(target_pdf, 0.0001f)) * (reservoirNew.x / max(reservoirNew.z, 0.0001f));
+		reservoirNew.w = target_pdf * reservoirNew.z == 0.f ? 0.f : reservoirNew.x / max(target_pdf * reservoirNew.z, 0.0001f);
 	}
 
     imageStore(reservoir_DI_Spatial, ivec2(gl_LaunchIDEXT.xy), reservoirNew);

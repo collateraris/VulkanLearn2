@@ -102,7 +102,7 @@ Texture& VulkanReSTIRSpaceReusePass::get_tex(ETextureResourceNames name) const
 void VulkanReSTIRSpaceReusePass::init_description_set_global_buffer()
 {
 	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-		.bind_image(0, ETextureResourceNames::ReSTIR_DI_CURRENT_RESERVOIRS, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(0, ETextureResourceNames::ReSTIR_DI_CURRENT_RESERVOIRS, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(1, ETextureResourceNames::ReSTIR_DI_SPACIAL_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.create_desciptor_manager();
 }

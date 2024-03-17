@@ -171,6 +171,12 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, Vulka
 {
     static bool p_open = true;
     static bool bChangedValue = true;
+    static bool bRestirGI = false;
+    static bool bRestirDI_SpacialReuse = false;
+    static bool bRestirGI_SpacialReuse = false;
+    static uint32_t RESTIR_GI = 1u << 1;
+    static uint32_t RESTIR_DI_SpacialReuse = 1u << 2;
+    static uint32_t RESTIR_GI_SpacialReuse = 1u << 3;
     static glm::mat4 prevCameraMatrix;
     static VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams giParams = {.shadowMult = 0.0, .numRays = 1};
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
@@ -178,6 +184,37 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, Vulka
     static int numRays = 0;
     bChangedValue |= ImGui::InputInt("Indirect numRays", &numRays);
     bChangedValue |= ImGui::InputFloat("shadow Mult", &giParams.shadowMult);
+
+    bChangedValue |= ImGui::Checkbox("ReSTIR DI SpacialReuse ON", &bRestirDI_SpacialReuse);
+    if (bRestirDI_SpacialReuse)
+    {
+        giParams.mode |= RESTIR_DI_SpacialReuse;
+    }
+    else
+    {
+        giParams.mode &= ~RESTIR_DI_SpacialReuse;
+    }
+
+    bChangedValue |= ImGui::Checkbox("ReSTIR GI ON", &bRestirGI);
+    if (bRestirGI)
+    {
+        giParams.mode |= RESTIR_GI;
+    }
+    else
+    {
+        giParams.mode &= ~RESTIR_GI;
+    }
+
+    bChangedValue |= ImGui::Checkbox("ReSTIR GI SpacialReuse ON", &bRestirGI_SpacialReuse);
+    if (bRestirGI_SpacialReuse)
+    {
+        giParams.mode |= RESTIR_GI_SpacialReuse;
+    }
+    else
+    {
+        giParams.mode &= ~RESTIR_GI_SpacialReuse;
+    }
+
     giParams.numRays = std::max(0, numRays);
     giParams.frameCount = frameNumber;
     giParams.camPos = glm::vec4(camera.position, 1.f);
@@ -190,6 +227,7 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, Vulka
 
     if (bChangedValue)
     {
+
         bChangedValue = false;
         giGP.reset_accumulation();
         giParams.prevProjView = prevCameraMatrix;

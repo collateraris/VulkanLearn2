@@ -26,6 +26,7 @@ enum class EResOp : uint8_t
 	NONE = 0,
 	WRITE,
 	READ,
+	READ_STORAGE,
 };
 
 //we will add our main reusable types here

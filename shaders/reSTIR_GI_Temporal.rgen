@@ -41,14 +41,14 @@ layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams;
 
 layout(set = 1, binding = 1, rg32ui) uniform  readonly uimage2D vbufferTex;
 
-layout(set = 2, binding = 0) uniform sampler2D indirectLoInitInput;
-layout(set = 2, binding = 1) uniform sampler2D giSamplesPosInitInput;
-layout(set = 2, binding = 2) uniform sampler2D giSamplesNormInitInput; 
+layout(set = 2, binding = 0, rgba16f) uniform readonly image2D indirectLoInitInput;
+layout(set = 2, binding = 1, rgba32f) uniform readonly image2D giSamplesPosInitInput;
+layout(set = 2, binding = 2, rgba32f) uniform readonly image2D giSamplesNormInitInput; 
 
-layout(set = 2, binding = 3) uniform sampler2D reservoir_GI_Prev;
-layout(set = 2, binding = 4) uniform sampler2D indirectLoPrevInput;
-layout(set = 2, binding = 5) uniform sampler2D giSamplesPosPrevInput;
-layout(set = 2, binding = 6) uniform sampler2D giSamplesNormPrevInput;
+layout(set = 2, binding = 3, rgba16f) uniform readonly image2D reservoir_GI_Prev;
+layout(set = 2, binding = 4, rgba16f) uniform readonly image2D indirectLoPrevInput;
+layout(set = 2, binding = 5, rgba32f) uniform readonly image2D giSamplesPosPrevInput;
+layout(set = 2, binding = 6, rgba32f) uniform readonly image2D giSamplesNormPrevInput;
 
 layout(set = 2, binding = 7, rgba16f) uniform image2D reservoir_GI_Curr;
 layout(set = 2, binding = 8, rgba16f) uniform image2D indirectLoCurrOutput;
@@ -62,17 +62,18 @@ void main()
 {
     const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
-
-    vec4 Lo = texture(indirectLoInitInput, uv).rgba;
-    vec4 giSamplesPos = texture(giSamplesPosInitInput, uv).rgba;
-    vec4 giSamplesNorm = texture(giSamplesNormInitInput, uv).rgba;
+    vec4 Lo = imageLoad(indirectLoInitInput, ivec2(gl_LaunchIDEXT.xy));
+    vec4 giSamplesPos = imageLoad(giSamplesPosInitInput, ivec2(gl_LaunchIDEXT.xy));
+    vec4 giSamplesNorm = imageLoad(giSamplesNormInitInput, ivec2(gl_LaunchIDEXT.xy));
 
     uvec3 objectID_meshletsID_primitiveID = unpackVBuffer(imageLoad(vbufferTex, ivec2(gl_LaunchIDEXT.xy)).xy);
     float objIDf = float(objectID_meshletsID_primitiveID.x) - 1.f;
 
     vec4 reservoir = vec4(0.f, 0.f, 0.f, 0.f);
 
-    if (length(giSamplesNorm.xyz) != 0 && objIDf >= 0.)
+    uint bRestirGI_ON = giParams.mode & (1u << 1);
+
+    if (bRestirGI_ON > 0 && length(giSamplesNorm.xyz) != 0 && objIDf >= 0.)
 	{
 
         vec2 ndc = uv * 2.0 - 1.0;
@@ -101,7 +102,7 @@ void main()
         prevIndex.y = ((1.f - screen_space.y) / 2.f) * gl_LaunchSizeEXT.y;
 
         if (prevIndex.x >= 0 && prevIndex.x < gl_LaunchSizeEXT.x && prevIndex.y >= 0 && prevIndex.y < gl_LaunchSizeEXT.y) {
-            prev_reservoir = texture(reservoir_GI_Prev, uv).rgba;
+            prev_reservoir = imageLoad(reservoir_GI_Prev, ivec2(gl_LaunchIDEXT.xy));
         }
         //Temporal reuse
         reservoir.x += target_pdf;
@@ -126,7 +127,7 @@ void main()
         }
 
         // Combine previous
-        vec3 Lo_prev = texture(indirectLoPrevInput, uv).rgb;
+        vec3 Lo_prev = imageLoad(indirectLoPrevInput, ivec2(gl_LaunchIDEXT.xy)).xyz;
         float target_pdf_prev = length(Lo_prev.xyz);
         weight = target_pdf_prev * prev_reservoir.w * prev_reservoir.z;
         reservoir_t.x += weight;
@@ -134,8 +135,8 @@ void main()
 
         if (nextRand(randSeed) < weight / reservoir_t.x) 
         {
-            giSamplesPos_t = texture(giSamplesPosPrevInput, uv).rgba;
-            giSamplesNorm_t = texture(giSamplesNormPrevInput, uv).rgba;
+            giSamplesPos_t = imageLoad(giSamplesPosPrevInput, ivec2(gl_LaunchIDEXT.xy));
+            giSamplesNorm_t = imageLoad(giSamplesNormPrevInput, ivec2(gl_LaunchIDEXT.xy));
             Lo_t.xyz = Lo_prev;
         }
 

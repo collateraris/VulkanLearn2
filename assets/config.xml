@@ -3,8 +3,8 @@
 
 	<window
 		title="Vulkan Learning Game Engine"
-		width="1980"
-		height="1080"
+		width="1280"
+		height="720"
 	></window>
 			
 	<current_scene

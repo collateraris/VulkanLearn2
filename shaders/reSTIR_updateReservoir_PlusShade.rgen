@@ -42,14 +42,14 @@ layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams;
 
 layout(set = 1, binding = 1, rgba32ui) uniform  readonly uimage2D vbufferTex;
 
-layout(set = 2, binding = 0) uniform sampler2D reservoir_DI_Spatial;
+layout(set = 2, binding = 0, rgba16f) uniform readonly image2D reservoir_DI_Spatial;
 layout(set = 2, binding = 1, rgba16f) uniform image2D reservoir_DI_Prev;
 layout(set = 2, binding = 2, rgba16f) uniform image2D outputTex;
 
-layout(set = 2, binding = 3) uniform sampler2D reservoir_GI_Spatial;
-layout(set = 2, binding = 4) uniform sampler2D indirectLoSpatialInput;
-layout(set = 2, binding = 5) uniform sampler2D giSamplesPosSpatialInput;
-layout(set = 2, binding = 6) uniform sampler2D giSamplesNormSpatialInput;
+layout(set = 2, binding = 3, rgba16f) uniform readonly image2D reservoir_GI_Spatial;
+layout(set = 2, binding = 4, rgba16f) uniform readonly image2D indirectLoSpatialInput;
+layout(set = 2, binding = 5, rgba32f) uniform readonly image2D giSamplesPosSpatialInput;
+layout(set = 2, binding = 6, rgba32f) uniform readonly image2D giSamplesNormSpatialInput;
 
 layout(set = 2, binding = 7, rgba16f) uniform image2D reservoir_GI_Prev;
 layout(set = 2, binding = 8, rgba16f) uniform image2D indirectLoPrevOutput;
@@ -67,7 +67,7 @@ void main()
     uvec3 objectID_meshletsID_primitiveID = unpackVBuffer(imageLoad(vbufferTex, ivec2(gl_LaunchIDEXT.xy)).xy);
     float objIDf = float(objectID_meshletsID_primitiveID.x) - 1.f;
 
-    vec4 reservoir =  texture(reservoir_DI_Spatial, uv).rgba;
+    vec4 reservoir =  imageLoad(reservoir_DI_Spatial, ivec2(gl_LaunchIDEXT.xy));
 	imageStore(reservoir_DI_Prev, ivec2(gl_LaunchIDEXT.xy), reservoir);
 
 	vec4 sceneColor = vec4(0.f, 0.f, 0.f, 0.f);
@@ -93,19 +93,25 @@ void main()
         sceneColor += vec4(float(giParams.lightsCount) * unpackLo_DirectOutputData(outputCurrentData) * reservoir.w, 1.f);
 
 
-        reservoir =  texture(reservoir_GI_Spatial, uv).rgba;
-        vec4 Lo = texture(indirectLoSpatialInput, uv).rgba;
-        vec4 giSamplesPos = texture(giSamplesPosSpatialInput, uv).rgba;
-        vec4 giSamplesNorm = texture(giSamplesNormSpatialInput, uv).rgba;
+        reservoir =  imageLoad(reservoir_GI_Spatial, ivec2(gl_LaunchIDEXT.xy));
+        vec4 Lo = imageLoad(indirectLoSpatialInput, ivec2(gl_LaunchIDEXT.xy));
+        vec4 giSamplesPos = imageLoad(giSamplesPosSpatialInput, ivec2(gl_LaunchIDEXT.xy));
+        vec4 giSamplesNorm = imageLoad(giSamplesNormSpatialInput, ivec2(gl_LaunchIDEXT.xy));
 
         imageStore(reservoir_GI_Prev, ivec2(gl_LaunchIDEXT.xy), reservoir);
         imageStore(indirectLoPrevOutput, ivec2(gl_LaunchIDEXT.xy), Lo);
         imageStore(giSamplesPosPrevOutput, ivec2(gl_LaunchIDEXT.xy), giSamplesPos);
         imageStore(giSamplesNormPrevOutput, ivec2(gl_LaunchIDEXT.xy), giSamplesNorm);
 
-        if (reservoir.w > 0)
+        uint bRestirGI_ON = giParams.mode & (1u << 1);
+        if (bRestirGI_ON > 0 && reservoir.w > 0)
         {
-            sceneColor.xyz += Lo.xyz * reservoir.w;
+            vec3 wi = normalize(giSamplesPos.xyz - worldPos);
+            sceneColor.xyz += abs(dot(wi, giSamplesNorm.xyz)) * Lo.xyz * reservoir.w;
+        }
+        else if (bRestirGI_ON == 0)
+        {
+            sceneColor.xyz += Lo.xyz;
         }
 	}
     else

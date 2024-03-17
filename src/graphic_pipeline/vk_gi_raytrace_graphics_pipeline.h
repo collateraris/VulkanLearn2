@@ -34,6 +34,10 @@ public:
 		float shadowMult;
 		uint32_t lightsCount;
 		uint32_t  numRays;
+		uint32_t mode = 0;
+		uint32_t pad1 = 0;
+		uint32_t pad2 = 0;
+		uint32_t pad3 = 0;
 	};
 	VulkanGIShadowsRaytracingGraphicsPipeline() = default;
 	void init_textures(VulkanEngine* engine);

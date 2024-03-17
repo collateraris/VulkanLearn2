@@ -102,10 +102,10 @@ Texture& VulkanReSTIR_GI_SpaceReusePass::get_tex(ETextureResourceNames name) con
 void VulkanReSTIR_GI_SpaceReusePass::init_description_set_global_buffer()
 {
 	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-		.bind_image(0, ETextureResourceNames::ReSTIR_GI_CURRENT_RESERVOIRS, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(1, ETextureResourceNames::ReSTIR_INDIRECT_LO_CURRENT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(2, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_CURRENT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(3, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_CURRENT, EResOp::READ, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(0, ETextureResourceNames::ReSTIR_GI_CURRENT_RESERVOIRS, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(1, ETextureResourceNames::ReSTIR_INDIRECT_LO_CURRENT, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(2, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_CURRENT, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(3, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_CURRENT, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 
 		.bind_image(4, ETextureResourceNames::ReSTIR_GI_SPACIAL_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(5, ETextureResourceNames::ReSTIR_INDIRECT_LO_SPACIAL, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
