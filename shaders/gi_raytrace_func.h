@@ -136,7 +136,7 @@ DirectOutputData ggxDirect(uint lightToSample, PBRShadeData prbSD, vec3 camPos, 
 };
 
 
-VbufferExtraCommonData proccessVbufferData(uvec3 objectID_meshletsID_primitiveID, mat4 projView, vec2 ndc, vec2 screenSize)
+VbufferExtraCommonData proccessVbufferData(uvec3 objectID_meshletsID_primitiveID, mat4 projView, vec2 ndc, vec2 screenSize, vec3 camPos)
 {
     VbufferExtraCommonData data;
     int objID = int(objectID_meshletsID_primitiveID.x) - 1;
@@ -184,6 +184,17 @@ VbufferExtraCommonData proccessVbufferData(uvec3 objectID_meshletsID_primitiveID
     vec3 v2_nrm = vec3(v2.positionXYZ_normalX.w, v2.normalYZ_texCoordUV.x, v2.normalYZ_texCoordUV.y); 
 
     data.worldNorm = interpolate(bary, v0_nrm, v1_nrm, v2_nrm).value;
+
+    const vec3 e0 = v2_pos - v0_pos;
+    const vec3 e1 = v1_pos - v0_pos;
+    const vec3 e0t = vec3(shadeData.model * vec4(e0,0));
+    const vec3 e1t = vec3(shadeData.model * vec4(e1,0));
+    vec3 geometry_nrm = normalize(vec3(vec4(cross(e0, e1), 0) * inverse(shadeData.model)));
+    vec3 wo = normalize(camPos - data.worldPos.xyz);
+    if (dot(geometry_nrm, wo) <= 0.)
+        geometry_nrm = -geometry_nrm;
+    if (dot(geometry_nrm, data.worldNorm) <= 0)
+        data.worldNorm = -data.worldNorm;    
 
     vec2 v0_uv= vec2(v0.normalYZ_texCoordUV.z, v0.normalYZ_texCoordUV.w);
     vec2 v1_uv = vec2(v1.normalYZ_texCoordUV.z, v1.normalYZ_texCoordUV.w);

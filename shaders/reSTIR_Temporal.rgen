@@ -63,7 +63,7 @@ void main()
 	{
         vec2 ndc = uv * 2.0 - 1.0;
 
-        VbufferExtraCommonData vbufferData = proccessVbufferData(objectID_meshletsID_primitiveID, giParams.projView, ndc, gl_LaunchSizeEXT.xy);
+        VbufferExtraCommonData vbufferData = proccessVbufferData(objectID_meshletsID_primitiveID, giParams.projView, ndc, gl_LaunchSizeEXT.xy, giParams.camPos.xyz);
 
         vec3 worldPos = vbufferData.worldPos;
         vec3 worldNorm = vbufferData.worldNorm;
