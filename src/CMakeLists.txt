@@ -78,6 +78,8 @@ add_executable(vulkan_guide
     graphic_pipeline/vk_ibl_maps_generator_graphics_pipeline.cpp
     graphic_pipeline/vk_raytracer_denoiser_pass.h
     graphic_pipeline/vk_raytracer_denoiser_pass.cpp
+    graphic_pipeline/vk_raytrace_reflection.h
+    graphic_pipeline/vk_raytrace_reflection.cpp
     graphic_pipeline/vk_light_debug_graphic_pipeline.h
     graphic_pipeline/vk_light_debug_graphic_pipeline.cpp
     vk_light_manager.h

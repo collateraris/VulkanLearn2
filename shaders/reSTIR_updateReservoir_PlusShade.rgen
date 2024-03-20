@@ -56,6 +56,8 @@ layout(set = 2, binding = 8, rgba16f) uniform image2D indirectLoPrevOutput;
 layout(set = 2, binding = 9, rgba32f) uniform image2D giSamplesPosPrevOutput;
 layout(set = 2, binding = 10, rgba32f) uniform image2D giSamplesNormPrevOutput;
 
+layout(set = 2, binding = 11, rgba16f) uniform readonly image2D reflectionInput;
+
 
 #include "gi_raytrace_func.h"
 
@@ -107,12 +109,14 @@ void main()
         if (bRestirGI_ON > 0 && reservoir.w > 0)
         {
             vec3 wi = normalize(giSamplesPos.xyz - worldPos);
-            sceneColor.xyz += abs(dot(wi, giSamplesNorm.xyz)) * Lo.xyz * reservoir.w;
+            sceneColor.xyz = abs(dot(wi, giSamplesNorm.xyz)) * Lo.xyz * reservoir.w;
         }
         else if (bRestirGI_ON == 0)
         {
             sceneColor.xyz += Lo.xyz;
         }
+
+        sceneColor.xyz += imageLoad(reflectionInput, ivec2(gl_LaunchIDEXT.xy)).xyz;
 	}
     else
     {

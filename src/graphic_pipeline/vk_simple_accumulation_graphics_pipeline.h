@@ -29,6 +29,7 @@ public:
 	const Texture& get_output() const;
 private:
 
+	Texture& get_tex(ETextureResourceNames name) const;
 	void init_render_pass();
 	void init_description_set(const Texture& currentTex);
 

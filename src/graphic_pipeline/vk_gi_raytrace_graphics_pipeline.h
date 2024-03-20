@@ -11,6 +11,7 @@
 #include <graphic_pipeline/vk_restir_gi_temporal_pass.h>
 #include <graphic_pipeline/vk_restir_gi_spacial_reuse_pass.h>
 #include <graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.h>
+#include <graphic_pipeline/vk_raytrace_reflection.h>
 #include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
 #include <graphic_pipeline/vk_raytracer_denoiser_pass.h>
 
@@ -69,6 +70,7 @@ private:
 	std::unique_ptr<VulkanReSTIR_GI_TemporalPass> _restir_GI_TemporalGP;
 	std::unique_ptr<VulkanReSTIR_GI_SpaceReusePass> _restir_GI_SpacialGP;
 	std::unique_ptr<VulkanReSTIRUpdateReservoirPlusShadePass> _restirUpdateShadeGP;
+	std::unique_ptr<VulkanRaytrace_ReflectionPass> _raytraceReflection;
 	std::unique_ptr<VulkanSimpleAccumulationGraphicsPipeline> _accumulationGP;
 
 	std::unique_ptr<VulkanRaytracerDenoiserPass> _denoiserPass;

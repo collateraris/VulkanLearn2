@@ -145,20 +145,23 @@ void main()
             vec3 outputCurrentData_albedo = unpackAlbedo_DirectOutputData(outputCurrentData);
             vec3 outputCurrentData_F0 = unpackF0_DirectOutputData(outputCurrentData);
 
-            vec3 viewDir = normalize(giParams.camPos.xyz - worldPos.xyz);
-            vec3 H = getGGXMicrofacet(randSeed, outputCurrentData_roughness, outputCurrentData_worldNorm);
+            vec3 viewDir = normalize(worldPos.xyz - giParams.camPos.xyz);
+            vec3 H = getGGXMicrofacet(randSeed, outputCurrentData_roughness, worldNorm.xyz);
 
-            vec3 R = normalize(2.f * dot(viewDir, H) * H - viewDir);
-
-            IndirectRayPayload indirPayload =  shootIndirectRay(worldPos.xyz, R);
+            vec3 R = normalize(reflect(viewDir, H));
 
             // Check to make sure our randomly selected, normal mapped diffuse ray didn't go below the surface
-            if (dot(outputCurrentData_worldNorm, R) < 0)
+            if (dot(worldNorm.xyz, R) < 0)
                 break;
+
+            IndirectRayPayload indirPayload =  shootIndirectRay(worldPos.xyz, R);
 
             int objectId = unpackObjID_IndirectRayPayload(indirPayload);
             if (objectId <= 0)
             {
+                if (i > 0)
+                    break;
+
                 //hit miss
                 const float MAX_REFLECTION_LOD = 9;
                 vec3 prefilteredColor = textureLod(prefilteredMap, R,  outputCurrentData_roughness * MAX_REFLECTION_LOD).rgb;
@@ -227,6 +230,7 @@ void main()
                 indirectColor.xyz +=  NdotR * float(giParams.lightsCount) * unpackLo_DirectOutputData(outputBoundData) * (kD *unpackAlbedo_DirectOutputData(outputBoundData) * M_INV_PI + ggxTerm / max(1e-3, ggxProb));
              
                 //for next bound
+                worldNorm.xyz = shading_nrm;
                 worldPos.xyz = unpackWorldPos_IndirectRayPayload(indirPayload);
                 outputCurrentData = outputBoundData;  
             }

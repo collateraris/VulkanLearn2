@@ -281,6 +281,18 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_textures(VulkanEngine* engi
 			.create_engine_texture(ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_SPACIAL);
 	}
 
+	//REFLECTION
+	{
+		VulkanTextureBuilder texBuilder;
+		texBuilder.init(_engine);
+		texBuilder.start()
+			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
+			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
+			.create_engine_texture(ETextureResourceNames::RAYTRACE_REFLECTION);
+	}
+
 }
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
@@ -312,6 +324,9 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 
 	_accumulationGP = std::make_unique<VulkanSimpleAccumulationGraphicsPipeline>();
 	_accumulationGP->init(engine, _restirUpdateShadeGP->get_output());
+
+	_raytraceReflection = std::make_unique<VulkanRaytrace_ReflectionPass>();
+	_raytraceReflection->init(engine);
 
 	//_denoiserPass = std::make_unique<VulkanRaytracerDenoiserPass>();
 	//_denoiserPass->init(engine);
@@ -371,6 +386,9 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, i
 	_restirSpacialGP->draw(cmd, current_frame_index);
 	_restir_GI_TemporalGP->draw(cmd, current_frame_index);
 	_restir_GI_SpacialGP->draw(cmd, current_frame_index);
+
+	_raytraceReflection->draw(cmd, current_frame_index);
+
 	_restirUpdateShadeGP->draw(cmd, current_frame_index);
 
 	_restirUpdateShadeGP->barrier_for_frag_read(cmd);

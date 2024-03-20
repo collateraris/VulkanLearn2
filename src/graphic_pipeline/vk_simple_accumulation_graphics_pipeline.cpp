@@ -120,8 +120,26 @@ void VulkanSimpleAccumulationGraphicsPipeline::init(VulkanEngine* engine, const 
 	
 }
 
+Texture& VulkanSimpleAccumulationGraphicsPipeline::get_tex(ETextureResourceNames name) const
+{
+	return *_engine->get_engine_texture(name);
+}
+
 void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
+	if (_counter.accumCount == 0)
+	{
+			VkClearValue clear_value = { 0., 0., 0., 1. };
+
+			cmd->clear_image(_lastFrameTexture, clear_value);
+			cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_DI_PREV_RESERVOIRS), clear_value);
+			cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_GI_PREV_RESERVOIRS), clear_value);
+			cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_INDIRECT_LO_PREV), clear_value);
+			cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_PREV), clear_value);
+			cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_PREV), clear_value);
+	}
+
+
 	_engine->map_buffer(_engine->_allocator, _perFrameCount[current_frame_index]._allocation, [&](void*& data) {
 		memcpy(data, &_counter, sizeof(VulkanSimpleAccumulationGraphicsPipeline::PerFrameCB));
 		});
@@ -206,8 +224,8 @@ void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, in
 		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, lastFrameBarriers.size(), lastFrameBarriers.data());
 	}
 
-	_counter.accumCount++;
 	_counter.accumCount = std::min(_counter.accumCount, uint32_t(3 * _engine->_lightManager.get_lights().size()));
+	_counter.accumCount++;
 	_counter.initLastFrame = 1;
 }
 

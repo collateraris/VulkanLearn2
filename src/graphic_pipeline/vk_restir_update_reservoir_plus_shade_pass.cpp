@@ -128,6 +128,8 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffe
 		.bind_image(9, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_PREV, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(10, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_PREV, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 
+		.bind_image(11, ETextureResourceNames::RAYTRACE_REFLECTION, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+
 		.create_desciptor_manager();
 }
 

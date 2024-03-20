@@ -92,7 +92,7 @@ PBRShadeData getShadeData(DirectInputData inputData)
 
 DirectOutputData ggxDirect(uint lightToSample, PBRShadeData prbSD, vec3 camPos, bool withShadow)
 {
-    vec3 viewDir = normalize(camPos.xyz - prbSD.worldPos.xyz);
+    vec3 viewDir = normalize(prbSD.worldPos.xyz - camPos.xyz);
 
     SLight lightInfo = lightsBuffer.lights[lightToSample];
 
