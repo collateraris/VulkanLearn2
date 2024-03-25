@@ -157,8 +157,10 @@ static void ShowFPSLog(Stats stats)
     {   
         counter = 0;
         log.Clear();
+#ifdef VULKAN_DEBUG_ON        
         log.AddLog("FPS %d  ; frameCpuAvg %.2f ms ; frameGpuAvg %.2f ms\n triangle count %.1fM trianglesPerSec %.1fB tri/sec",
             int(1000.0 / stats.frameCpuAvg), stats.frameCpuAvg, stats.frameGpuAvg, double(stats.triangleCount) * 1e-6, stats.trianglesPerSec * 1e-9);
+#endif            
     }
     ImGui::End();
 

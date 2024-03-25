@@ -48,7 +48,6 @@ layout(set = 2, binding = 1, rgba16f) uniform image2D indirectLoInitOutput;
 layout(set = 2, binding = 2, rgba32f) uniform image2D giSamplesPosInitOutput;
 layout(set = 2, binding = 3, rgba32f) uniform image2D giSamplesNormInitOutput;
 
-
 #include "gi_raytrace_func.h"
 
 void main() 
@@ -133,107 +132,139 @@ void main()
         indirectColor.w = target_pdf;
         imageStore(reservoir_Init, ivec2(gl_LaunchIDEXT.xy), reservoir);
 
-        bool bRestirGI_ON = (giParams.mode & (1u << 1)) > 0;
+        vec3 multiply_coef = vec3(1.f, 1.f, 1.f);
+        PBRShadeData current_prbSD = prbSD;
+        IndirectRayPayload indirPayload;
+        vec3 current_F0 = unpackF0_DirectOutputData(outputCurrentData); 
+        vec3 current_kD = outputCurrentData.kD.xyz;
+        vec3 current_albedo = unpackAlbedo_DirectOutputData(outputCurrentData);
 
-        uint INDIRECT_BOUND = giParams.numRays;
+        PBRShadeData begin_prbSD = prbSD;
+        vec3 begin_worldNorm = worldNorm.xyz;
+        vec3 begin_worldPos = worldPos.xyz;
+
         //INDIRECT ILLUMINATION
+        bool bRestirGI_ON = (giParams.mode & (1u << 1)) > 0;
+        uint INDIRECT_BOUND = giParams.numRays;
         for (int i = 0; i < INDIRECT_BOUND; i++)
         {   
-            vec3 outputCurrentData_worldNorm = unpackWorldNorm_DirectOutputData(outputCurrentData);
-            float outputCurrentData_roughness = unpackRoughness_DirectOutputData(outputCurrentData);
-            float outputCurrentData_metalness = unpackMetalness_DirectOutputData(outputCurrentData);
-            vec3 outputCurrentData_albedo = unpackAlbedo_DirectOutputData(outputCurrentData);
-            vec3 outputCurrentData_F0 = unpackF0_DirectOutputData(outputCurrentData);
-
-            vec3 viewDir = normalize(worldPos.xyz - giParams.camPos.xyz);
-            vec3 H = getGGXMicrofacet(randSeed, outputCurrentData_roughness, worldNorm.xyz);
-
-            vec3 R = normalize(reflect(viewDir, H));
-
-            // Check to make sure our randomly selected, normal mapped diffuse ray didn't go below the surface
-            if (dot(worldNorm.xyz, R) < 0)
-                break;
-
-            IndirectRayPayload indirPayload =  shootIndirectRay(worldPos.xyz, R);
+            // Shoot a randomly selected cosine-sampled diffuse ray.
+            vec3 L = getCosHemisphereSample(randSeed, worldNorm.xyz);
+            indirPayload =  shootIndirectRay(worldPos.xyz, L);
 
             int objectId = unpackObjID_IndirectRayPayload(indirPayload);
-            if (objectId <= 0)
-            {
-                if (i > 0)
-                    break;
 
-                //hit miss
-                const float MAX_REFLECTION_LOD = 9;
-                vec3 prefilteredColor = textureLod(prefilteredMap, R,  outputCurrentData_roughness * MAX_REFLECTION_LOD).rgb;
-
-                float NdotV = max(dot(outputCurrentData_worldNorm, viewDir), 0.0);
-
-                // ambient lighting (we now use IBL as the ambient term)
-                vec3 kS = fresnelSchlickRoughness(NdotV, outputCurrentData_F0, outputCurrentData_roughness);
-                vec2 envBRDF  = texture(brdfLUT, vec2(NdotV, outputCurrentData_roughness)).rg;
-                vec3 specular = prefilteredColor * (kS * envBRDF.x + envBRDF.y);
-                vec3 kD = 1.0 - kS;
-                kD *= 1.0 - outputCurrentData_metalness;	  
-                vec3 irradiance = texture(irradianceMap, outputCurrentData_worldNorm).rgb;
-                vec3 diffuse      = irradiance * outputCurrentData_albedo;
-                vec3 ambient = (kD * diffuse + specular);
-
-                indirectColor.xyz += ambient;
-
+            if (objectId < 0)
                 break;
-            }
-            else
+        
+            vec3 shading_nrm = normalize(unpackWorldNormShading_IndirectRayPayload(indirPayload));
+            vec3 geometry_nrm = unpackWorldNormGeometry_IndirectRayPayload(indirPayload);
+
+            const vec3 wo = L;
+            if (dot(geometry_nrm, wo) <= 0.)
+                geometry_nrm = -geometry_nrm;
+            if (dot(geometry_nrm, shading_nrm) <= 0)
+                shading_nrm = -shading_nrm;
+
+            if (i == 0)
             {
-                //closest hit               
-                const vec3 wo = -R;
-                vec3 shading_nrm = normalize(unpackWorldNormShading_IndirectRayPayload(indirPayload));
-                vec3 geometry_nrm = unpackWorldNormGeometry_IndirectRayPayload(indirPayload);
-                if (dot(geometry_nrm, wo) <= 0.)
-                    geometry_nrm = -geometry_nrm;
-                if (dot(geometry_nrm, shading_nrm) <= 0)
-                    shading_nrm = -shading_nrm;
+                giSamplesPos.xyz = unpackWorldPos_IndirectRayPayload(indirPayload);
+                giSamplesNorm.xyz = shading_nrm;
+            }                 
 
-                if (i == 0)
-                {
-                    giSamplesPos.xyz = unpackWorldPos_IndirectRayPayload(indirPayload);
-                    giSamplesNorm.xyz = shading_nrm;
-                }                                    
+            //for next bound
+            worldNorm.xyz = shading_nrm;                                                       
 
-                DirectInputData input2Data = packDirectInputData(objectId,
-                    unpackWorldPos_IndirectRayPayload(indirPayload), 
-                    shading_nrm, 
-                    unpackUV_IndirectRayPayload(indirPayload));
+            inputData = packDirectInputData(objectId,
+                unpackWorldPos_IndirectRayPayload(indirPayload), 
+                shading_nrm, 
+                unpackUV_IndirectRayPayload(indirPayload));
 
-                prbSD = getShadeData(input2Data);    
+            prbSD = getShadeData(inputData);    
 
-                DirectOutputData outputBoundData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, !bRestirGI_ON);
+            outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, !bRestirGI_ON);
 
-                // Compute some dot products needed for shading
-                float  NdotR = clamp(dot(outputCurrentData_worldNorm, R), 0.f, 1.f);
-                float  NdotV = clamp(dot(outputCurrentData_worldNorm, viewDir), 0.f, 1.f);
+            vec3 bounceColor = unpackLo_DirectOutputData(outputCurrentData);
 
-                float  NdotH = clamp(dot(outputCurrentData_worldNorm, H), 0.f, 1.f);
-                float  RdotH = clamp(dot(R, H), 0.f, 1.f);
+            // Accumulate the color: (NdotL * incomingLight * dif / pi) 
+            // Probability of sampling:  (NdotL / pi) * probDiffuse
+            multiply_coef *= current_kD * current_albedo;
+            indirectColor.xyz += bounceColor * multiply_coef;
 
-                // What's the probability of sampling vector H from getGGXMicrofacet()?
-                float  D = ggxNormalDistribution(NdotH, outputCurrentData_roughness);          // The GGX normal distribution
-                float  ggxProb = D * NdotH / (4.f * RdotH);
+            //for next bound
+            current_albedo = unpackAlbedo_DirectOutputData(outputCurrentData);
+            current_kD = outputCurrentData.kD.xyz;
+            current_prbSD = prbSD;
+            worldPos.xyz = current_prbSD.worldPos.xyz;
+        }
+    
+        current_prbSD = begin_prbSD;
+        worldNorm.xyz = begin_worldNorm;
+        worldPos.xyz = begin_worldPos;
+        multiply_coef = vec3(1.f, 1.f, 1.f);      
 
-                // Evaluate our BRDF using a microfacet BRDF model
-                float  G = IndirectGeometrySmith(outputCurrentData_worldNorm, viewDir, R, outputCurrentData_roughness);   // Use Schlick's masking term approx
-                vec3 F = fresnelSchlick(RdotH, outputCurrentData_F0);  // Use Schlick's approx to Fresnel
-                vec3 ggxTerm = D * G * F / (4.f * NdotR * NdotV + 0.001); // The Cook-Torrance microfacet BRDF
+        for (int i = 0; i < INDIRECT_BOUND; i++)
+        {   
+            // Randomly sample the NDF to get a microfacet in our BRDF to reflect off of
+            vec3 H = getGGXMicrofacet(randSeed, current_prbSD.emission_roughness.w, worldNorm.xyz);
+            vec3 viewDir = normalize(worldPos.xyz - giParams.camPos.xyz);
+            // Compute the outgoing direction based on this (perfectly reflective) microfacet
+            vec3 R = normalize(reflect(viewDir, H));
 
-                vec3 kS = F;
-                vec3 kD = 1.0 - kS;
-                kD *= 1.0 - outputCurrentData_metalness;
-                indirectColor.xyz +=  NdotR * float(giParams.lightsCount) * unpackLo_DirectOutputData(outputBoundData) * (kD *unpackAlbedo_DirectOutputData(outputBoundData) * M_INV_PI + ggxTerm / max(1e-3, ggxProb));
-             
-                //for next bound
-                worldNorm.xyz = shading_nrm;
-                worldPos.xyz = unpackWorldPos_IndirectRayPayload(indirPayload);
-                outputCurrentData = outputBoundData;  
-            }
+            indirPayload =  shootIndirectRay(worldPos.xyz, R);
+
+            int objectId = unpackObjID_IndirectRayPayload(indirPayload);
+
+            if (objectId < 0)
+                break;            
+
+            vec3 shading_nrm = normalize(unpackWorldNormShading_IndirectRayPayload(indirPayload));
+            vec3 geometry_nrm = unpackWorldNormGeometry_IndirectRayPayload(indirPayload);
+
+            const vec3 wo = R;
+            if (dot(geometry_nrm, wo) <= 0.)
+                geometry_nrm = -geometry_nrm;
+            if (dot(geometry_nrm, shading_nrm) <= 0)
+                shading_nrm = -shading_nrm;
+
+            //for next bound
+            worldNorm.xyz = shading_nrm;                                 
+
+            inputData = packDirectInputData(objectId,
+                unpackWorldPos_IndirectRayPayload(indirPayload), 
+                shading_nrm, 
+                unpackUV_IndirectRayPayload(indirPayload));
+
+            prbSD = getShadeData(inputData);   
+
+            outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, !bRestirGI_ON);
+
+            vec3 bounceColor = unpackLo_DirectOutputData(outputCurrentData);
+
+            float  NdotR = clamp(dot(current_prbSD.worldNorm.xyz, R), 0.f, 1.f);
+            float  NdotV = clamp(dot(current_prbSD.worldNorm.xyz, viewDir), 0.f, 1.f);
+
+            float  NdotH = clamp(dot(current_prbSD.worldNorm.xyz, H), 0.f, 1.f);
+            float  RdotH = clamp(dot(R, H), 0.f, 1.f);
+
+            // What's the probability of sampling vector H from getGGXMicrofacet()?
+            float  D = ggxNormalDistribution(NdotH, current_prbSD.emission_roughness.w);          // The GGX normal distribution
+            float  ggxProb = D * NdotH / (4.f * RdotH);
+
+            // Evaluate our BRDF using a microfacet BRDF model
+            float  G = IndirectGeometrySmith(current_prbSD.worldNorm.xyz, viewDir, R, current_prbSD.emission_roughness.w);   // Use Schlick's masking term approx
+            vec3 F = fresnelSchlick(RdotH, current_F0);  // Use Schlick's approx to Fresnel
+            vec3 ggxTerm = D * G * F / (4.f * NdotR * NdotV + 0.001); // The Cook-Torrance microfacet BRDF
+
+            //for next bound
+            current_F0 = unpackF0_DirectOutputData(outputCurrentData);
+
+            multiply_coef *= NdotR * ggxTerm / max(1e-3, ggxProb);
+            indirectColor.xyz +=  bounceColor * multiply_coef;
+
+            //for next bound
+            current_prbSD = prbSD;
+            worldPos.xyz = current_prbSD.worldPos.xyz;
         }
 	}
 

@@ -58,7 +58,6 @@ layout(set = 2, binding = 10, rgba32f) uniform image2D giSamplesNormPrevOutput;
 
 layout(set = 2, binding = 11, rgba16f) uniform readonly image2D reflectionInput;
 
-
 #include "gi_raytrace_func.h"
 
 void main() 
@@ -92,7 +91,7 @@ void main()
         uint lightToSample = uint(reservoir.y);
         PBRShadeData prbSD = getShadeData(inputData);
         DirectOutputData outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, true);
-        sceneColor += vec4(float(giParams.lightsCount) * unpackLo_DirectOutputData(outputCurrentData) * reservoir.w, 1.f);
+        sceneColor += vec4(unpackLo_DirectOutputData(outputCurrentData) * reservoir.w, 1.f);
 
 
         reservoir =  imageLoad(reservoir_GI_Spatial, ivec2(gl_LaunchIDEXT.xy));

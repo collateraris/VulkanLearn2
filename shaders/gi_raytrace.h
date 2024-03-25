@@ -99,7 +99,6 @@ struct IndirectRayPayload
 	vec4 positionXYZ_normalShadX;
 	vec4 normalShadYZ_texCoordUV;
 	vec4 worldNormGeometryXYZ_ObjectId;
-	vec4 baryCoord;
 };
 
 int unpackObjID_IndirectRayPayload(IndirectRayPayload inputData)
@@ -133,15 +132,17 @@ struct DirectOutputData
 	vec4 albedoYZ_FoXY;
 	vec4 FoZ_LoXYZ;
 	vec4 metalness_roughness;
+	vec4 kD;
 };
 
-DirectOutputData packDirectOutputData(vec3 worldNorm, vec3 albedo, vec3 Fo, vec3 Lo, float metalness, float roughness)
+DirectOutputData packDirectOutputData(vec3 worldNorm, vec3 albedo, vec3 Fo, vec3 Lo, float metalness, float roughness, vec3 kD)
 {
 	DirectOutputData inputData;
     inputData.worldNormXYZ_albedoX = vec4(worldNorm, albedo.x);
     inputData.albedoYZ_FoXY = vec4(albedo.yz, Fo.xy);
     inputData.FoZ_LoXYZ = vec4(Fo.z, Lo);
 	inputData.metalness_roughness = vec4(metalness, roughness, 0.f, 0.f);
+	inputData.kD.xyz = kD;
 	return inputData;
 };
 

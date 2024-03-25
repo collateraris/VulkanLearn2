@@ -45,7 +45,6 @@ layout(set = 1, binding = 1, rg32ui) uniform  readonly uimage2D vbufferTex;
 
 layout(set = 2, binding = 0, rgba16f) uniform image2D reflectionOutput;
 
-
 #include "gi_raytrace_func.h"
 
 #define ROUGHNESS_CUTOFF 0.6f

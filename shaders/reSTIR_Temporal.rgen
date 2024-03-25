@@ -46,7 +46,6 @@ layout(set = 2, binding = 1, rgba16f) uniform readonly image2D reservoir_Init;
 layout(set = 2, binding = 2, rgba16f) uniform readonly image2D indirectLoInitOutput;
 layout(set = 2, binding = 3, rgba16f) uniform image2D reservoir_DI_Curr;
 
-
 #include "gi_raytrace_func.h"
 
 void main() 

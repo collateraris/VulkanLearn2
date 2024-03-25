@@ -47,6 +47,7 @@ IndirectRayPayload shootDirectRay(vec3 orig, vec3 dir)
     return shootIndirectRay(orig, dir);
 };
 
+
 float getDistanceFalloff(float distSquared)
 {
     float falloff = 1000.f / ((0.01 * 0.01) + distSquared); // The 0.01 is to avoid infs when the light source is close to the shading point
@@ -89,7 +90,6 @@ PBRShadeData getShadeData(DirectInputData inputData)
     return data;
 };
 
-
 DirectOutputData ggxDirect(uint lightToSample, PBRShadeData prbSD, vec3 camPos, bool withShadow)
 {
     vec3 viewDir = normalize(prbSD.worldPos.xyz - camPos.xyz);
@@ -130,9 +130,9 @@ DirectOutputData ggxDirect(uint lightToSample, PBRShadeData prbSD, vec3 camPos, 
 	float shadowColor = 1.f;
     if (withShadow)
         shadowColor = shadowRayVisibility(prbSD.worldPos.xyz, lightDir, lightDistance, giParams.shadowMult);
-    vec3 Lo =  prbSD.emission_roughness.xyz + shadowColor * (kD * prbSD.albedo_metalness.xyz * M_INV_PI + specular) * lightColor * NdotL;
+    vec3 Lo = prbSD.emission_roughness.xyz + float(giParams.lightsCount) * shadowColor * (kD * prbSD.albedo_metalness.xyz * M_INV_PI + specular) * lightColor * NdotL;
 
-	return packDirectOutputData(prbSD.worldNorm.xyz, prbSD.albedo_metalness.xyz, F0, Lo, prbSD.albedo_metalness.w, prbSD.emission_roughness.w);
+	return packDirectOutputData(prbSD.worldNorm.xyz, prbSD.albedo_metalness.xyz, F0, Lo, prbSD.albedo_metalness.w, prbSD.emission_roughness.w, kD);
 };
 
 

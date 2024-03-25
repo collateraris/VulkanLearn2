@@ -224,7 +224,6 @@ void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, in
 		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, lastFrameBarriers.size(), lastFrameBarriers.data());
 	}
 
-	_counter.accumCount = std::min(_counter.accumCount, uint32_t(3 * _engine->_lightManager.get_lights().size()));
 	_counter.accumCount++;
 	_counter.initLastFrame = 1;
 }

@@ -43,7 +43,6 @@ layout(set = 1, binding = 1, rg32ui) uniform  readonly uimage2D vbufferTex;
 layout(set = 2, binding = 0, rgba16f) uniform readonly image2D reservoir_DI_Curr;
 layout(set = 2, binding = 1, rgba16f) uniform image2D reservoir_DI_Spatial;
 
-
 #include "gi_raytrace_func.h"
 
 void main() 

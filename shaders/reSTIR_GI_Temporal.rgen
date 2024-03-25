@@ -55,7 +55,6 @@ layout(set = 2, binding = 8, rgba16f) uniform image2D indirectLoCurrOutput;
 layout(set = 2, binding = 9, rgba32f) uniform image2D giSamplesPosCurrOutput;
 layout(set = 2, binding = 10, rgba32f) uniform image2D giSamplesNormCurrOutput;
 
-
 #include "gi_raytrace_func.h"
 
 void main() 

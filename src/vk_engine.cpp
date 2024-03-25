@@ -335,13 +335,14 @@ void VulkanEngine::draw()
 	VK_CHECK(vkQueuePresentKHR(_graphicsQueue, &presentInfo));
 
 	uint64_t queryResults[2];
-
+#if VULKAN_DEBUG_ON 
 	VK_CHECK(vkGetQueryPoolResults(_device, get_current_frame().queryPool, 0, 2, sizeof(queryResults), queryResults, sizeof(queryResults[0]), VK_QUERY_RESULT_64_BIT));
 
 	double frameGpuBegin = double(queryResults[0]) * _physDevProp.limits.timestampPeriod * 1e-6;
 	double frameGpuEnd = double(queryResults[1]) * _physDevProp.limits.timestampPeriod * 1e-6;
 
 	_stats.frameGpuAvg = _stats.frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
+#endif	
 	//increase the number of frames drawn
 	_frameNumber++;
 }

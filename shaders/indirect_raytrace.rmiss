@@ -4,7 +4,7 @@
 
 #include "gi_raytrace.h"
 
-layout(location = 1) rayPayloadInEXT IndirectRayPayload indirectRpl;
+layout(location = 0) rayPayloadInEXT IndirectRayPayload indirectRpl;
 
 void main()
 {    
