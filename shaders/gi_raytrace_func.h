@@ -90,21 +90,36 @@ PBRShadeData getShadeData(DirectInputData inputData)
     return data;
 };
 
+#define LightSun            1
+#define LightPoint          2
+
 DirectOutputData ggxDirect(uint lightToSample, PBRShadeData prbSD, vec3 camPos, bool withShadow)
 {
     vec3 viewDir = normalize(prbSD.worldPos.xyz - camPos.xyz);
 
     SLight lightInfo = lightsBuffer.lights[lightToSample];
 
-    vec3 lightDir = lightInfo.position.xyz - prbSD.worldPos.xyz;
-     // Avoid NaN
-    float distSquared = dot(lightDir, lightDir);
-    float lightDistance = (distSquared > 1e-5f) ? length(lightDir) : 0.f;
-    lightDir = (distSquared > 1e-5f) ? normalize(lightDir) : vec3(0.f, 0.f, 0.f);
+    vec3 lightDir = vec3(0.f, 0.f, 0.f);
+    vec3 lightColor = lightInfo.color_type.xyz;
+    float lightDistance = 1.f;
+
+    if (int(lightInfo.color_type.w) == LightPoint)
+    {
+        lightDir = lightInfo.position.xyz - prbSD.worldPos.xyz;
+        // Avoid NaN
+        float distSquared = dot(lightDir, lightDir);
+        lightDistance = (distSquared > 1e-5f) ? length(lightDir) : 0.f;
+        lightDir = (distSquared > 1e-5f) ? normalize(lightDir) : vec3(0.f, 0.f, 0.f);
+        // Calculate the falloff
+        float falloff = getDistanceFalloff(distSquared);
+        lightColor = lightColor * falloff;
+    }
+    else if (int(lightInfo.color_type.w) == LightSun)
+    {
+        lightDir = normalize(-lightInfo.direction.xyz);
+        lightDistance = 1.0e38f;
+    };
     
-    // Calculate the falloff
-    float falloff = getDistanceFalloff(distSquared);
-    vec3 lightColor = lightInfo.color_type.xyz * falloff;
 
 	vec3 H = normalize(viewDir + lightDir);
 

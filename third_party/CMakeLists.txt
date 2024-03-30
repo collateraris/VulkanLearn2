@@ -76,6 +76,9 @@ imgui/imstb_truetype.h
     imgui/imgui_impl_sdl.h
     imgui/imgui_impl_vulkan.cpp
     imgui/imgui_impl_sdl.cpp
+
+    imgui/imGuIZMOquat.h
+    imgui/imGuIZMOquat.cpp
     )
 
 target_link_libraries(imgui PUBLIC Vulkan::Vulkan sdl2)

@@ -98,8 +98,9 @@ void VulkanEngine::init()
 #endif
 
 	_lightManager.init(this);
-	//_lightManager.add_sun_light();
-	_lightManager.generateUniformGrid(_resManager.maxCube, _resManager.minCube, 7);
+	_lightManager.add_sun_light(glm::vec3(1., 0, 0.), glm::vec3(1., 0.1, 0.1));
+	//_lightManager.generate_uniform_grid(_resManager.maxCube, _resManager.minCube, 7);
+	_lightManager.create_cpu_host_visible_light_buffer();
 #if GI_RAYTRACER_ON
 	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
 #endif

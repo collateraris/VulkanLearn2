@@ -75,7 +75,7 @@ void main()
         DirectInputData inputData = packDirectInputData(objIDf, worldPos.xyz, worldNorm, uvCoord);
 
         vec4 reservoir = reservoirNew;
-		reservoirNew = reservoir;
+		reservoirNew = vec4(0.f, 0.f, 0.f, 0.f);
 
         uint lightToSample = uint(reservoir.y);
 
@@ -89,8 +89,8 @@ void main()
 
         float lightSamplesCount = reservoir.z;
 
-        uvec2 neighborOffset;
-		uvec2	neighborIndex;
+        ivec2 neighborOffset;
+		ivec2	neighborIndex;
 		vec4 neighborReservoir;
 
 		int neighborsCount = 15;
@@ -106,18 +106,19 @@ void main()
 			// Generate a random number from range [0, 2 * neighborsRange] then offset in negative direction 
 			// by spatialNeighborCount to get range [-neighborsRange, neighborsRange]. 
 			// Need to take care of out of bound case hence the max and min
-			neighborOffset.x = int(nextRand(randSeed) * neighborsRange * 2.f) - neighborsRange;
-			neighborOffset.y = int(nextRand(randSeed) * neighborsRange * 2.f) - neighborsRange;
+			neighborOffset.x = int(nextRand(randSeed) * float(neighborsRange * 2)) - neighborsRange;
+			neighborOffset.y = int(nextRand(randSeed) * float(neighborsRange * 2)) - neighborsRange;
 
-			neighborIndex.x = max(0, min(gl_LaunchSizeEXT.x - 1, gl_LaunchIDEXT.x + neighborOffset.x));
-			neighborIndex.y = max(0, min(gl_LaunchSizeEXT.y - 1, gl_LaunchIDEXT.y + neighborOffset.y));
+			neighborIndex.x = max(0, min(int(gl_LaunchSizeEXT.x) - 1, int(gl_LaunchIDEXT.x) + neighborOffset.x));
+			neighborIndex.y = max(0, min(int(gl_LaunchSizeEXT.y) - 1, int(gl_LaunchIDEXT.y) + neighborOffset.y));
 
-			neighborReservoir = imageLoad(reservoir_DI_Curr, ivec2(neighborIndex));
-            lightToSample = uint(neighborReservoir.y);
+			neighborReservoir = imageLoad(reservoir_DI_Curr, neighborIndex);
 
-            DirectOutputData outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
-            // target_pdf of the light is f * Le * G / pdf
-            target_pdf = length(unpackLo_DirectOutputData(outputCurrentData));
+			lightToSample = uint(neighborReservoir.y);
+
+			DirectOutputData outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
+			// target_pdf of the light is f * Le * G / pdf
+			target_pdf = length(unpackLo_DirectOutputData(outputCurrentData));
 
 			reservoirNew = updateReservoir(randSeed, reservoirNew, lightToSample, target_pdf * neighborReservoir.w * neighborReservoir.z);
 
@@ -133,7 +134,7 @@ void main()
 
         // target_pdf of the light is f * Le * G / pdf
         target_pdf = length(unpackLo_DirectOutputData(outputCurrentData));
-		reservoirNew.w = target_pdf * reservoirNew.z == 0.f ? 0.f : reservoirNew.x / max(target_pdf * reservoirNew.z, 0.0001f);
+		reservoirNew.w = target_pdf * reservoirNew.z == 0.f ? 0.f : reservoirNew.x / (target_pdf * reservoirNew.z);
 	}
 
     imageStore(reservoir_DI_Spatial, ivec2(gl_LaunchIDEXT.xy), reservoirNew);

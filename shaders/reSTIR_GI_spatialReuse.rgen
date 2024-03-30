@@ -110,8 +110,8 @@ void main()
 
         float lightSamplesCount = reservoir.z;
 
-        uvec2 neighborOffset;
-		uvec2	neighborIndex;
+        ivec2 neighborOffset;
+		ivec2	neighborIndex;
 
 		int neighborsCount = 15;
 		int neighborsRange = 5; // Want to sample neighbors within [-neighborsRange, neighborsRange] offset
@@ -139,16 +139,16 @@ void main()
 			// Generate a random number from range [0, 2 * neighborsRange] then offset in negative direction 
 			// by spatialNeighborCount to get range [-neighborsRange, neighborsRange]. 
 			// Need to take care of out of bound case hence the max and min
-			neighborOffset.x = int(nextRand(randSeed) * neighborsRange * 2.f) - neighborsRange;
-			neighborOffset.y = int(nextRand(randSeed) * neighborsRange * 2.f) - neighborsRange;
+			neighborOffset.x = int(nextRand(randSeed) * float(neighborsRange * 2)) - neighborsRange;
+			neighborOffset.y = int(nextRand(randSeed) * float(neighborsRange * 2)) - neighborsRange;
 
-			neighborIndex.x = max(0, min(gl_LaunchSizeEXT.x - 1, gl_LaunchIDEXT.x + neighborOffset.x));
-			neighborIndex.y = max(0, min(gl_LaunchSizeEXT.y - 1, gl_LaunchIDEXT.y + neighborOffset.y));
+			neighborIndex.x = max(0, min(int(gl_LaunchSizeEXT.x) - 1, int(gl_LaunchIDEXT.x) + neighborOffset.x));
+			neighborIndex.y = max(0, min(int(gl_LaunchSizeEXT.y) - 1, int(gl_LaunchIDEXT.y) + neighborOffset.y));
 
-			reservoirNeighbor  = imageLoad(reservoir_GI_Curr, ivec2(neighborIndex));
-			Lo_Neighbor = imageLoad(indirectLoCurrInput, ivec2(neighborIndex));
-			giSamplesPos_Neighbor = imageLoad(giSamplesPosCurrInput, ivec2(neighborIndex));
-			giSamplesNorm_Neighbor = imageLoad(giSamplesNormCurrInput, ivec2(neighborIndex));
+			reservoirNeighbor  = imageLoad(reservoir_GI_Curr, neighborIndex);
+			Lo_Neighbor = imageLoad(indirectLoCurrInput, neighborIndex);
+			giSamplesPos_Neighbor = imageLoad(giSamplesPosCurrInput, neighborIndex);
+			giSamplesNorm_Neighbor = imageLoad(giSamplesNormCurrInput, neighborIndex);
 		
 			if (length(giSamplesNorm_Neighbor) == 0)
 				continue;

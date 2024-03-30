@@ -121,7 +121,7 @@ void main()
             outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
             // target_pdf of the light is f * Le * G / pdf
             target_pdf = length(unpackLo_DirectOutputData(outputCurrentData));
-			temporal_reservoir.w = target_pdf * temporal_reservoir.z == 0.f ? 0.f : temporal_reservoir.x / max(target_pdf * temporal_reservoir.z, 0.0001f);;
+			temporal_reservoir.w = target_pdf * temporal_reservoir.z == 0.f ? 0.f : temporal_reservoir.x / (target_pdf * temporal_reservoir.z);
 
 			// set current reservoir to the combined temporal reservoir
 			reservoir = temporal_reservoir;

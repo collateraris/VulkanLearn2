@@ -115,7 +115,7 @@ void main()
             sceneColor.xyz += Lo.xyz;
         }
 
-        sceneColor.xyz += imageLoad(reflectionInput, ivec2(gl_LaunchIDEXT.xy)).xyz;
+        //sceneColor.xyz += imageLoad(reflectionInput, ivec2(gl_LaunchIDEXT.xy)).xyz;
 	}
     else
     {

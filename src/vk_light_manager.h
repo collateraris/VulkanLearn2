@@ -29,10 +29,20 @@ public:
 	const AllocatedBuffer& get_light_buffer() const;
 	const std::vector<VulkanLightManager::Light>& get_lights() const;
 
-	void generateUniformGrid(glm::vec3 maxCube, glm::vec3 minCube, uint32_t lightNumber);
+	bool is_sun_active() const;
+	void add_sun_light(glm::vec3&& direction, glm::vec3&& color);
+	void update_sun_light(std::function<void(glm::vec3& direction, glm::vec3& color)>&& func);
+	void generate_uniform_grid(glm::vec3 maxCube, glm::vec3 minCube, uint32_t lightNumber);
+
+	void update_light_buffer();
+	void create_light_buffer();
+	void create_cpu_host_visible_light_buffer();
 
 private:
-	void create_light_buffer();
+
+	bool bUseCpuHostVisibleBuffer = false;
+
+	int32_t sunIndex = -1;
 
 	VulkanEngine* _engine = nullptr;
 

@@ -2,6 +2,7 @@
 
 #include <vk_types.h>
 
+#include <imGuIZMOquat.h>
 #include <imgui.h>
 #include <imgui_impl_sdl.h>
 #include <imgui_impl_vulkan.h>
@@ -226,6 +227,32 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, Vulka
     giParams.prevProjView = prevCameraMatrix;
     prevCameraMatrix = camera.get_projection_matrix() * camera.get_view_matrix();
     giParams.lightsCount = lightManager.get_lights().size();
+
+    if (lightManager.is_sun_active())
+    {
+        bool bSunChangedValue = false;
+        lightManager.update_sun_light([&](glm::vec3& direction, glm::vec3& color) {
+            bSunChangedValue |= ImGui::gizmo3D("##sunDir", direction, 100, imguiGizmo::modeDirection);
+
+            float sun_direction[4] = { direction.x, direction.y, direction.z, 1.f };
+            if (ImGui::InputFloat3("sun direction", sun_direction))
+            {
+                bSunChangedValue |= 1;
+                direction = vec3(sun_direction[0], sun_direction[1], sun_direction[2]);
+            }
+            float col1[3] = { color.x, color.y, color.z };
+            if (ImGui::ColorEdit3("sun color", col1))
+            {
+                bSunChangedValue |= 1;
+                color = vec3(col1[0], col1[1], col1[2]);
+            }
+         });
+
+        if (bSunChangedValue)
+            lightManager.update_light_buffer();
+
+        bChangedValue |= bSunChangedValue;
+    }
 
     if (bChangedValue)
     {

@@ -112,7 +112,7 @@ void main()
 
         // target_pdf of the light is f * Le * G / pdf
         target_pdf = length(unpackLo_DirectOutputData(outputCurrentData));
-		reservoir.w = (1.f / max(target_pdf, 0.0001f)) * (reservoir.x / max(reservoir.z, 0.0001f));
+		reservoir.w = target_pdf * reservoir.z == 0.f ? 0.f : reservoir.x / (target_pdf * reservoir.z);
 
         {
             SLight lightInfo = lightsBuffer.lights[lightToSample];
@@ -160,7 +160,7 @@ void main()
             vec3 shading_nrm = normalize(unpackWorldNormShading_IndirectRayPayload(indirPayload));
             vec3 geometry_nrm = unpackWorldNormGeometry_IndirectRayPayload(indirPayload);
 
-            const vec3 wo = L;
+            const vec3 wo = -L;
             if (dot(geometry_nrm, wo) <= 0.)
                 geometry_nrm = -geometry_nrm;
             if (dot(geometry_nrm, shading_nrm) <= 0)
@@ -182,7 +182,7 @@ void main()
 
             prbSD = getShadeData(inputData);    
 
-            outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, !bRestirGI_ON);
+            outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, true);
 
             vec3 bounceColor = unpackLo_DirectOutputData(outputCurrentData);
 
@@ -221,7 +221,7 @@ void main()
             vec3 shading_nrm = normalize(unpackWorldNormShading_IndirectRayPayload(indirPayload));
             vec3 geometry_nrm = unpackWorldNormGeometry_IndirectRayPayload(indirPayload);
 
-            const vec3 wo = R;
+            const vec3 wo = -R;
             if (dot(geometry_nrm, wo) <= 0.)
                 geometry_nrm = -geometry_nrm;
             if (dot(geometry_nrm, shading_nrm) <= 0)
@@ -237,7 +237,7 @@ void main()
 
             prbSD = getShadeData(inputData);   
 
-            outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, !bRestirGI_ON);
+            outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, true);
 
             vec3 bounceColor = unpackLo_DirectOutputData(outputCurrentData);
 
