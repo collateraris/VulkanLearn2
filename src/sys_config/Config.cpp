@@ -49,6 +49,27 @@ SceneConfig vk_utils::Config::GetCurrentScene()
         config.model = glm::rotate(config.model, glm::radians(radians), glm::vec3(axisX, axisY, axisZ));
     }
 
+    config.lightConfig.bUseSun = sceneConfig.GetAttribute<int>("useSun");
+    if (config.lightConfig.bUseSun)
+    {
+        config.lightConfig.sunDirection[0] = sceneConfig.GetAttribute<float>("sunDirection_axisX");
+        config.lightConfig.sunDirection[1] = sceneConfig.GetAttribute<float>("sunDirection_axisY");
+        config.lightConfig.sunDirection[2] = sceneConfig.GetAttribute<float>("sunDirection_axisZ");
+
+        config.lightConfig.sunColor[0] = sceneConfig.GetAttribute<float>("sunColor_axisX");
+        config.lightConfig.sunColor[1] = sceneConfig.GetAttribute<float>("sunColor_axisY");
+        config.lightConfig.sunColor[2] = sceneConfig.GetAttribute<float>("sunColor_axisZ");
+    }
+
+    config.lightConfig.bUseUniformGeneratePointLight = sceneConfig.GetAttribute<int>("useUniformGeneratePointLight");
+    if (config.lightConfig.bUseUniformGeneratePointLight)
+    {
+        config.lightConfig.numUniformPointLightPerAxis = sceneConfig.GetAttribute<int>("numUniformPointLightPerAxis");
+    }
+
+
+
+
     return config;
 }
 

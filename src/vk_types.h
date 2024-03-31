@@ -316,12 +316,22 @@ struct PACKED_STRUCT gpumat4
 	explicit gpumat4(const glm::mat4& m) { memcpy(data_, glm::value_ptr(m), 16 * sizeof(float)); }
 };
 
+struct LightConfig
+{
+	bool bUseSun = false;
+	bool bUseUniformGeneratePointLight = false;
+	uint8_t numUniformPointLightPerAxis = 0;
+	glm::vec3 sunDirection = glm::vec3(1., 0, 0.);
+	glm::vec3 sunColor = glm::vec3(1., 0.1, 0.1);
+};
+
 struct SceneConfig
 {
 	std::string fileName;
 	std::string hdrCubemapPath;
 	float scaleFactor = 1.;
 	glm::mat4 model = glm::mat4(1.0);
+	LightConfig lightConfig;
 };
 
 template <class T>

@@ -98,9 +98,17 @@ void VulkanEngine::init()
 #endif
 
 	_lightManager.init(this);
-	_lightManager.add_sun_light(glm::vec3(1., 0, 0.), glm::vec3(1., 0.1, 0.1));
-	//_lightManager.generate_uniform_grid(_resManager.maxCube, _resManager.minCube, 7);
-	_lightManager.create_cpu_host_visible_light_buffer();
+	if (config.lightConfig.bUseSun) {
+		_lightManager.add_sun_light(std::move(config.lightConfig.sunDirection), std::move(config.lightConfig.sunColor));
+	}
+	if (config.lightConfig.bUseUniformGeneratePointLight)
+	{
+		_lightManager.generate_uniform_grid(_resManager.maxCube, _resManager.minCube, config.lightConfig.numUniformPointLightPerAxis);
+	}
+	if (config.lightConfig.bUseSun || config.lightConfig.bUseUniformGeneratePointLight)
+	{
+		_lightManager.create_cpu_host_visible_light_buffer();
+	}
 #if GI_RAYTRACER_ON
 	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
 #endif

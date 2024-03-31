@@ -8,7 +8,7 @@
 	></window>
 			
 	<current_scene
-		id="2"
+		id="1"
 	></current_scene>
 
 	<env_map
@@ -29,18 +29,45 @@
 			axisX = "1" 
 			axisY = "0" 
 			axisZ ="0"
+			useSun = "1"
+			useUniformGeneratePointLight = "0"
+			numUniformPointLightPerAxis = "7"
+			sunDirection_axisX = "0.532" 
+			sunDirection_axisY = "-0.847" 
+			sunDirection_axisZ ="-0.008"
+			sunColor_axisX = "1" 
+			sunColor_axisY = "0" 
+			sunColor_axisZ ="0"
 		></scene>
 		<scene id="1" 
 			path="sponza.obj"
 			hdr="kloppenheim_06_puresky_2k.hdr"  
 			scaleFactor = "1" 
-			needRotation = "0" 
+			needRotation = "0"
+			useSun = "1"
+			useUniformGeneratePointLight = "1"
+			numUniformPointLightPerAxis = "7"
+			sunDirection_axisX = "0.532" 
+			sunDirection_axisY = "-0.847" 
+			sunDirection_axisZ ="-0.008"
+			sunColor_axisX = "1" 
+			sunColor_axisY = "0" 
+			sunColor_axisZ ="0"			 
 		></scene>
 		<scene id="2" 
 			path="lost_empire.obj"
 			hdr="kloppenheim_06_puresky_2k.hdr" 			 
 			scaleFactor = "1" 
-			needRotation = "0" 
+			needRotation = "0"
+			useSun = "1"
+			useUniformGeneratePointLight = "1"
+			numUniformPointLightPerAxis = "7"
+			sunDirection_axisX = "1" 
+			sunDirection_axisY = "0" 
+			sunDirection_axisZ ="0"
+			sunColor_axisX = "1" 
+			sunColor_axisY = "0" 
+			sunColor_axisZ ="0" 
 		></scene>				
 	</scene_configs>
 	

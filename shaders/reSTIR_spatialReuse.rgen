@@ -96,6 +96,11 @@ void main()
 		int neighborsCount = 15;
 		int neighborsRange = 5; // Want to sample neighbors within [-neighborsRange, neighborsRange] offset
 
+		VbufferExtraCommonData vbufferData_Neighbor;
+
+		const float dist_threshold = 0.01f;
+    	const float angle_threshold = 25.f * M_PI / 180.f;
+
 		for (int i = 0; i < neighborsCount; i++) {
 			// Reservoir reminder:
 			// .x: weight sum
@@ -111,6 +116,23 @@ void main()
 
 			neighborIndex.x = max(0, min(int(gl_LaunchSizeEXT.x) - 1, int(gl_LaunchIDEXT.x) + neighborOffset.x));
 			neighborIndex.y = max(0, min(int(gl_LaunchSizeEXT.y) - 1, int(gl_LaunchIDEXT.y) + neighborOffset.y));
+
+			objectID_meshletsID_primitiveID = unpackVBuffer(imageLoad(vbufferTex, ivec2(neighborIndex)).xy);
+    		objIDf = float(objectID_meshletsID_primitiveID.x) - 1.f;
+
+			if (objIDf <= 0.f)
+				continue;
+
+            ndc = vec2(neighborIndex)/vec2(gl_LaunchSizeEXT.xy) * 2.0 - 1.0;		
+
+			vbufferData_Neighbor = proccessVbufferData(objectID_meshletsID_primitiveID, giParams.projView, ndc, gl_LaunchSizeEXT.xy, giParams.camPos.xyz);	
+
+			// Geometric similarity
+			float dist = dot(vbufferData_Neighbor.worldPos.xyz - worldPos.xyz, vbufferData_Neighbor.worldPos.xyz - worldPos.xyz);
+			if (dist > dist_threshold ||
+				(dot(vbufferData_Neighbor.worldNorm.xyz, worldNorm.xyz)) < cos(angle_threshold)) {
+					continue;
+			}
 
 			neighborReservoir = imageLoad(reservoir_DI_Curr, neighborIndex);
 
