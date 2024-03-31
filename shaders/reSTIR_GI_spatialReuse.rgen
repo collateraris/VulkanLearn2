@@ -113,7 +113,7 @@ void main()
         ivec2 neighborOffset;
 		ivec2	neighborIndex;
 
-		int neighborsCount = 15;
+		int neighborsCount = 9;
 		int neighborsRange = 5; // Want to sample neighbors within [-neighborsRange, neighborsRange] offset
 
 		const float dist_threshold = 0.01f;
@@ -127,7 +127,12 @@ void main()
 		VbufferExtraCommonData vbufferData_Neighbor;
         vec3 worldPos_Neighbor;
 		vec3 worldNorm_Neighbor;
-		vec2 uv_Neighbor;	  
+		vec2 uv_Neighbor;
+
+		vec3 Q[9] = vec3[9](vec3(0.f), vec3(0.f), vec3(0.f), vec3(0.f), vec3(0.f), vec3(0.f),
+							vec3(0.f), vec3(0.f), vec3(0.f));
+		float Q_h[9] = float[9](0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f);
+		uint q_cnt = 0;			  
 
 		for (int i = 0; i < neighborsCount; i++) {
 			// Reservoir reminder:
@@ -177,15 +182,12 @@ void main()
             // target_pdf of the light is f * Le * G / pdf
 			target_pdf = length(Lo_Neighbor.xyz);
 
-			// //check visibility
-			// vec3 wi = giSamplesPos_Neighbor.xyz - worldPos.xyz;
-			// const float wi_len = length(wi);
-			// wi /= wi_len;
+			//check visibility
+			vec3 wi = giSamplesPos_Neighbor.xyz - worldPos.xyz;
+			const float wi_len = length(wi);
+			wi /= wi_len;
 
-			// float shadowColor = shadowRayVisibility(worldPos.xyz, wi, wi_len, giParams.shadowMult);
-			// if (shadowColor < 0.001f) {
-			// 	target_pdf = 0.f;
-			// }			
+			target_pdf *= checkRayVisibility(worldPos.xyz, wi, wi_len);		
 
 			// Calculate Jacobian
 			vec3 w_qq = worldPos.xyz - giSamplesPos.xyz;
@@ -201,25 +203,46 @@ void main()
 
 			weight = target_pdf * reservoirNeighbor.w * reservoirNeighbor.z;
 
-			reservoirNew.x += weight;
-			reservoirNew.z += 1.f;       
-
-			if (nextRand(randSeed) < weight / reservoirNew.x) 
+			if (weight > 0)
 			{
-				giSamplesPos_New = giSamplesPos_Neighbor;
-				giSamplesNorm_New = giSamplesNorm_Neighbor;
-				Lo_New = Lo;
+				reservoirNew.x += weight;
+				reservoirNew.z += 1.f;     
+
+				if (nextRand(randSeed) < weight / reservoirNew.x) 
+				{
+					giSamplesPos_New = giSamplesPos_Neighbor;
+					giSamplesNorm_New = giSamplesNorm_Neighbor;
+					Lo_New = Lo;
+				}
 			}
 
-			lightSamplesCount += reservoirNeighbor.z;
-		} 
+			Q_h[q_cnt] = reservoirNeighbor.z;
+       		Q[q_cnt] = giSamplesPos_Neighbor.xyz;
+			q_cnt++;
 
- 		// Update the correct number of candidates considered for this pixel
-		reservoirNew.z = lightSamplesCount;              
+		} 
 
         // Evaluate visibility for initial candidate and set r.W value
 		// target_pdf of the light is f * Le * G / pdf
 		target_pdf = length(Lo_New.xyz);
+
+		if (target_pdf > 0)
+		{
+			for (int i = 0; i < q_cnt; i++) 
+			{
+				vec3 dir = Q[i] - giSamplesPos_New.xyz;
+				float len = length(dir);
+				dir /= len;
+
+				float visible = checkRayVisibility(giSamplesPos_New.xyz, dir, len);
+				lightSamplesCount += visible * Q_h[q_cnt];
+			}
+		}
+
+
+ 		// Update the correct number of candidates considered for this pixel
+		reservoirNew.z = round(lightSamplesCount);              
+
 		weight = target_pdf * reservoirNew.w * reservoirNew.z;
 		reservoirNew.w = target_pdf * reservoirNew.z == 0.f ? 0.f : reservoirNew.x / max(target_pdf * reservoirNew.z, 0.0001f);
 

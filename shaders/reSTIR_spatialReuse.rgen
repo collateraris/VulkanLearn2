@@ -148,7 +148,7 @@ void main()
 		} 
 
  		// Update the correct number of candidates considered for this pixel
-		reservoirNew.z = lightSamplesCount;              
+		reservoirNew.z = round(lightSamplesCount);              
 
         // Evaluate visibility for initial candidate and set r.W value
 		lightToSample = uint(reservoirNew.y);

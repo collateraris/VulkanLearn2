@@ -31,6 +31,7 @@ void VulkanReSTIR_GI_SpaceReusePass::init(VulkanEngine* engine)
 				ShaderEffect defaultEffect;
 				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("reSTIR_GI_spatialReuse.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
 				uint32_t rayIndirectMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
+				uint32_t rayMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("ao_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayIndirectClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
 				defaultEffect.reflect_layout(engine->_device, nullptr, 0);
@@ -72,6 +73,10 @@ void VulkanReSTIR_GI_SpaceReusePass::init(VulkanEngine* engine)
 				group.generalShader = rayIndirectMissIndex;
 				rtShaderGroups.push_back(group);
 
+				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+				group.generalShader = rayMissIndex;
+				rtShaderGroups.push_back(group);
+
 				// closest hit shader
 				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 				group.generalShader = VK_SHADER_UNUSED_KHR;
@@ -87,7 +92,7 @@ void VulkanReSTIR_GI_SpaceReusePass::init(VulkanEngine* engine)
 			});
 	}
 
-	_rtSBTBuffer = VulkanRaytracerBuilder::create_SBTBuffer(engine, 1, 1, EPipelineType::ReSTIR_GI_SpaceReuse,
+	_rtSBTBuffer = VulkanRaytracerBuilder::create_SBTBuffer(engine, 1, 2, EPipelineType::ReSTIR_GI_SpaceReuse,
 		_rgenRegion,
 		_missRegion,
 		_hitRegion,

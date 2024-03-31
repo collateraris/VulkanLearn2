@@ -8,7 +8,7 @@
 	></window>
 			
 	<current_scene
-		id="1"
+		id="2"
 	></current_scene>
 
 	<env_map
@@ -45,7 +45,7 @@
 			scaleFactor = "1" 
 			needRotation = "0"
 			useSun = "1"
-			useUniformGeneratePointLight = "1"
+			useUniformGeneratePointLight = "0"
 			numUniformPointLightPerAxis = "7"
 			sunDirection_axisX = "0.532" 
 			sunDirection_axisY = "-0.847" 
@@ -61,7 +61,7 @@
 			needRotation = "0"
 			useSun = "1"
 			useUniformGeneratePointLight = "1"
-			numUniformPointLightPerAxis = "7"
+			numUniformPointLightPerAxis = "2"
 			sunDirection_axisX = "1" 
 			sunDirection_axisY = "0" 
 			sunDirection_axisZ ="0"

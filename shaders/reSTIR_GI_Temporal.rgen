@@ -139,7 +139,7 @@ void main()
             Lo_t.xyz = Lo_prev;
         }
 
-        reservoir_t.z = reservoir_t.z + prev_reservoir.z;      
+        reservoir_t.z = round(reservoir_t.z + prev_reservoir.z);      
 
         float target_pdf_t = length(Lo_t);
         reservoir_t.w = (1.f / max(target_pdf_t, 0.0001f)) * (reservoir_t.x / max(reservoir_t.z, 0.0001f));

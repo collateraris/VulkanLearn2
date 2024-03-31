@@ -110,11 +110,11 @@ void main()
             outputCurrentData = ggxDirect(lightToSample, prbSD, giParams.camPos.xyz, false);
             // target_pdf of the light is f * Le * G / pdf
             target_pdf = length(unpackLo_DirectOutputData(outputCurrentData));
-            prev_reservoir.z = min(20.f * reservoir.z, prev_reservoir.z);    
+            prev_reservoir.z = round(min(20.f * reservoir.z, prev_reservoir.z));    
             temporal_reservoir = updateReservoir(randSeed, temporal_reservoir, lightToSample, target_pdf * prev_reservoir.w * prev_reservoir.z);
 
             // set M value
-			temporal_reservoir.z = reservoir.z + prev_reservoir.z;
+			temporal_reservoir.z = round(reservoir.z + prev_reservoir.z);
 
 			// set W value
             lightToSample = uint(temporal_reservoir.y);

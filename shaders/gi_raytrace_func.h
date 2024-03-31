@@ -21,6 +21,11 @@ float shadowRayVisibility( vec3 orig, vec3 dir, float maxT, float defaultVal)
 	return aoRpl.aoValue;
 };
 
+float checkRayVisibility( vec3 orig, vec3 dir, float maxT)
+{
+    return shadowRayVisibility(orig, dir, maxT, 0.f);
+};
+
 IndirectRayPayload shootIndirectRay(vec3 orig, vec3 dir)
 {
     uint  rayFlags = gl_RayFlagsOpaqueEXT;
