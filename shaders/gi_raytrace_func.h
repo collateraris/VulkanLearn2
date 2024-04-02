@@ -52,6 +52,21 @@ IndirectRayPayload shootDirectRay(vec3 orig, vec3 dir)
     return shootIndirectRay(orig, dir);
 };
 
+// Ray Tracing Gems chapter 6
+vec3 offset_ray(const vec3 p, const vec3 n) {
+    const float origin = 1.0f / 32.0f;
+    const float float_scale = 1.0f / 65536.0f;
+    const float int_scale = 256.0f;
+    ivec3 of_i = ivec3(int_scale * n.x, int_scale * n.y, int_scale * n.z);
+    vec3 p_i = vec3(
+        intBitsToFloat(floatBitsToInt(p.x) + ((p.x < 0) ? -of_i.x : of_i.x)),
+        intBitsToFloat(floatBitsToInt(p.y) + ((p.y < 0) ? -of_i.y : of_i.y)),
+        intBitsToFloat(floatBitsToInt(p.z) + ((p.z < 0) ? -of_i.z : of_i.z)));
+    return vec3(abs(p.x) < origin ? p.x + float_scale * n.x : p_i.x,
+                abs(p.y) < origin ? p.y + float_scale * n.y : p_i.y,
+                abs(p.z) < origin ? p.z + float_scale * n.z : p_i.z);
+};
+
 
 float getDistanceFalloff(float distSquared)
 {
@@ -149,7 +164,10 @@ DirectOutputData ggxDirect(uint lightToSample, PBRShadeData prbSD, vec3 camPos, 
 
 	float shadowColor = 1.f;
     if (withShadow)
-        shadowColor = shadowRayVisibility(prbSD.worldPos.xyz, lightDir, lightDistance, giParams.shadowMult);
+    {
+        vec3 rayOrigin = offset_ray(prbSD.worldPos.xyz, prbSD.worldNorm.xyz);
+        shadowColor = shadowRayVisibility(rayOrigin, lightDir, lightDistance, giParams.shadowMult);
+    }
     vec3 Lo = prbSD.emission_roughness.xyz + float(giParams.lightsCount) * shadowColor * (kD * prbSD.albedo_metalness.xyz * M_INV_PI + specular) * lightColor * NdotL;
 
 	return packDirectOutputData(prbSD.worldNorm.xyz, prbSD.albedo_metalness.xyz, F0, Lo, prbSD.albedo_metalness.w, prbSD.emission_roughness.w, kD);

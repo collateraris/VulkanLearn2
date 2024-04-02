@@ -132,7 +132,9 @@ void main()
 		vec3 Q[9] = vec3[9](vec3(0.f), vec3(0.f), vec3(0.f), vec3(0.f), vec3(0.f), vec3(0.f),
 							vec3(0.f), vec3(0.f), vec3(0.f));
 		float Q_h[9] = float[9](0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f);
-		uint q_cnt = 0;			  
+		uint q_cnt = 0;
+
+		vec3 rayOrigin = offset_ray(worldPos.xyz, worldNorm.xyz);			  
 
 		for (int i = 0; i < neighborsCount; i++) {
 			// Reservoir reminder:
@@ -186,8 +188,9 @@ void main()
 			vec3 wi = giSamplesPos_Neighbor.xyz - worldPos.xyz;
 			const float wi_len = length(wi);
 			wi /= wi_len;
-
-			target_pdf *= checkRayVisibility(worldPos.xyz, wi, wi_len);		
+			
+			
+			target_pdf *= checkRayVisibility(rayOrigin, wi, wi_len);		
 
 			// Calculate Jacobian
 			vec3 w_qq = worldPos.xyz - giSamplesPos.xyz;
@@ -228,13 +231,14 @@ void main()
 
 		if (target_pdf > 0)
 		{
+			vec3 rayOrigin_New = offset_ray(giSamplesPos_New.xyz, giSamplesNorm_New.xyz);
 			for (int i = 0; i < q_cnt; i++) 
 			{
 				vec3 dir = Q[i] - giSamplesPos_New.xyz;
 				float len = length(dir);
 				dir /= len;
-
-				float visible = checkRayVisibility(giSamplesPos_New.xyz, dir, len);
+				
+				float visible = checkRayVisibility(rayOrigin_New, dir, len);
 				lightSamplesCount += visible * Q_h[q_cnt];
 			}
 		}

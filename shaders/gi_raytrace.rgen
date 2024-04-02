@@ -123,7 +123,8 @@ void main()
             float lightDistance = (distSquared > 1e-5f) ? length(lightDir) : 0.f;
             lightDir = (distSquared > 1e-5f) ? normalize(lightDir) : vec3(0.f, 0.f, 0.f);
 
-            float shadowColor = shadowRayVisibility(worldPos.xyz, lightDir, lightDistance, giParams.shadowMult);
+            vec3 rayOrigin = offset_ray(worldPos.xyz, worldNorm.xyz);
+            float shadowColor = shadowRayVisibility(rayOrigin, lightDir, lightDistance, giParams.shadowMult);
             if (shadowColor < 0.001f) {
                 reservoir.w = 0.f;
             }
@@ -150,7 +151,8 @@ void main()
         {   
             // Shoot a randomly selected cosine-sampled diffuse ray.
             vec3 L = getCosHemisphereSample(randSeed, worldNorm.xyz);
-            indirPayload =  shootIndirectRay(worldPos.xyz, L);
+            vec3 rayOrigin = offset_ray(worldPos.xyz, worldNorm.xyz);
+            indirPayload =  shootIndirectRay(rayOrigin, L);
 
             int objectId = unpackObjID_IndirectRayPayload(indirPayload);
 
@@ -210,8 +212,8 @@ void main()
             vec3 viewDir = normalize(worldPos.xyz - giParams.camPos.xyz);
             // Compute the outgoing direction based on this (perfectly reflective) microfacet
             vec3 R = normalize(reflect(viewDir, H));
-
-            indirPayload =  shootIndirectRay(worldPos.xyz, R);
+            vec3 rayOrigin = offset_ray(worldPos.xyz, worldNorm.xyz);
+            indirPayload =  shootIndirectRay(rayOrigin, R);
 
             int objectId = unpackObjID_IndirectRayPayload(indirPayload);
 
