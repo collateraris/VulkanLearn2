@@ -57,8 +57,8 @@ struct Mesh {
 #if GI_RAYTRACER_ON
 	AllocatedBuffer _indicesBuffer;
 #endif
-#if GI_RAYTRACER_ON
 	AllocatedBuffer _vertexBufferRT;
+#if GI_RAYTRACER_ON
 	AllocatedBuffer _indicesBufferRT;
 #endif
 	glm::vec3 _center = glm::vec3(0);

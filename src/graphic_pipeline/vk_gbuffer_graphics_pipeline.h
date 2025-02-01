@@ -46,7 +46,6 @@ private:
 	void init_gbuffer_tex();
 	void init_render_pass();
 	void init_scene_buffer(const std::vector<RenderObject>& renderables);
-	void init_bindless(const std::vector<std::unique_ptr<Mesh>>& meshList);
 
 	VulkanEngine* _engine = nullptr;
 
@@ -68,9 +67,6 @@ private:
 
 	VkDescriptorSetLayout          _globalDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _globalDescSet;
-
-	VkDescriptorSet _bindlessSet;
-	VkDescriptorSetLayout _bindlessSetLayout;
 };
 
 #endif

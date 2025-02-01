@@ -109,9 +109,8 @@ void VulkanEngine::init()
 	{
 		_lightManager.create_cpu_host_visible_light_buffer();
 	}
-#if GI_RAYTRACER_ON
+	
 	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
-#endif
 	ResourceManager::init_rt_scene(this, _resManager);
 	ResourceManager::init_global_bindless_descriptor(this, _resManager);
 

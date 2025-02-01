@@ -20,22 +20,22 @@ layout (set = 0, binding = 0) readonly buffer _vertices
 	SVertex vertices[];
 } Vertex[];
 
-layout (set = 0, binding = 1) readonly buffer _meshlets
+layout(set = 0, std140, binding = 3) readonly buffer ObjectBuffer{
+	SObjectData objects[];
+} objectBuffer;
+
+layout (set = 0, binding = 4) readonly buffer _meshlets
 {
 	SMeshlet meshlets[];
 } Meshlet[];
 
-layout(set = 0, binding = 2) readonly buffer _meshletData
+layout(set = 0, binding = 5) readonly buffer _meshletData
 {
 	uint meshletData[];
 } MeshletData[];
 
 layout(set = 1, binding = 0) uniform _GlobalCamera { SGlobalCamera cameraData; };
 
-layout(set = 1, binding = 1) readonly buffer ObjectBuffer{
-
-	SObjectData objects[];
-} objectBuffer;
 
 in taskNV block
 {

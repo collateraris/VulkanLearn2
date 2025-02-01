@@ -4,9 +4,10 @@
 #pragma once
 
 #define MESHSHADER_ON 0
-#define GI_RAYTRACER_ON 1 
-#define VBUFFER_ON 1
-#define GBUFFER_ON 0
+#define GI_RAYTRACER_ON 0 
+#define ReSTIR_PATHTRACER_ON 0
+#define VBUFFER_ON 0
+#define GBUFFER_ON 1
 #define VULKAN_DEBUG_ON 1
 #define STREAMLINE_ON 0
 
