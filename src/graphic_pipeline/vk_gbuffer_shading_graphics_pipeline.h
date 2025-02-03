@@ -19,15 +19,11 @@ public:
 
 private:
 	void init_description_set(const Texture& gi);
-	void init_bindless(const std::vector<Texture*>& textureList);
 
 	VulkanEngine* _engine;
 
 	VkDescriptorSetLayout          _gBufDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _gBufDescSet;
-
-	VkDescriptorSet _bindlessSet;
-	VkDescriptorSetLayout _bindlessSetLayout;
 };
 
 #endif

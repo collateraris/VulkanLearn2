@@ -5,7 +5,10 @@
 
 #define MESHSHADER_ON 0
 #define GI_RAYTRACER_ON 0 
-#define ReSTIR_PATHTRACER_ON 0
+#define ReSTIR_PATHTRACER_ON 1
+#if GI_RAYTRACER_ON || ReSTIR_PATHTRACER_ON
+#define RAYTRACER_ON 1 
+#endif
 #define VBUFFER_ON 0
 #define GBUFFER_ON 1
 #define VULKAN_DEBUG_ON 1
@@ -193,6 +196,7 @@ enum class EPipelineType : uint32_t
 	NRD_RaytraceDenoiseShader_21,
 	NRD_RaytraceDenoiseShader_22,
 	NRD_RaytraceDenoiseShader_23,
+	ReSTIR_PT,
 	Max,
 };
 
@@ -209,6 +213,7 @@ enum class ETextureResourceNames : uint32_t
 	IBL_IRRADIANCE,
 	IBL_PREFILTEREDENV,
 	IBL_BRDFLUT,
+	ReSTIR_PT_OUTPUT,
 	ReSTIR_INIT_RESERVOIRS,
 	ReSTIR_DI_CURRENT_RESERVOIRS,
 	ReSTIR_DI_PREV_RESERVOIRS,
@@ -251,6 +256,7 @@ enum class EDescriptorResourceNames : uint32_t
 	IBL,
 	GI_GlobalUniformBuffer_Frame0,
 	GI_GlobalUniformBuffer_Frame1,
+	GBuffer,
 	MAX
 };
 

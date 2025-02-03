@@ -1,6 +1,7 @@
 #pragma once
-#if GI_RAYTRACER_ON
+
 #include <vk_types.h>
+#if RAYTRACER_ON
 
 class VulkanEngine;
 

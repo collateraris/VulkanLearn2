@@ -54,11 +54,11 @@ struct Mesh {
 	AllocatedBuffer _meshletsBuffer;
 	AllocatedBuffer _meshletdataBuffer;
 #endif
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 	AllocatedBuffer _indicesBuffer;
 #endif
 	AllocatedBuffer _vertexBufferRT;
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 	AllocatedBuffer _indicesBufferRT;
 #endif
 	glm::vec3 _center = glm::vec3(0);

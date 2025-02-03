@@ -93,7 +93,7 @@ void VulkanEngine::init()
 	ResourceManager::load_meshes(this, _resManager.meshList);
 
 	init_scene();
-#if MESHSHADER_ON || VBUFFER_ON || GBUFFER_ON || GI_RAYTRACER_ON || IBL_GENERATOR_ON
+#if MESHSHADER_ON || VBUFFER_ON || GBUFFER_ON || RAYTRACER_ON || IBL_GENERATOR_ON
 	init_pipelines();
 #endif
 
@@ -126,7 +126,11 @@ void VulkanEngine::init()
 	_gBufShadingGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
 #endif
 
-
+#if ReSTIR_PATHTRACER_ON
+	_ptReSTIRGraphicsPipeline.init_textures(this);
+	_ptReSTIRGraphicsPipeline.init(this);
+	_gBufShadingGraphicsPipeline.init(this, _ptReSTIRGraphicsPipeline.get_output());
+#endif
 
 	_camera = {};
 	_camera.position = { 0.f,-6.f,-10.f };
@@ -248,6 +252,10 @@ void VulkanEngine::draw()
 #if GBUFFER_ON
 		_gBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 		_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_shading(&get_current_frame()._mainCommandBuffer);
+#endif
+#if ReSTIR_PATHTRACER_ON
+	_ptReSTIRGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+	_ptReSTIRGraphicsPipeline.barrier_for_frag_read(&get_current_frame()._mainCommandBuffer);
 #endif		
 #if GI_RAYTRACER_ON
 		_giRtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
@@ -282,7 +290,7 @@ void VulkanEngine::draw()
 			vkCmdSetViewport(cmd, 0, 1, &viewport);
 			vkCmdSetScissor(cmd, 0, 1, &scissor);
 			vkCmdSetDepthBias(cmd, 0, 0, 0);
-#if GI_RAYTRACER_ON
+#if GI_RAYTRACER_ON || ReSTIR_PATHTRACER_ON
 			_gBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif			
 		//draw_objects(cmd, _renderables.data(), _renderables.size());
@@ -493,7 +501,7 @@ void VulkanEngine::init_vulkan()
 		VK_KHR_MAINTENANCE_4_EXTENSION_NAME,
 #endif
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
 		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, // Required by ray tracing pipeline
@@ -544,7 +552,7 @@ void VulkanEngine::init_vulkan()
 	phys_dev_13_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 	phys_dev_13_features.maintenance4 = true;
 
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
 	acceleration_structure_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
 	acceleration_structure_features.pNext = nullptr;
@@ -563,7 +571,7 @@ void VulkanEngine::init_vulkan()
 		.add_pNext(&buffer_device_address_features)
 		.add_pNext(&descriptor_indexing_features)
 		.add_pNext(&phys_dev_13_features)
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 		.add_pNext(&acceleration_structure_features)
 		.add_pNext(&rt_features)
 #endif
@@ -616,7 +624,7 @@ void VulkanEngine::init_vulkan()
 
 	_gpuProperties = vkbDevice.physical_device.properties;
 
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 	{
 		VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
 		prop2.pNext = &_rtProperties;

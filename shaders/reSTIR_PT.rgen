@@ -1,0 +1,71 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_nonuniform_qualifier:enable
+#extension GL_GOOGLE_include_directive : enable
+
+#include "gi_raytrace.h"
+#include "vbuffer.h"
+
+layout(location = 0) rayPayloadEXT IndirectRayPayload indirectRpl;
+layout(location = 1) rayPayloadEXT AORayPayload aoRpl;
+
+layout (set = 0, std140, binding = 0) readonly buffer _vertices
+{
+	SVertex vertices[];
+} Vertices[];
+
+layout(set = 0, binding = 1) uniform sampler2D texSet[];
+layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
+layout(set = 0, std140, binding = 3) readonly buffer ObjectBuffer{
+
+	SObjectData objects[];
+} objectBuffer;
+
+layout (set = 0, binding = 4) readonly buffer _meshlets
+{
+	SMeshlet meshlets[];
+} Meshlet[];
+
+layout(set = 0, binding = 5) readonly buffer _meshletData
+{
+	uint meshletData[];
+} MeshletData[];
+
+layout(set = 0, std140, binding = 6) readonly buffer _Lights{
+
+	SLight lights[];
+} lightsBuffer;
+
+layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams; };
+
+layout(set = 2, binding = 0) uniform sampler2D gbuff_wposTex;
+layout(set = 2, binding = 1) uniform sampler2D gbuff_normalTex;
+layout(set = 2, binding = 2) uniform sampler2D gbuff_uvTex;
+layout(set = 2, binding = 3) uniform sampler2D gbuff_objIDTex;
+
+layout(set = 3, binding = 0, rgba32f) uniform image2D _outputColor;
+
+#include "gi_raytrace_func.h"
+
+void main() 
+{
+    const vec2 texCoord = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
+
+    vec4 outputColor = vec4(0.f, 0.f, 0.f, 0.f);
+    
+    float objIDf = texture(gbuff_objIDTex, texCoord).r;
+
+    if (objIDf >= 0)
+    {
+        uint objID = uint(objIDf);
+
+        uint diffuseID = objectBuffer.objects[objID].diffuseTexIndex;
+        vec2 gbufferTexCoord = texture(gbuff_uvTex, texCoord).rg;
+        vec3 diffuse = texture(texSet[diffuseID], gbufferTexCoord).rgb;
+
+        outputColor.xyz = diffuse;
+    }
+
+
+    imageStore(_outputColor, ivec2(gl_LaunchIDEXT.xy), outputColor);
+}

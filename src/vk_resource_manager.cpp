@@ -67,7 +67,7 @@ void ResourceManager::load_meshes(VulkanEngine* _engine, const std::vector<std::
 			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_vertices.size() * sizeof(Vertex));
 			mesh->_vertexBufferRT = _engine->create_buffer_n_copy_data(bufferSize, mesh->_vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | rayTracingFlags);
 		}
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 		{
 			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_indices.size() * sizeof(uint32_t));
 			mesh->_indicesBufferRT = _engine->create_buffer_n_copy_data(bufferSize, mesh->_indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rayTracingFlags);
@@ -257,7 +257,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 
 void ResourceManager::init_rt_scene(VulkanEngine* _engine, ResourceManager& resManager)
 {
-#if GI_RAYTRACER_ON	
+#if RAYTRACER_ON	
 	auto create_blas_input = [&](Mesh & mesh) -> VulkanRaytracerBuilder::BlasInput
 	{
 		// BLAS builder requires raw device addresses.
@@ -354,7 +354,7 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 
 	const auto& meshList = resManager.meshList;
 	const auto& textureList = resManager.textureList;
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 	const auto& tlas = resManager._rtBuilder.get_acceleration_structure();
 #endif
 	//BIND MESHDATA
@@ -388,7 +388,7 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
 		meshletdataBufferInfo.offset = 0;
 		meshletdataBufferInfo.range = VK_WHOLE_SIZE;
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 		VkDescriptorBufferInfo& indexBufferInfo = indexBufferInfoList[meshArrayIndex];
 		indexBufferInfo.buffer = mesh->_indicesBuffer._buffer;
 		indexBufferInfo.offset = 0;
@@ -411,7 +411,7 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	}
 
 	//BIND TLAS
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 	VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
 	descASInfo.accelerationStructureCount = 1;
 	descASInfo.pAccelerationStructures = &tlas;
@@ -446,7 +446,7 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
 		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, vertexBufferInfoList.size())
 		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, imageInfoList.size())
-#if GI_RAYTRACER_ON		
+#if RAYTRACER_ON		
 		.bind_rt_as(tlasBinding, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
 #endif		
 		.bind_buffer(globalObjectBinding, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)

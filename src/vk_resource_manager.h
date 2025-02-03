@@ -55,7 +55,7 @@ public:
 	std::vector<RenderObject> renderables;
 	std::vector<IndirectBatch> indirectBatchRO;
 	AllocatedBuffer globalObjectBuffer;
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 	VulkanRaytracerBuilder _rtBuilder;
 #endif
 	glm::vec3 maxCube = { std::numeric_limits<float>::min(), std::numeric_limits<float>::min(), std::numeric_limits<float>::min()};

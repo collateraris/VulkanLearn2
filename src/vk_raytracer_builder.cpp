@@ -1,5 +1,5 @@
 #include <vk_raytracer_builder.h>
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 #include <vk_engine.h>
 
 void VulkanRaytracerBuilder::build_blas(VulkanEngine& engine, const std::vector<VulkanRaytracerBuilder::BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags)

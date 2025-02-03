@@ -5,6 +5,7 @@
 #if ReSTIR_PATHTRACER_ON
 #include <vk_render_pass.h>
 #include <vk_mesh.h>
+#include <vk_descriptors.h>
 #include <graphic_pipeline/vk_restir_init_pass.h>
 #include <graphic_pipeline/vk_restir_temporal_pass.h>
 #include <graphic_pipeline/vk_restir_spacial_reuse_pass.h>
@@ -21,7 +22,7 @@ class VulkanCommandBuffer;
 class RenderObject;
 struct PlayerCamera;
 
-class VulkanGIShadowsRaytracingGraphicsPipeline
+class VulkanReSTIRPathtracingGraphicsPipeline
 {
 public:
 	struct alignas(16) GlobalGIParams
@@ -40,16 +41,14 @@ public:
 		uint32_t pad2 = 0;
 		uint32_t pad3 = 0;
 	};
-	VulkanGIShadowsRaytracingGraphicsPipeline() = default;
+	VulkanReSTIRPathtracingGraphicsPipeline() = default;
 	void init_textures(VulkanEngine* engine);
 	void init(VulkanEngine* engine);
-	void copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams& aoData, int current_frame_index);
+	void copy_global_uniform_data(VulkanReSTIRPathtracingGraphicsPipeline::GlobalGIParams& aoData, int current_frame_index);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
+	void barrier_for_frag_read(VulkanCommandBuffer* cmd);
 	const Texture& get_output() const;
-
-	void reset_accumulation();
-	void try_reset_accumulation(PlayerCamera& camera);
 
 private:
 
@@ -59,21 +58,18 @@ private:
 	VulkanEngine* _engine = nullptr;
 
 	VkExtent3D _imageExtent;
-	VkFormat    _colorFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
-	VkFormat    _giSamplesColorFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
+	VkFormat    _colorFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
 
 	std::array<AllocatedBuffer, 2> _globalUniformsBuffer;
 
-	std::unique_ptr<VulkanReSTIRInitPass> _restirInitGP;
-	std::unique_ptr<VulkanReSTIRTemporalPass> _restirTemporalGP;
-	std::unique_ptr<VulkanReSTIRSpaceReusePass> _restirSpacialGP;
-	std::unique_ptr<VulkanReSTIR_GI_TemporalPass> _restir_GI_TemporalGP;
-	std::unique_ptr<VulkanReSTIR_GI_SpaceReusePass> _restir_GI_SpacialGP;
-	std::unique_ptr<VulkanReSTIRUpdateReservoirPlusShadePass> _restirUpdateShadeGP;
-	std::unique_ptr<VulkanRaytrace_ReflectionPass> _raytraceReflection;
-	std::unique_ptr<VulkanSimpleAccumulationGraphicsPipeline> _accumulationGP;
+	AllocatedBuffer                 _rtSBTBuffer;
 
-	std::unique_ptr<VulkanRaytracerDenoiserPass> _denoiserPass;
+	VkStridedDeviceAddressRegionKHR _rgenRegion{};
+	VkStridedDeviceAddressRegionKHR _missRegion{};
+	VkStridedDeviceAddressRegionKHR _hitRegion{};
+	VkStridedDeviceAddressRegionKHR _callRegion{};
+
+	vkutil::DescriptorManager _rpDescrMan; // render pass descriptor manager
 };
 
 #endif

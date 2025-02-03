@@ -1,4 +1,4 @@
-#include <graphic_pipeline/vk_gi_raytrace_graphics_pipeline.h>
+#include <graphic_pipeline/vk_restir_pathtrace_graphics_pipeline.h>
 
 #if ReSTIR_PATHTRACER_ON
 
@@ -12,7 +12,27 @@
 #include <vk_initializers.h>
 #include <vk_camera.h>
 
-void VulkanGIShadowsRaytracingGraphicsPipeline::init_textures(VulkanEngine* engine)
+void VulkanReSTIRPathtracingGraphicsPipeline::init_textures(VulkanEngine* engine)
+{
+	_engine = engine;
+
+	_imageExtent = {
+		engine->_windowExtent.width,
+		engine->_windowExtent.height,
+		1
+	};
+
+	VulkanTextureBuilder texBuilder;
+	texBuilder.init(_engine);
+	texBuilder.start()
+		.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
+		.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
+		.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+		.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
+		.create_engine_texture(ETextureResourceNames::ReSTIR_PT_OUTPUT);
+}
+
+void VulkanReSTIRPathtracingGraphicsPipeline::init(VulkanEngine* engine)
 {
 	_engine = engine;
 
@@ -23,393 +43,162 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_textures(VulkanEngine* engi
 	};
 
 	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_DI_PREV_RESERVOIRS);
-
-		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
-
-			Texture& prevTex = *engine->_resManager.get_engine_texture(ETextureResourceNames::ReSTIR_DI_PREV_RESERVOIRS);
-			VkClearValue clear_value = { 0., 0., 0., 0. };
-			cmd.clear_image(prevTex, clear_value);
-
-			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-
-			});
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_GI_PREV_RESERVOIRS);
-
-		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
-
-			Texture& prevTex = *engine->_resManager.get_engine_texture(ETextureResourceNames::ReSTIR_GI_PREV_RESERVOIRS);
-			VkClearValue clear_value = { 0., 0., 0., 0. };
-			cmd.clear_image(prevTex, clear_value);
-
-			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-
-			});
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_INIT_RESERVOIRS);
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_DI_CURRENT_RESERVOIRS);
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_GI_CURRENT_RESERVOIRS);
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_DI_SPACIAL_RESERVOIRS);
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_GI_SPACIAL_RESERVOIRS);
-	}
-	//ReSTIR GI INIT
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_INDIRECT_LO_INIT);
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_giSamplesColorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_giSamplesColorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_INIT);
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_giSamplesColorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_giSamplesColorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_INIT);
-	}
-	//ReSTIR GI PREV
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_INDIRECT_LO_PREV);
-
-		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
-
-			Texture& prevTex = *engine->_resManager.get_engine_texture(ETextureResourceNames::ReSTIR_INDIRECT_LO_PREV);
-			VkClearValue clear_value = { 0., 0., 0., 0. };
-			cmd.clear_image(prevTex, clear_value);
-
-			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-
-			});
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_giSamplesColorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_giSamplesColorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_PREV);
-
-		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
-
-			Texture& prevTex = *engine->_resManager.get_engine_texture(ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_PREV);
-			VkClearValue clear_value = { 0., 0., 0., 0. };
-			cmd.clear_image(prevTex, clear_value);
-
-			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-
-			});
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_giSamplesColorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_giSamplesColorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_PREV);
-
-		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
-
-			Texture& prevTex = *engine->_resManager.get_engine_texture(ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_PREV);
-			VkClearValue clear_value = { 0., 0., 0., 0. };
-			cmd.clear_image(prevTex, clear_value);
-
-			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-
-			});
-	}
-	//ReSTIR GI CURRENT
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_INDIRECT_LO_CURRENT);
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_giSamplesColorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_giSamplesColorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_CURRENT);
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_giSamplesColorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_giSamplesColorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_CURRENT);
-	}
-	//ReSTIR GI SPACIAL
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_INDIRECT_LO_SPACIAL);
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_giSamplesColorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_giSamplesColorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_SPACIAL);
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_giSamplesColorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_giSamplesColorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_SPACIAL);
-	}
-
-	//REFLECTION
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::RAYTRACE_REFLECTION);
-	}
-
-}
-
-void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
-{
-	_engine = engine;
-
-	{
 		init_global_buffers();
 		init_scene_descriptors();
 	}
 
-	_restirInitGP = std::make_unique<VulkanReSTIRInitPass>();
-	_restirInitGP->init(engine);
-
-	_restirTemporalGP = std::make_unique<VulkanReSTIRTemporalPass>();
-	_restirTemporalGP->init(engine);
-
-	_restirSpacialGP = std::make_unique<VulkanReSTIRSpaceReusePass>();
-	_restirSpacialGP->init(engine);
-
-	_restir_GI_TemporalGP = std::make_unique<VulkanReSTIR_GI_TemporalPass>();
-	_restir_GI_TemporalGP->init(engine);
-
-	_restir_GI_SpacialGP = std::make_unique<VulkanReSTIR_GI_SpaceReusePass>();
-	_restir_GI_SpacialGP->init(engine);
-
-	_restirUpdateShadeGP = std::make_unique<VulkanReSTIRUpdateReservoirPlusShadePass>();
-	_restirUpdateShadeGP->init(engine);
-
-	_accumulationGP = std::make_unique<VulkanSimpleAccumulationGraphicsPipeline>();
-	_accumulationGP->init(engine, _restirUpdateShadeGP->get_output());
-
-	_raytraceReflection = std::make_unique<VulkanRaytrace_ReflectionPass>();
-	_raytraceReflection->init(engine);
-
-	//_denoiserPass = std::make_unique<VulkanRaytracerDenoiserPass>();
-	//_denoiserPass->init(engine);
-}
-
-
-void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors()
-{
 	{
-		for (int i = 0; i < FRAME_OVERLAP; i++)
-		{
-			//set 1
+		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::ReSTIR_PT,
+			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
+				ShaderEffect defaultEffect;
+				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("reSTIR_PT.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
+				uint32_t rayIndirectMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
+				uint32_t rayMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("ao_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
+				uint32_t rayIndirectClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
-			VkDescriptorBufferInfo globalUniformsInfo;
-			globalUniformsInfo.buffer = _globalUniformsBuffer[i]._buffer;
-			globalUniformsInfo.offset = 0;
-			globalUniformsInfo.range = VK_WHOLE_SIZE;
+				defaultEffect.reflect_layout(engine->_device, nullptr, 0);
 
-			VkDescriptorImageInfo vbufferImageBufferInfo;
-			vbufferImageBufferInfo.sampler = VK_NULL_HANDLE;
-			vbufferImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::VBUFFER)->imageView;
-			vbufferImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				RTPipelineBuilder pipelineBuilder;
 
-			EDescriptorResourceNames currentDesciptor = i == 0 ? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0 : EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
+				pipelineBuilder.setShaders(&defaultEffect);
 
-			vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-				.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
-				.bind_image(1, &vbufferImageBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-				.build(_engine, currentDesciptor);
-		}
+				VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
+				std::vector<VkDescriptorSetLayout> setLayout = { _engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->setLayout,
+																 _engine->get_engine_descriptor(EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0)->setLayout,
+																  _engine->get_engine_descriptor(EDescriptorResourceNames::GBuffer)->setLayout,
+																 _rpDescrMan.get_layout() };
+				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
+				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
+
+				vkCreatePipelineLayout(_engine->_device, &mesh_pipeline_layout_info, nullptr, &pipelineBuilder._pipelineLayout);
+
+				// The ray tracing process can shoot rays from the camera, and a shadow ray can be shot from the
+				// hit points of the camera rays, hence a recursion level of 2. This number should be kept as low
+				// as possible for performance reasons. Even recursive ray tracing should be flattened into a loop
+				// in the ray generation to avoid deep recursion.
+				pipelineBuilder._rayPipelineInfo.maxPipelineRayRecursionDepth = 2;  // Ray depth
+
+				// Shader groups
+				std::vector<VkRayTracingShaderGroupCreateInfoKHR> rtShaderGroups;
+				VkRayTracingShaderGroupCreateInfoKHR group{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
+				group.anyHitShader = VK_SHADER_UNUSED_KHR;
+				group.closestHitShader = VK_SHADER_UNUSED_KHR;
+				group.generalShader = VK_SHADER_UNUSED_KHR;
+				group.intersectionShader = VK_SHADER_UNUSED_KHR;
+
+				// Raygen
+				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+				group.generalShader = rayGenIndex;
+				rtShaderGroups.push_back(group);
+
+				// Miss
+				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+				group.generalShader = rayIndirectMissIndex;
+				rtShaderGroups.push_back(group);
+
+				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+				group.generalShader = rayMissIndex;
+				rtShaderGroups.push_back(group);
+
+				// closest hit shader
+				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+				group.generalShader = VK_SHADER_UNUSED_KHR;
+				group.closestHitShader = rayIndirectClosestHitIndex;
+				rtShaderGroups.push_back(group);
+
+				pipelineBuilder._rayPipelineInfo.groupCount = static_cast<uint32_t>(rtShaderGroups.size());
+				pipelineBuilder._rayPipelineInfo.pGroups = rtShaderGroups.data();
+
+				pipelineLayout = pipelineBuilder._pipelineLayout;
+
+				pipeline = pipelineBuilder.build_rt_pipeline(engine->_device);
+			});
 	}
+
+	_rtSBTBuffer = VulkanRaytracerBuilder::create_SBTBuffer(engine, 2, 1, EPipelineType::ReSTIR_PT,
+		_rgenRegion,
+		_missRegion,
+		_hitRegion,
+		_callRegion);
 }
 
-void VulkanGIShadowsRaytracingGraphicsPipeline::init_global_buffers()
+
+void VulkanReSTIRPathtracingGraphicsPipeline::init_scene_descriptors()
 {
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
-		_globalUniformsBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		//set 1
+
+		VkDescriptorBufferInfo globalUniformsInfo;
+		globalUniformsInfo.buffer = _globalUniformsBuffer[i]._buffer;
+		globalUniformsInfo.offset = 0;
+		globalUniformsInfo.range = VK_WHOLE_SIZE;
+
+		EDescriptorResourceNames currentDesciptor = i == 0 ? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0 : EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
+
+		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
+			.build(_engine, currentDesciptor);
+	}
+
+	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+		.bind_image(0, ETextureResourceNames::ReSTIR_PT_OUTPUT, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.create_desciptor_manager();
+}
+
+void VulkanReSTIRPathtracingGraphicsPipeline::init_global_buffers()
+{
+	for (int i = 0; i < FRAME_OVERLAP; i++)
+	{
+		_globalUniformsBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanReSTIRPathtracingGraphicsPipeline::GlobalGIParams), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 	}
 }
 
-void VulkanGIShadowsRaytracingGraphicsPipeline::copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams& globalData, int current_frame_index)
+void VulkanReSTIRPathtracingGraphicsPipeline::copy_global_uniform_data(VulkanReSTIRPathtracingGraphicsPipeline::GlobalGIParams& globalData, int current_frame_index)
 {
 	_engine->map_buffer(_engine->_allocator, _globalUniformsBuffer[current_frame_index]._allocation, [&](void*& data) {
-		memcpy(data, &globalData, sizeof(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams));
+		memcpy(data, &globalData, sizeof(VulkanReSTIRPathtracingGraphicsPipeline::GlobalGIParams));
 		});
 }
 
 
-
-void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanReSTIRPathtracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), *_engine->get_engine_texture(ETextureResourceNames::VBUFFER), VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+	{
+		VkClearValue clear_value = { 0., 0., 0., 0. };
+		cmd->clear_image(*_engine->get_engine_texture(ETextureResourceNames::ReSTIR_PT_OUTPUT), clear_value);
+	}
 
-	_restirInitGP->draw(cmd, current_frame_index);
-	_restirTemporalGP->draw(cmd, current_frame_index);
-	_restirSpacialGP->draw(cmd, current_frame_index);
-	_restir_GI_TemporalGP->draw(cmd, current_frame_index);
-	_restir_GI_SpacialGP->draw(cmd, current_frame_index);
+	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
+		[&](VkCommandBuffer cmd) {
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_PT));
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_PT), 0,
+				1, &_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set, 0, nullptr);
 
-	_raytraceReflection->draw(cmd, current_frame_index);
+			EDescriptorResourceNames currentGlobalUniformsDesc = current_frame_index % 2 == 0
+				? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
+				: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
 
-	_restirUpdateShadeGP->draw(cmd, current_frame_index);
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_PT), 1,
+				1, &_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set, 0, nullptr);
 
-	_restirUpdateShadeGP->barrier_for_frag_read(cmd);
-	_accumulationGP->draw(cmd, current_frame_index);
+			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_PT), 2,
+				1, &_engine->get_engine_descriptor(EDescriptorResourceNames::GBuffer)->set, 0, nullptr);
 
-	//_denoiserPass->draw(cmd, current_frame_index);
+			_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_PT), 3);
+		});
+
 }
 
-const Texture& VulkanGIShadowsRaytracingGraphicsPipeline::get_output() const
+void VulkanReSTIRPathtracingGraphicsPipeline::barrier_for_frag_read(VulkanCommandBuffer* cmd)
 {
-	return _accumulationGP->get_output();
+	vkutil::image_pipeline_barrier(cmd->get_cmd(), *_engine->get_engine_texture(ETextureResourceNames::ReSTIR_PT_OUTPUT), VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 }
 
-void VulkanGIShadowsRaytracingGraphicsPipeline::reset_accumulation()
+const Texture& VulkanReSTIRPathtracingGraphicsPipeline::get_output() const
 {
-	_accumulationGP->reset_accumulation();
+	return *_engine->get_engine_texture(ETextureResourceNames::ReSTIR_PT_OUTPUT);
 }
 
-void VulkanGIShadowsRaytracingGraphicsPipeline::try_reset_accumulation(PlayerCamera& camera)
-{
-	_accumulationGP->try_reset_accumulation(camera);
-}
 
 #endif

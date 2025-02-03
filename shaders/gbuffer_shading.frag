@@ -14,9 +14,7 @@ layout (location = 0) in vec2 texCoord;
 //output write
 layout (location = 0) out vec4 outFragColor;
 
-layout(set = 0, binding = 0) uniform sampler2D texSet[];
-
-layout(set = 1, binding = 0) uniform sampler2D giTex;
+layout(set = 0, binding = 0) uniform sampler2D giTex;
 
 void main()
 {

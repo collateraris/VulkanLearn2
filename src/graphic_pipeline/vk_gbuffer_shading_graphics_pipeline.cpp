@@ -15,7 +15,6 @@ void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine,const Textu
 	_engine = engine;
 
 	init_description_set(gi);
-	init_bindless(_engine->_resManager.textureList);
 
 	{
 		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::GBufferShading,
@@ -31,7 +30,7 @@ void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine,const Textu
 				pipelineBuilder.setShaders(&defaultEffect);
 
 				VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
-				std::vector<VkDescriptorSetLayout> setLayout = { _bindlessSetLayout, _gBufDescSetLayout };
+				std::vector<VkDescriptorSetLayout> setLayout = { _gBufDescSetLayout };
 				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
 				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
 
@@ -93,8 +92,6 @@ void VulkanGbufferShadingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int cu
 	cmd->draw_quad([&](VkCommandBuffer cmd) {
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::GBufferShading));
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::GBufferShading), 0,
-			1, &_bindlessSet, 0, nullptr);
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::GBufferShading), 1,
 			1, &_gBufDescSet[current_frame_index], 0, nullptr);
 		}); 
 }
@@ -119,30 +116,5 @@ void VulkanGbufferShadingGraphicsPipeline::init_description_set(const Texture& g
 	}
 }
 
-void VulkanGbufferShadingGraphicsPipeline::init_bindless(const std::vector<Texture*>& textureList)
-{
-	const uint32_t textureBinding = 0;
-
-	//BIND SAMPLERS
-	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
-
-	VkSampler blockySampler;
-	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &blockySampler);
-
-	std::vector<VkDescriptorImageInfo> imageInfoList{};
-	imageInfoList.resize(textureList.size());
-
-	for (uint32_t textureArrayIndex = 0; textureArrayIndex < textureList.size(); textureArrayIndex++)
-	{
-		VkDescriptorImageInfo& imageBufferInfo = imageInfoList[textureArrayIndex];
-		imageBufferInfo.sampler = blockySampler;
-		imageBufferInfo.imageView = textureList[textureArrayIndex]->imageView;
-		imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-	}
-
-	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
-		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, imageInfoList.size())
-		.build_bindless(_bindlessSet, _bindlessSetLayout);
-}
 
 #endif
