@@ -44,13 +44,13 @@ struct alignas(16) GPUObjectData {
 struct Mesh {
 	std::vector<Vertex> _vertices;
 	std::vector<uint32_t> _indices;
-#if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON
+#if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON || PATHTRACER_ON
 	std::vector<Meshlet> _meshlets;
 	VkDescriptorSet meshletsSet{VK_NULL_HANDLE };
 	std::vector<uint32_t> meshletdata;
 #endif
 	AllocatedBuffer _vertexBuffer;
-#if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON
+#if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON || PATHTRACER_ON
 	AllocatedBuffer _meshletsBuffer;
 	AllocatedBuffer _meshletdataBuffer;
 #endif
@@ -64,7 +64,7 @@ struct Mesh {
 	glm::vec3 _center = glm::vec3(0);
 	float _radius = 0;
 
-#if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON
+#if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON || PATHTRACER_ON
 	void buildMeshlets();
 #endif
 	Mesh& calcAddInfo();

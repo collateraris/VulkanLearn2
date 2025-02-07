@@ -31,6 +31,7 @@
 #include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
 #include <graphic_pipeline/vk_ibl_maps_generator_graphics_pipeline.h>
 #include <graphic_pipeline/vk_restir_pathtrace_graphics_pipeline.h>
+#include <graphic_pipeline/vk_pathtracer_graphics_pipeline.h>
 #include <vk_light_manager.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
@@ -161,7 +162,10 @@ public:
 #if ReSTIR_PATHTRACER_ON
 	VulkanReSTIRPathtracingGraphicsPipeline _ptReSTIRGraphicsPipeline;
 #endif
-#if GI_RAYTRACER_ON || ReSTIR_PATHTRACER_ON
+#if PATHTRACER_ON
+	VulkanPathTracerGraphicsPipeline _ptGraphicsPipeline;
+#endif
+#if RAYTRACER_ON
 	VulkanGbufferShadingGraphicsPipeline _gBufShadingGraphicsPipeline;
 #endif
 #if GI_RAYTRACER_ON	

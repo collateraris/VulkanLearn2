@@ -2,7 +2,7 @@
 
 #include <vk_types.h>
 
-#if GBUFFER_ON || GI_RAYTRACER_ON
+#if GBUFFER_ON || RAYTRACER_ON
 
 #include <vk_mesh.h>
 

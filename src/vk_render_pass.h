@@ -13,6 +13,7 @@ enum class ERenderPassType
 	SimpleAccumulation = 4,
 	DrawIntoCubemap = 5,
 	BRDFLUT = 6,
+	PathtracerOutput = 7,
 	Max,
 };
 

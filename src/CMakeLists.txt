@@ -50,6 +50,8 @@ add_executable(vulkan_guide
     vk_render_pipeline.cpp
     graphic_pipeline/vk_fullscreen_graphics_pipeline.h
     graphic_pipeline/vk_fullscreen_graphics_pipeline.cpp
+    graphic_pipeline/vk_pathtracer_graphics_pipeline.h
+    graphic_pipeline/vk_pathtracer_graphics_pipeline.cpp
     graphic_pipeline/vbuffer_graphics_pipeline.h
     graphic_pipeline/vbuffer_graphics_pipeline.cpp
     graphic_pipeline/vk_vbuffer_shading_graphics_pipeline.h

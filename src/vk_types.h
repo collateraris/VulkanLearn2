@@ -5,12 +5,13 @@
 
 #define MESHSHADER_ON 0
 #define GI_RAYTRACER_ON 0 
-#define ReSTIR_PATHTRACER_ON 1
-#if GI_RAYTRACER_ON || ReSTIR_PATHTRACER_ON
+#define ReSTIR_PATHTRACER_ON 0
+#define PATHTRACER_ON 1
+#if GI_RAYTRACER_ON || ReSTIR_PATHTRACER_ON || PATHTRACER_ON
 #define RAYTRACER_ON 1 
 #endif
 #define VBUFFER_ON 0
-#define GBUFFER_ON 1
+#define GBUFFER_ON 0
 #define VULKAN_DEBUG_ON 1
 #define STREAMLINE_ON 0
 
@@ -159,6 +160,7 @@ enum class EPipelineType : uint32_t
 	VBufferShading,
 	GBufferGenerate,
 	GBufferShading,
+	PathTracer,
 	GI_Raytracing,
 	SimpleAccumulation,
 	DrawHDRtoEnvMap,
@@ -209,6 +211,8 @@ enum class ETextureResourceNames : uint32_t
 	GBUFFER_DEPTH_BUFFER,
 	VBUFFER,
 	VBUFFER_DEPTH_BUFFER,
+	PATHTRACER_OUTPUT,
+	PATHTRACER_DEPTH_BUFFER,
 	IBL_ENV,
 	IBL_IRRADIANCE,
 	IBL_PREFILTEREDENV,
