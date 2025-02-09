@@ -25,9 +25,17 @@ public:
 		glm::mat4 viewProj;     // Camera view * projection
 	};
 
+	struct alignas(16) SGlobalRQParams
+	{
+		glm::mat4 proj_to_world_space;
+		glm::mat4 world_to_proj_space;
+		vec4 width_height_fov_frameIndex;
+	};
+
 	VulkanPathTracerGraphicsPipeline() = default;
 	void init(VulkanEngine* engine);
 	void copy_global_uniform_data(VulkanPathTracerGraphicsPipeline::SGlobalCamera& camData, int current_frame_index);
+	void copy_global_uniform_data(VulkanPathTracerGraphicsPipeline::SGlobalRQParams& rqData, int current_frame_index);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
 	void barrier_for_reading(VulkanCommandBuffer* cmd);
@@ -53,6 +61,7 @@ private:
 	AllocatedBuffer _indirectBuffer;
 
 	std::array<AllocatedBuffer, 2> _globalCameraBuffer;
+	std::array<AllocatedBuffer, 2> _globalRQBuffer;
 	AllocatedBuffer _objectBuffer;
 	uint32_t _objectsSize = 0;
 

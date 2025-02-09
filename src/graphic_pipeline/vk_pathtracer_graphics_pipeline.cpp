@@ -84,6 +84,13 @@ void VulkanPathTracerGraphicsPipeline::copy_global_uniform_data(VulkanPathTracer
 		});
 }
 
+void VulkanPathTracerGraphicsPipeline::copy_global_uniform_data(VulkanPathTracerGraphicsPipeline::SGlobalRQParams& rqData, int current_frame_index)
+{
+	_engine->map_buffer(_engine->_allocator, _globalRQBuffer[current_frame_index]._allocation, [&](void*& data) {
+		memcpy(data, &rqData, sizeof(VulkanPathTracerGraphicsPipeline::SGlobalRQParams));
+	});
+}
+
 void VulkanPathTracerGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
 	//make a clear-color from frame number. This will flash with a 120*pi frame period.
@@ -249,14 +256,16 @@ void VulkanPathTracerGraphicsPipeline::init_scene_buffer(const std::vector<Rende
 		globalUniformsInfo.offset = 0;
 		globalUniformsInfo.range = _globalCameraBuffer[i]._size;
 
-		VkDescriptorBufferInfo objectBufferInfo;
-		objectBufferInfo.buffer = _objectBuffer._buffer;
-		objectBufferInfo.offset = 0;
-		objectBufferInfo.range = _objectBuffer._size;
+		_globalRQBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanPathTracerGraphicsPipeline::SGlobalRQParams), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+		VkDescriptorBufferInfo globalRQUniformsInfo;
+		globalRQUniformsInfo.buffer = _globalRQBuffer[i]._buffer;
+		globalRQUniformsInfo.offset = 0;
+		globalRQUniformsInfo.range = _globalRQBuffer[i]._size;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT)
-			.bind_buffer(1, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_EXT)
+			.bind_buffer(1, &globalRQUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
 			.build(_globalDescSet[i], _globalDescSetLayout);
 	}
 

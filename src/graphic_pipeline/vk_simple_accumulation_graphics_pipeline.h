@@ -2,7 +2,7 @@
 
 #include <vk_types.h>
 
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 
 class VulkanEngine;
 class VulkanFrameBuffer;

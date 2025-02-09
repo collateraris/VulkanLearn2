@@ -35,15 +35,24 @@ void PlayerCamera::process_input_event(SDL_Event* ev)
 			if (bActiveCamera)
 				inputAxis.y += 1.f;
 			break;
-		case SDLK_q:
+		case SDLK_f:
 			if (bActiveCamera)
 				inputAxis.z -= 1.f;
 			break;
 
-		case SDLK_e:
+		case SDLK_r:
 			if (bActiveCamera)
 				inputAxis.z += 1.f;
 			break;
+		case SDLK_q:
+			if (bActiveCamera)
+				yaw += 0.1f;
+			break;
+
+		case SDLK_e:
+			if (bActiveCamera)
+				yaw -= 0.1f;
+			break;			
 		case SDLK_LSHIFT:
 			if (bActiveCamera)
 				bSprint = true;
@@ -77,15 +86,24 @@ void PlayerCamera::process_input_event(SDL_Event* ev)
 			if (bActiveCamera)
 				inputAxis.y -= 1.f;
 			break;
-		case SDLK_q:
+		case SDLK_f:
 			if (bActiveCamera)
 				inputAxis.z += 1.f;
 			break;
 
-		case SDLK_e:
+		case SDLK_r:
 			if (bActiveCamera)
 				inputAxis.z -= 1.f;
 			break;
+		case SDLK_q:
+			if (bActiveCamera)
+				yaw += 0.1f;
+			break;
+
+		case SDLK_e:
+			if (bActiveCamera)
+				yaw -= 0.1f;
+			break;			
 		case SDLK_LSHIFT:
 			if (bActiveCamera)
 				bSprint = false;
@@ -138,6 +156,7 @@ glm::mat4 PlayerCamera::get_view_matrix()
 	return currentViewMatrix;
 }
 
+
 glm::mat4 PlayerCamera::get_projection_matrix(bool bUseJitter/* = true*/)
 {
 	return bUseJitter ? currentProjWithJitterMatrix : currentProjMatrix;
@@ -175,7 +194,7 @@ void PlayerCamera::calculate_view_matrix()
 
 void PlayerCamera::calculate_proj_matrix()
 {
-	currentProjMatrix = glm::perspective(glm::radians(70.f), 1700.f / 900.f, nearDistance, farDistance);
+	currentProjMatrix = glm::perspective(glm::radians(FOV), 1700.f / 900.f, nearDistance, farDistance);
 	currentProjMatrix[1][1] *= -1;
 
 	if (bUseJitter)

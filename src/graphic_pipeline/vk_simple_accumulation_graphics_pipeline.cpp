@@ -1,6 +1,6 @@
 #include "vk_simple_accumulation_graphics_pipeline.h"
 
-#if GI_RAYTRACER_ON
+#if RAYTRACER_ON
 
 #include <vk_engine.h>
 #include <vk_framebuffer.h>

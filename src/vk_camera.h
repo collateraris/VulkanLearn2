@@ -15,12 +15,15 @@ struct PlayerCamera {
 	glm::mat4 lastViewMatrix;
 
 	glm::mat4 currentViewMatrix;
+	glm::mat4 currentCamToWolrdMatrix;
 	glm::mat4 currentProjMatrix;
 	glm::mat4 currentProjWithJitterMatrix;
 
 	glm::mat4 prevViewMatrix;
 	glm::mat4 prevProjMatrix;
 	glm::mat4 prevProjWithJitterMatrix;
+
+	float FOV = 70.f;
 
 	float farDistance = 10000.0f;
 	float nearDistance = 0.01f;
@@ -46,6 +49,7 @@ struct PlayerCamera {
 	void update_camera(float deltaSeconds);
 
 	glm::mat4 get_view_matrix();
+	glm::mat4 get_cam_to_world_matrix();
 	glm::mat4 get_projection_matrix(bool bUseJitter = true);
 	glm::mat4 get_prev_view_matrix();
 	glm::mat4 get_prev_projection_matrix(bool bUseJitter = true);

@@ -238,6 +238,12 @@ void VulkanEngine::draw()
 				VulkanPathTracerGraphicsPipeline::SGlobalCamera globalCameraData;
 				globalCameraData.viewProj = projection * view;
 				_ptGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
+
+				VulkanPathTracerGraphicsPipeline::SGlobalRQParams globalRQData;
+				globalRQData.world_to_proj_space = projection * view;
+				globalRQData.proj_to_world_space = glm::inverse(globalRQData.world_to_proj_space);
+				globalRQData.width_height_fov_frameIndex = glm::vec4(_windowExtent.width, _windowExtent.height, _camera.FOV, _frameNumber);
+				_ptGraphicsPipeline.copy_global_uniform_data(globalRQData, get_current_frame_index());
 			}
 #endif
 
