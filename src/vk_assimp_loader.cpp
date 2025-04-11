@@ -37,6 +37,7 @@ void AsimpLoader::processScene(const SceneConfig& config, Scene& newScene, Resou
 		aiProcess_FindDegenerates |
 		aiProcess_FindInvalidData |
 		aiProcess_GenUVCoords;
+		aiProcess_Triangulate;
 
 	printf("Loading scene from '%s'...\n", config.fileName.c_str());
 
@@ -74,9 +75,11 @@ glm::mat4 toMat4(const aiMatrix4x4& from)
 	return to;
 }
 
-void traverse(const aiScene* sourceScene, Scene& scene, aiNode* anode, int parent, int level, glm::mat4 model)
+void traverse(const aiScene* sourceScene, Scene& scene, aiNode* anode, int parent, int level, glm::mat4 accTransform)
 {
 	int newNode = SceneManager::addNode(scene, parent, level);
+
+	glm::mat4 transform = glm::mat4(1.0f);
 
 	if (anode->mName.C_Str())
 	{
@@ -98,14 +101,13 @@ void traverse(const aiScene* sourceScene, Scene& scene, aiNode* anode, int paren
 		scene._matForNode[newSubNode] = sourceScene->mMeshes[mesh]->mMaterialIndex;
 
 		scene._globalTransforms[newSubNode] = glm::mat4(1.0f);
-		scene._localTransforms[newSubNode] = model;
+		scene._localTransforms[newSubNode] = accTransform;
 	}
 
-	scene._globalTransforms[newNode] = glm::mat4(1.0f);
-	scene._localTransforms[newNode] = model * toMat4(anode->mTransformation);
+	transform = accTransform * toMat4(anode->mTransformation);
 
 	for (unsigned int n = 0; n < anode->mNumChildren; n++)
-		traverse(sourceScene, scene, anode->mChildren[n], newNode, level + 1, model);
+		traverse(sourceScene, scene, anode->mChildren[n], newNode, level + 1, transform);
 }
 
 void collectAIMesh(const aiMesh* amesh, const SceneConfig& config, ResourceManager& resManager)
