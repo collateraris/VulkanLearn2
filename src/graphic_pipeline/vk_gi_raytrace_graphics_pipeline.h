@@ -2,7 +2,7 @@
 
 #include <vk_types.h>
 
-#if GI_RAYTRACER_ON
+
 #include <vk_render_pass.h>
 #include <vk_mesh.h>
 #include <graphic_pipeline/vk_restir_init_pass.h>
@@ -76,5 +76,4 @@ private:
 	std::unique_ptr<VulkanRaytracerDenoiserPass> _denoiserPass;
 };
 
-#endif
 

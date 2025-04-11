@@ -1,6 +1,5 @@
 #include <graphic_pipeline/vk_gi_raytrace_graphics_pipeline.h>
 
-#if GI_RAYTRACER_ON
 
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
@@ -412,4 +411,3 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::try_reset_accumulation(PlayerCam
 	_accumulationGP->try_reset_accumulation(camera);
 }
 
-#endif

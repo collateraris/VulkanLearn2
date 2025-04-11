@@ -2,7 +2,6 @@
 
 #include <vk_types.h>
 
-#if RAYTRACER_ON
 
 class VulkanEngine;
 class VulkanFrameBuffer;
@@ -55,5 +54,4 @@ private:
 
 	glm::mat4 _lastViewMatrix;
 };
-#endif
 

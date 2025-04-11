@@ -19,6 +19,14 @@
 #include "vk_mem_alloc.h"
 #include <taskflow.hpp>
 
+enum ERenderMode
+{
+	None,
+	ReSTIR_GI,
+	Pathtracer,
+};
+
+
 #define VK_ASSERT assert
 
 #define BIT(x) 1u << x

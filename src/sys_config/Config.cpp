@@ -26,6 +26,23 @@ uint32_t vk_utils::Config::GetWindowHeight()
     return  windowConfig.GetAttribute<uint32_t>("height");
 }
 
+ERenderMode vk_utils::Config::GetRenderMode()
+{
+    static ERenderMode mode = ERenderMode::None;
+    if (mode == ERenderMode::None)
+    {
+        XPath config = GetRoot().GetPath("render_mode");
+        std::string name = config.GetAttribute<std::string>("name");
+
+        if (!name.compare("PATHTRACER"))
+            mode = ERenderMode::Pathtracer;
+        else if (!name.compare("RESTIR_GI"))
+            mode = ERenderMode::ReSTIR_GI;
+
+    }
+    return mode;
+}
+
 SceneConfig vk_utils::Config::GetCurrentScene()
 {
     SceneConfig config;

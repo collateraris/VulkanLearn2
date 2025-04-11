@@ -1,7 +1,5 @@
 #include <graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.h>
 
-#if GI_RAYTRACER_ON
-
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
 #include <vk_command_buffer.h>
@@ -171,5 +169,3 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::barrier_for_raytrace_write(Vulkan
 {
 	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
 }
-
-#endif

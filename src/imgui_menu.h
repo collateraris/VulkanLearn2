@@ -169,7 +169,6 @@ static void ShowFPSLog(Stats stats)
     log.Draw("Example: Log", &p_open);
 }
 
-#if GI_RAYTRACER_ON
 static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeline& giGP, int current_frame_index, int frameNumber)
 {
     static bool p_open = true;
@@ -265,15 +264,14 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, Vulka
     giGP.copy_global_uniform_data(giParams, current_frame_index);
     ImGui::End();
 }
-#endif
 
 static void ShowVkMenu(VulkanEngine& engine)
 {
     ImguiAppLog::ShowFPSLog(engine._stats);
-
-#if GI_RAYTRACER_ON
-    ImguiAppLog::EditGI(engine._lightManager, engine._camera, engine._giRtGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
-#endif
+    if (engine.get_mode() == ERenderMode::ReSTIR_GI)
+    {
+        ImguiAppLog::EditGI(engine._lightManager, engine._camera, engine._giRtGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
+    }
 }
 
 };

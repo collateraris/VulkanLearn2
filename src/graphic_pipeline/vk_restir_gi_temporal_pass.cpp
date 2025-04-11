@@ -1,6 +1,5 @@
 #include <graphic_pipeline/vk_restir_gi_temporal_pass.h>
 
-#if GI_RAYTRACER_ON
 
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
@@ -138,4 +137,3 @@ void VulkanReSTIR_GI_TemporalPass::draw(VulkanCommandBuffer* cmd, int current_fr
 		});
 }
 
-#endif

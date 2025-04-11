@@ -37,6 +37,11 @@ void VK_CHECK(VkResult result_) {
 	}
 }
 
+ERenderMode VulkanEngine::get_mode()
+{
+	return vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetRenderMode();
+}
+
 void VulkanEngine::init()
 {
 	// We initialize SDL and create a window with it. 
@@ -93,9 +98,7 @@ void VulkanEngine::init()
 	ResourceManager::load_meshes(this, _resManager.meshList);
 
 	init_scene();
-#if MESHSHADER_ON || VBUFFER_ON || GBUFFER_ON || RAYTRACER_ON || IBL_GENERATOR_ON
 	init_pipelines();
-#endif
 
 	_lightManager.init(this);
 	if (config.lightConfig.bUseSun) {
@@ -120,11 +123,15 @@ void VulkanEngine::init()
 #if GBUFFER_ON
 	_gBufGenerateGraphicsPipeline.init(this);
 #endif	
-#if GI_RAYTRACER_ON
-	_giRtGraphicsPipeline.init_textures(this);
-	_giRtGraphicsPipeline.init(this);
-	_gBufShadingGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
-#endif
+
+	if (get_mode() == ERenderMode::ReSTIR_GI)
+	{
+		_visBufGenerateGraphicsPipeline.init(this);
+		_giRtGraphicsPipeline.init_textures(this);
+		_giRtGraphicsPipeline.init(this);
+		_gBufShadingGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
+	}
+
 
 #if ReSTIR_PATHTRACER_ON
 	_ptReSTIRGraphicsPipeline.init_textures(this);
@@ -132,10 +139,11 @@ void VulkanEngine::init()
 	_gBufShadingGraphicsPipeline.init(this, _ptReSTIRGraphicsPipeline.get_output());
 #endif
 
-#if PATHTRACER_ON
-	_ptGraphicsPipeline.init(this);
-	_gBufShadingGraphicsPipeline.init(this, _ptGraphicsPipeline.get_output());
-#endif
+	if (get_mode() == ERenderMode::Pathtracer)
+	{
+		_ptGraphicsPipeline.init(this);
+		_gBufShadingGraphicsPipeline.init(this, _ptGraphicsPipeline.get_output());
+	}
 
 	_camera = {};
 	_camera.position = { 0.f,-6.f,-10.f };
@@ -233,7 +241,7 @@ void VulkanEngine::draw()
 				_gBufGenerateGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
 			}
 #endif
-#if PATHTRACER_ON
+			if (get_mode() == ERenderMode::Pathtracer)
 			{
 				VulkanPathTracerGraphicsPipeline::SGlobalCamera globalCameraData;
 				globalCameraData.viewProj = projection * view;
@@ -245,25 +253,18 @@ void VulkanEngine::draw()
 				globalRQData.width_height_fov_frameIndex = glm::vec4(_windowExtent.width, _windowExtent.height, _camera.FOV, _frameNumber);
 				_ptGraphicsPipeline.copy_global_uniform_data(globalRQData, get_current_frame_index());
 			}
-#endif
 
-#if GI_RAYTRACER_ON
+			if (get_mode() == ERenderMode::ReSTIR_GI)
 			{
+				VulkanVbufferGraphicsPipeline::SGlobalCamera globalCameraData;
+				globalCameraData.viewProj = projection * view;
+				_visBufGenerateGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
 				_giRtGraphicsPipeline.try_reset_accumulation(_camera);
 			}
-#endif
 
 		}
 
 		//compute_pass(cmd); 
-
-		//make a clear-color from frame number. This will flash with a 120*pi frame period.
-		VkClearValue clearValue;
-		clearValue.color = { { 0.0f, 0.0f, 0.f, 1.0f } };
-
-		//clear depth at 1
-		VkClearValue depthClear;
-		depthClear.depthStencil.depth = 1.f;
 #if VBUFFER_ON
 		_visBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 #endif			
@@ -275,16 +276,25 @@ void VulkanEngine::draw()
 	_ptReSTIRGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 	_ptReSTIRGraphicsPipeline.barrier_for_frag_read(&get_current_frame()._mainCommandBuffer);
 #endif
-#if PATHTRACER_ON
-	_ptGraphicsPipeline.barrier_for_writing(&get_current_frame()._mainCommandBuffer);
-	_ptGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-	_ptGraphicsPipeline.barrier_for_reading(&get_current_frame()._mainCommandBuffer);
-#endif		
-#if GI_RAYTRACER_ON
+	if (get_mode() == ERenderMode::Pathtracer)
+	{
+		_ptGraphicsPipeline.barrier_for_writing(&get_current_frame()._mainCommandBuffer);
+		_ptGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+		_ptGraphicsPipeline.barrier_for_reading(&get_current_frame()._mainCommandBuffer);
+	}	
+	if (get_mode() == ERenderMode::ReSTIR_GI)
+	{
+		_visBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 		_giRtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-#endif
+	}
 		{
+			//make a clear-color from frame number. This will flash with a 120*pi frame period.
+			VkClearValue clearValue;
+			clearValue.color = { { 0.0f, 0.0f, 0.f, 1.0f } };
 
+			//clear depth at 1
+			VkClearValue depthClear;
+			depthClear.depthStencil.depth = 1.f;
 			//start the main renderpass. 
 			//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
 			VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPassManager.get_render_pass(ERenderPassType::Default)->get_render_pass(), _windowExtent, _framebuffers[swapchainImageIndex]);
@@ -519,17 +529,13 @@ void VulkanEngine::init_vulkan()
 		VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
 		VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,
 		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
-#if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON || PATHTRACER_ON
 		VK_NV_MESH_SHADER_EXTENSION_NAME,
 		VK_KHR_MAINTENANCE_4_EXTENSION_NAME,
-#endif
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-#if RAYTRACER_ON
 		VK_KHR_RAY_QUERY_EXTENSION_NAME,
 		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
 		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, // Required by ray tracing pipeline
-#endif
 	};
 
 	vkb::PhysicalDevice physicalDevice = selector
@@ -576,7 +582,6 @@ void VulkanEngine::init_vulkan()
 	phys_dev_13_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 	phys_dev_13_features.maintenance4 = true;
 
-#if RAYTRACER_ON
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
 	acceleration_structure_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
 	acceleration_structure_features.pNext = nullptr;
@@ -594,18 +599,14 @@ void VulkanEngine::init_vulkan()
 	ray_query_features.rayQuery = true;
 	ray_query_features.pNext = nullptr;
 
-#endif
-
 	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features)
 		.add_pNext(&featuresMesh)
 		.add_pNext(&buffer_device_address_features)
 		.add_pNext(&descriptor_indexing_features)
 		.add_pNext(&phys_dev_13_features)
-#if RAYTRACER_ON
 		.add_pNext(&acceleration_structure_features)
 		.add_pNext(&rt_features)
 		.add_pNext(&ray_query_features)
-#endif
 		.build().value();
 
 	// Get the VkDevice handle used in the rest of a Vulkan application
@@ -655,13 +656,11 @@ void VulkanEngine::init_vulkan()
 
 	_gpuProperties = vkbDevice.physical_device.properties;
 
-#if RAYTRACER_ON
 	{
 		VkPhysicalDeviceProperties2 prop2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
 		prop2.pNext = &_rtProperties;
 		vkGetPhysicalDeviceProperties2(_chosenPhysicalDeviceGPU, &prop2);
-	}
-#endif	
+	}	
 
 	std::cout << "The GPU has a minimum buffer alignment of " << _gpuProperties.limits.minUniformBufferOffsetAlignment << std::endl;
 }

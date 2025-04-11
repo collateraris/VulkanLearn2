@@ -2,8 +2,6 @@
 #include <meshoptimizer.h>
 #include <iostream>
 
-#if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON || PATHTRACER_ON
-
 void Mesh::buildMeshlets()
 {
 	const size_t max_vertices = 64;
@@ -94,7 +92,6 @@ void Mesh::buildMeshlets()
 		_meshlets.push_back(m);
 	}
 }
-#endif
 Mesh& Mesh::calcAddInfo()
 {
 	_center = glm::vec3(0);

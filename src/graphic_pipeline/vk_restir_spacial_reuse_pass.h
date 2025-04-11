@@ -2,7 +2,6 @@
 
 #include <vk_types.h>
 
-#if GI_RAYTRACER_ON
 #include <vk_raytracer_builder.h>
 #include <vk_render_pass.h>
 #include <vk_mesh.h>
@@ -39,6 +38,4 @@ private:
 
 	vkutil::DescriptorManager _rpDescrMan; // render pass descriptor manager
 };
-
-#endif
 

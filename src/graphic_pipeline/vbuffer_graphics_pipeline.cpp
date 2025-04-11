@@ -1,6 +1,5 @@
 #include <graphic_pipeline/vbuffer_graphics_pipeline.h>
 
-#if VBUFFER_ON
 
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
@@ -245,4 +244,3 @@ void VulkanVbufferGraphicsPipeline::init_scene_buffer(const std::vector<RenderOb
 		}
 		});
 }
-#endif

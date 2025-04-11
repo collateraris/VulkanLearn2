@@ -2,8 +2,6 @@
 
 #include <vk_types.h>
 
-#if GBUFFER_ON
-
 #include <vk_mesh.h>
 
 class VulkanEngine;
@@ -68,5 +66,3 @@ private:
 	VkDescriptorSetLayout          _globalDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _globalDescSet;
 };
-
-#endif

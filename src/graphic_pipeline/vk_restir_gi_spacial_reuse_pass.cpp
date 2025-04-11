@@ -1,6 +1,5 @@
 #include <graphic_pipeline/vk_restir_gi_spacial_reuse_pass.h>
 
-#if GI_RAYTRACER_ON
 
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
@@ -137,4 +136,3 @@ void VulkanReSTIR_GI_SpaceReusePass::draw(VulkanCommandBuffer* cmd, int current_
 		});
 }
 
-#endif

@@ -1,7 +1,5 @@
 #include <graphic_pipeline/vk_raytrace_reflection.h>
 
-#if GI_RAYTRACER_ON
-
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
 #include <vk_command_buffer.h>
@@ -131,4 +129,3 @@ void VulkanRaytrace_ReflectionPass::draw(VulkanCommandBuffer* cmd, int current_f
 		});
 }
 
-#endif

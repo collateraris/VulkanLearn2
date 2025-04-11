@@ -1,5 +1,4 @@
 #include <vk_raytracer_builder.h>
-#if RAYTRACER_ON
 #include <vk_engine.h>
 
 void VulkanRaytracerBuilder::build_blas(VulkanEngine& engine, const std::vector<VulkanRaytracerBuilder::BlasInput>& input, VkBuildAccelerationStructureFlagsKHR flags)
@@ -262,4 +261,3 @@ AllocatedBuffer VulkanRaytracerBuilder::create_SBTBuffer(VulkanEngine* engine, u
 
     return rtSBTBuffer;
 }
-#endif

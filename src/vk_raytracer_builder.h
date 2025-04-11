@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vk_types.h>
-#if RAYTRACER_ON
 
 class VulkanEngine;
 
@@ -59,5 +58,3 @@ protected:
         std::vector<VulkanRaytracerBuilder::BuildAccelerationStructure>& buildAs,
         VkDeviceAddress                          scratchAddress);
 };
-
-#endif

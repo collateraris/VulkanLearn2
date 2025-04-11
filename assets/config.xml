@@ -8,8 +8,10 @@
 	></window>
 			
 	<current_scene
-		id="2"
+		id="1"
 	></current_scene>
+
+	<render_mode name="RESTIR_GI"></render_mode>
 
 	<env_map
 		size="512"

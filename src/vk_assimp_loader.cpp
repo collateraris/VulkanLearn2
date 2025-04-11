@@ -28,6 +28,7 @@ void AsimpLoader::processScene(const SceneConfig& config, Scene& newScene, Resou
 
 	const unsigned int flags = 0 |
 		aiProcess_Triangulate |
+		aiProcess_MakeLeftHanded |
 		aiProcess_GenSmoothNormals |
 		aiProcess_LimitBoneWeights |
 		aiProcess_SplitLargeMeshes |

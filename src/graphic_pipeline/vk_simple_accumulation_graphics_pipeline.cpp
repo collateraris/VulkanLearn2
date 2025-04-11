@@ -1,7 +1,5 @@
 #include "vk_simple_accumulation_graphics_pipeline.h"
 
-#if RAYTRACER_ON
-
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
 #include <vk_command_buffer.h>
@@ -323,5 +321,3 @@ void VulkanSimpleAccumulationGraphicsPipeline::init_description_set(const Textur
 			.build(_globalDescSet[i], _globalDescSetLayout);
 	}
 }
-
-#endif

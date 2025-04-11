@@ -2,7 +2,6 @@
 
 #include <vk_types.h>
 
-#if ReSTIR_PATHTRACER_ON
 #include <vk_render_pass.h>
 #include <vk_mesh.h>
 #include <vk_descriptors.h>
@@ -71,6 +70,4 @@ private:
 
 	vkutil::DescriptorManager _rpDescrMan; // render pass descriptor manager
 };
-
-#endif
 

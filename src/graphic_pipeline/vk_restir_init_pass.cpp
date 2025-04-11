@@ -1,6 +1,5 @@
 #include <graphic_pipeline/vk_restir_init_pass.h>
-
-#if GI_RAYTRACER_ON
+ 
 
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
@@ -143,4 +142,4 @@ void VulkanReSTIRInitPass::draw(VulkanCommandBuffer* cmd, int current_frame_inde
 			_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_Init), 2);
 		});
 }
-#endif
+

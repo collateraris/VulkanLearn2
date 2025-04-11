@@ -152,28 +152,14 @@ public:
 
 	VulkanDepthReduceRenderPass _depthReduceRenderPass;
 	std::vector<VkFramebuffer> _framebuffers;
-#if VBUFFER_ON
 	VulkanVbufferGraphicsPipeline _visBufGenerateGraphicsPipeline;
-#endif
-#if GBUFFER_ON
 	VulkanGbufferGenerateGraphicsPipeline _gBufGenerateGraphicsPipeline;
-#endif
 	VulkanIblMapsGeneratorGraphicsPipeline _iblGenGraphicsPipeline;
-#if ReSTIR_PATHTRACER_ON
 	VulkanReSTIRPathtracingGraphicsPipeline _ptReSTIRGraphicsPipeline;
-#endif
-#if PATHTRACER_ON
 	VulkanPathTracerGraphicsPipeline _ptGraphicsPipeline;
-#endif
-#if RAYTRACER_ON
 	VulkanGbufferShadingGraphicsPipeline _gBufShadingGraphicsPipeline;
-#endif
-#if GI_RAYTRACER_ON	
-	VulkanGIShadowsRaytracingGraphicsPipeline _giRtGraphicsPipeline;
-#endif	
-#if RAYTRACER_ON
+	VulkanGIShadowsRaytracingGraphicsPipeline _giRtGraphicsPipeline;	
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR _rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
-#endif
 
 
 	VulkanLightManager _lightManager;
@@ -300,6 +286,8 @@ public:
 
 	uint64_t padSizeToMinUniformBufferOffsetAlignment(uint64_t originalSize);
 	uint64_t padSizeToMinStorageBufferOffsetAlignment(uint64_t originalSize);
+
+	ERenderMode get_mode();
 
 private:
 

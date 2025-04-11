@@ -1,7 +1,5 @@
 #include <graphic_pipeline/vk_restir_spacial_reuse_pass.h>
 
-#if GI_RAYTRACER_ON
-
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
 #include <vk_command_buffer.h>
@@ -129,5 +127,3 @@ void VulkanReSTIRSpaceReusePass::draw(VulkanCommandBuffer* cmd, int current_fram
 			_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_DI_SpaceReuse), 2);
 		});
 }
-
-#endif

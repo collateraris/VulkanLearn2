@@ -1,7 +1,5 @@
 #include <graphic_pipeline/vk_restir_pathtrace_graphics_pipeline.h>
 
-#if ReSTIR_PATHTRACER_ON
-
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
 #include <vk_command_buffer.h>
@@ -199,6 +197,3 @@ const Texture& VulkanReSTIRPathtracingGraphicsPipeline::get_output() const
 {
 	return *_engine->get_engine_texture(ETextureResourceNames::ReSTIR_PT_OUTPUT);
 }
-
-
-#endif

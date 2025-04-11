@@ -67,7 +67,6 @@ void ResourceManager::load_meshes(VulkanEngine* _engine, const std::vector<std::
 			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_vertices.size() * sizeof(Vertex));
 			mesh->_vertexBufferRT = _engine->create_buffer_n_copy_data(bufferSize, mesh->_vertices.data(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | rayTracingFlags);
 		}
-#if RAYTRACER_ON
 		{
 			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_indices.size() * sizeof(uint32_t));
 			mesh->_indicesBufferRT = _engine->create_buffer_n_copy_data(bufferSize, mesh->_indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rayTracingFlags);
@@ -84,8 +83,6 @@ void ResourceManager::load_meshes(VulkanEngine* _engine, const std::vector<std::
 			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(indicesArray.size() * sizeof(glm::ivec4));
 			mesh->_indicesBuffer = _engine->create_buffer_n_copy_data(bufferSize, indicesArray.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		}
-#endif
-#if MESHSHADER_ON || GBUFFER_ON || VBUFFER_ON || PATHTRACER_ON
 	mesh->buildMeshlets();
 
 	{
@@ -99,7 +96,6 @@ void ResourceManager::load_meshes(VulkanEngine* _engine, const std::vector<std::
 
 		mesh->_meshletdataBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->meshletdata.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	}
-#endif
 	}
 }
 
@@ -256,8 +252,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 }
 
 void ResourceManager::init_rt_scene(VulkanEngine* _engine, ResourceManager& resManager)
-{
-#if RAYTRACER_ON	
+{	
 	auto create_blas_input = [&](Mesh & mesh) -> VulkanRaytracerBuilder::BlasInput
 	{
 		// BLAS builder requires raw device addresses.
@@ -334,7 +329,6 @@ void ResourceManager::init_rt_scene(VulkanEngine* _engine, ResourceManager& resM
 
 	create_blas(_engine->_resManager._rtBuilder, _engine->_resManager.meshList);
 	create_tlas(_engine->_resManager._rtBuilder, _engine->_resManager.renderables);
-#endif	
 }
 
 void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, ResourceManager& resManager)
@@ -354,9 +348,7 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 
 	const auto& meshList = resManager.meshList;
 	const auto& textureList = resManager.textureList;
-#if RAYTRACER_ON
 	const auto& tlas = resManager._rtBuilder.get_acceleration_structure();
-#endif
 	//BIND MESHDATA
 	std::vector<VkDescriptorBufferInfo> vertexBufferInfoList{};
 	vertexBufferInfoList.resize(meshList.size());
@@ -388,12 +380,10 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
 		meshletdataBufferInfo.offset = 0;
 		meshletdataBufferInfo.range = VK_WHOLE_SIZE;
-#if RAYTRACER_ON
 		VkDescriptorBufferInfo& indexBufferInfo = indexBufferInfoList[meshArrayIndex];
 		indexBufferInfo.buffer = mesh->_indicesBuffer._buffer;
 		indexBufferInfo.offset = 0;
 		indexBufferInfo.range = VK_WHOLE_SIZE;
-#endif
 	}
 
 	//BIND SAMPLERS
@@ -411,11 +401,9 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	}
 
 	//BIND TLAS
-#if RAYTRACER_ON
 	VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
 	descASInfo.accelerationStructureCount = 1;
 	descASInfo.pAccelerationStructures = &tlas;
-#endif
 	VkDescriptorBufferInfo objectBufferInfo;
 	objectBufferInfo.buffer = resManager.globalObjectBuffer._buffer;
 	objectBufferInfo.offset = 0;
@@ -445,10 +433,8 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 
 	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
 		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, vertexBufferInfoList.size())
-		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, imageInfoList.size())
-#if RAYTRACER_ON		
-		.bind_rt_as(tlasBinding, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
-#endif		
+		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, imageInfoList.size())		
+		.bind_rt_as(tlasBinding, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)	
 		.bind_buffer(globalObjectBinding, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
 		.bind_buffer(meshletsBinding, meshletBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MESH_BIT_NV, meshletBufferInfoList.size())
 		.bind_buffer(meshletsDataBinding, meshletdataBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MESH_BIT_NV, meshletdataBufferInfoList.size())

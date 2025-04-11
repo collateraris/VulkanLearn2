@@ -2,8 +2,6 @@
 
 #include <vk_types.h>
 
-#if GBUFFER_ON || RAYTRACER_ON
-
 #include <vk_mesh.h>
 
 class VulkanEngine;
@@ -25,5 +23,3 @@ private:
 	VkDescriptorSetLayout          _gBufDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _gBufDescSet;
 };
-
-#endif

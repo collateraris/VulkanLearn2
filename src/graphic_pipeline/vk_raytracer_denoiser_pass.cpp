@@ -1,6 +1,5 @@
 #include <graphic_pipeline/vk_raytracer_denoiser_pass.h>
 
-#if GI_RAYTRACER_ON
 
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
@@ -641,4 +640,3 @@ void VulkanRaytracerDenoiserPass::init_denoiser_textures()
 	}
 }
 
-#endif

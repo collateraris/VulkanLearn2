@@ -1,7 +1,5 @@
 #include "vk_gbuffer_graphics_pipeline.h"
 
-#if GBUFFER_ON
-
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
 #include <vk_command_buffer.h>
@@ -402,4 +400,3 @@ void VulkanGbufferGenerateGraphicsPipeline::init_scene_buffer(const std::vector<
 			.build(_engine, EDescriptorResourceNames::GBuffer);
 	}
 }
-#endif

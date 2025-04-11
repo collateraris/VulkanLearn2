@@ -1,7 +1,5 @@
 #include "vk_gbuffer_shading_graphics_pipeline.h"
 
-#if GBUFFER_ON || RAYTRACER_ON
-
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
 #include <vk_command_buffer.h>
@@ -116,5 +114,3 @@ void VulkanGbufferShadingGraphicsPipeline::init_description_set(const Texture& g
 	}
 }
 
-
-#endif
