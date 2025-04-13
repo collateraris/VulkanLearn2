@@ -141,8 +141,8 @@ void VulkanEngine::init()
 
 	if (get_mode() == ERenderMode::Pathtracer)
 	{
-		_ptGbuffer.init(this);
-		_gBufShadingGraphicsPipeline.init(this, _ptGbuffer.get_tex(ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS));
+		_ptReference.init(this);
+		_gBufShadingGraphicsPipeline.init(this, _ptReference.get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT));
 	}
 
 	_camera = {};
@@ -243,11 +243,11 @@ void VulkanEngine::draw()
 #endif
 			if (get_mode() == ERenderMode::Pathtracer)
 			{
-				VulkanPTGBuffer::SGlobalRQParams globalRQData;
+				VulkanPTRef::SGlobalRQParams globalRQData;
 				globalRQData.world_to_proj_space = projection * view;
 				globalRQData.proj_to_world_space = glm::inverse(globalRQData.world_to_proj_space);
 				globalRQData.width_height_fov_frameIndex = glm::vec4(_windowExtent.width, _windowExtent.height, _camera.FOV, _frameNumber);
-				_ptGbuffer.copy_global_uniform_data(globalRQData, get_current_frame_index());
+				_ptReference.copy_global_uniform_data(globalRQData, get_current_frame_index());
 			}
 
 			if (get_mode() == ERenderMode::ReSTIR_GI)
@@ -274,9 +274,9 @@ void VulkanEngine::draw()
 #endif
 	if (get_mode() == ERenderMode::Pathtracer)
 	{
-		_ptGbuffer.barrier_for_writing(&get_current_frame()._mainCommandBuffer);
-		_ptGbuffer.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-		_ptGbuffer.barrier_for_reading(&get_current_frame()._mainCommandBuffer);
+		_ptReference.barrier_for_writing(&get_current_frame()._mainCommandBuffer);
+		_ptReference.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+		_ptReference.barrier_for_reading(&get_current_frame()._mainCommandBuffer);
 	}	
 	if (get_mode() == ERenderMode::ReSTIR_GI)
 	{

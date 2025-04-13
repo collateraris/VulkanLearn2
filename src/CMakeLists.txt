@@ -88,6 +88,8 @@ add_executable(vulkan_guide
     graphic_pipeline/vk_light_debug_graphic_pipeline.cpp
     graphic_pipeline/vk_pathtrace_gbuffer.h
     graphic_pipeline/vk_pathtrace_gbuffer.cpp
+    graphic_pipeline/vk_pathtrace_reference.h
+    graphic_pipeline/vk_pathtrace_reference.cpp
     vk_light_manager.h
     vk_light_manager.cpp
     sys_config/ConfigManager.h
