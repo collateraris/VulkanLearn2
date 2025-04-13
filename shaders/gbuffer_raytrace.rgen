@@ -70,19 +70,19 @@ void main()
 
     IndirectGbufferRayPayload payload = shootRay(ray_origin, ray_dir);
 
-	if (payload.position_objectID.w > 0)
-	{
-		imageStore(albedoMetalnessO, ivec2(gl_LaunchIDEXT.xy), payload.albedo_metalness);
-		imageStore(emissionRoughnessO, ivec2(gl_LaunchIDEXT.xy), payload.emission_roughness);
-		imageStore(normalO, ivec2(gl_LaunchIDEXT.xy), payload.normal_);
-		imageStore(positionObjectIDO, ivec2(gl_LaunchIDEXT.xy), payload.position_objectID);
-	}
-	else
+	if (payload.position_objectID.w < -1e-3)
 	{
 		imageStore(albedoMetalnessO, ivec2(gl_LaunchIDEXT.xy), vec4(0., 0., 0., 0.));
     	imageStore(emissionRoughnessO, ivec2(gl_LaunchIDEXT.xy), vec4(0., 0., 0., 0.));
     	imageStore(normalO, ivec2(gl_LaunchIDEXT.xy), vec4(0., 0., 0., 0.));
     	imageStore(positionObjectIDO, ivec2(gl_LaunchIDEXT.xy), vec4(0., 0., 0., -1));
+	}
+	else
+	{
+		imageStore(albedoMetalnessO, ivec2(gl_LaunchIDEXT.xy), payload.albedo_metalness);
+		imageStore(emissionRoughnessO, ivec2(gl_LaunchIDEXT.xy), payload.emission_roughness);
+		imageStore(normalO, ivec2(gl_LaunchIDEXT.xy), payload.normal_);
+		imageStore(positionObjectIDO, ivec2(gl_LaunchIDEXT.xy), payload.position_objectID);
 	}
 
 }
