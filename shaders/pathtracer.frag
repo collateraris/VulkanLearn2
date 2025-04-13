@@ -34,6 +34,7 @@ layout (location = 0) in PerVertexData
 layout (location = 0) out vec4 outColor;
 
 #include "ray_queries_func.h"
+#include "camera_ray_func.h"
 
 layout(set = 1, binding = 1) uniform _GlobalRQParams { SGlobalRQParams rqParams; };
 
@@ -56,8 +57,7 @@ void main()
 	vec3 ray_origin = get_camera_ray_origin(ray_tex_coord, rqParams.proj_to_world_space);
 	vec3 ray_dir = get_camera_ray_direction(ray_tex_coord, rqParams.world_to_proj_space);
 
-	const float ao = calculateAmbientOcclusion(fragIn.wpos.xyz, fragIn.normal);
-	vec4 ray_radiance = vec4(pathTraceBrdf(ray_origin, ray_dir, seed, 15), 1.);
-	outColor = ray_radiance * vec4(ao * vec3(1, 1, 1), 1);
+	vec4 ray_radiance = vec4(pathTraceBrdf(ray_origin, ray_dir, seed, 3), 1.);
+	outColor = ray_radiance;
 	//outColor = vec4(ao * vec3(1, 1, 1), 1);    
 }

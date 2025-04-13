@@ -32,6 +32,7 @@
 #include <graphic_pipeline/vk_ibl_maps_generator_graphics_pipeline.h>
 #include <graphic_pipeline/vk_restir_pathtrace_graphics_pipeline.h>
 #include <graphic_pipeline/vk_pathtracer_graphics_pipeline.h>
+#include <graphic_pipeline/vk_pathtrace_gbuffer.h>
 #include <vk_light_manager.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
@@ -159,6 +160,7 @@ public:
 	VulkanPathTracerGraphicsPipeline _ptGraphicsPipeline;
 	VulkanGbufferShadingGraphicsPipeline _gBufShadingGraphicsPipeline;
 	VulkanGIShadowsRaytracingGraphicsPipeline _giRtGraphicsPipeline;	
+	VulkanPTGBuffer _ptGbuffer;
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR _rtProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
 
 

@@ -141,8 +141,8 @@ void VulkanEngine::init()
 
 	if (get_mode() == ERenderMode::Pathtracer)
 	{
-		_ptGraphicsPipeline.init(this);
-		_gBufShadingGraphicsPipeline.init(this, _ptGraphicsPipeline.get_output());
+		_ptGbuffer.init(this);
+		_gBufShadingGraphicsPipeline.init(this, _ptGbuffer.get_tex(ETextureResourceNames::PT_GBUFFER_NORMAL));
 	}
 
 	_camera = {};
@@ -243,15 +243,11 @@ void VulkanEngine::draw()
 #endif
 			if (get_mode() == ERenderMode::Pathtracer)
 			{
-				VulkanPathTracerGraphicsPipeline::SGlobalCamera globalCameraData;
-				globalCameraData.viewProj = projection * view;
-				_ptGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
-
-				VulkanPathTracerGraphicsPipeline::SGlobalRQParams globalRQData;
+				VulkanPTGBuffer::SGlobalRQParams globalRQData;
 				globalRQData.world_to_proj_space = projection * view;
 				globalRQData.proj_to_world_space = glm::inverse(globalRQData.world_to_proj_space);
 				globalRQData.width_height_fov_frameIndex = glm::vec4(_windowExtent.width, _windowExtent.height, _camera.FOV, _frameNumber);
-				_ptGraphicsPipeline.copy_global_uniform_data(globalRQData, get_current_frame_index());
+				_ptGbuffer.copy_global_uniform_data(globalRQData, get_current_frame_index());
 			}
 
 			if (get_mode() == ERenderMode::ReSTIR_GI)
@@ -278,9 +274,9 @@ void VulkanEngine::draw()
 #endif
 	if (get_mode() == ERenderMode::Pathtracer)
 	{
-		_ptGraphicsPipeline.barrier_for_writing(&get_current_frame()._mainCommandBuffer);
-		_ptGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-		_ptGraphicsPipeline.barrier_for_reading(&get_current_frame()._mainCommandBuffer);
+		_ptGbuffer.barrier_for_writing(&get_current_frame()._mainCommandBuffer);
+		_ptGbuffer.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+		_ptGbuffer.barrier_for_reading(&get_current_frame()._mainCommandBuffer);
 	}	
 	if (get_mode() == ERenderMode::ReSTIR_GI)
 	{
@@ -323,9 +319,11 @@ void VulkanEngine::draw()
 			vkCmdSetViewport(cmd, 0, 1, &viewport);
 			vkCmdSetScissor(cmd, 0, 1, &scissor);
 			vkCmdSetDepthBias(cmd, 0, 0, 0);
-#if RAYTRACER_ON
-			_gBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-#endif			
+			
+			if (get_mode() == ERenderMode::Pathtracer || get_mode() == ERenderMode::ReSTIR_GI)
+			{
+				_gBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
+			}			
 		//draw_objects(cmd, _renderables.data(), _renderables.size());
 			ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
@@ -599,6 +597,11 @@ void VulkanEngine::init_vulkan()
 	ray_query_features.rayQuery = true;
 	ray_query_features.pNext = nullptr;
 
+	VkPhysicalDeviceSynchronization2Features synchronized2_features = {};
+	synchronized2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
+	synchronized2_features.pNext = nullptr;
+	synchronized2_features.synchronization2 = true;
+
 	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features)
 		.add_pNext(&featuresMesh)
 		.add_pNext(&buffer_device_address_features)
@@ -607,6 +610,7 @@ void VulkanEngine::init_vulkan()
 		.add_pNext(&acceleration_structure_features)
 		.add_pNext(&rt_features)
 		.add_pNext(&ray_query_features)
+		.add_pNext(&synchronized2_features)
 		.build().value();
 
 	// Get the VkDevice handle used in the rest of a Vulkan application

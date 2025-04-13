@@ -1,0 +1,88 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_nonuniform_qualifier:enable
+#extension GL_GOOGLE_include_directive : enable
+
+#include "gi_raytrace.h"
+
+layout(location = 0) rayPayloadEXT IndirectGbufferRayPayload indirectRpl;
+layout(set = 0, binding = 2) uniform accelerationStructureEXT topLevelAS;
+
+IndirectGbufferRayPayload shootRay(vec3 orig, vec3 dir)
+{
+    uint  rayFlags = gl_RayFlagsOpaqueEXT;
+
+    traceRayEXT(topLevelAS, // acceleration structure
+            rayFlags,       // rayFlags
+            0xFF,           // cullMask
+            0,              // sbtRecordOffset
+            0,              // sbtRecordStride
+            0,              // missIndex
+            orig.xyz,       // ray origin
+            1e-3,           // ray min range
+            dir.xyz,         // ray direction
+            1.0e38f,           // ray max range
+            0      // payload (location = 0)
+    );   
+
+	// Return the color we got from our ray
+	return indirectRpl;
+};
+
+
+struct SGlobalRQParams
+{
+	mat4 proj_to_world_space;
+	mat4 world_to_proj_space;
+	vec4 width_height_fov_frameIndex;
+};
+
+layout(set = 1, binding = 0) uniform _GlobalRQParams { SGlobalRQParams rqParams; };
+
+layout(set = 2, binding = 0, rgba32f) uniform image2D albedoMetalnessO;
+layout(set = 2, binding = 1, rgba16f) uniform image2D emissionRoughnessO;
+layout(set = 2, binding = 2, rgba32f) uniform image2D normalO;
+layout(set = 2, binding = 3, rgba32f) uniform image2D positionObjectIDO;
+
+#include "camera_ray_func.h"
+
+
+void main() 
+{
+    const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
+    const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+
+    float w = rqParams.width_height_fov_frameIndex.x;
+	float h = rqParams.width_height_fov_frameIndex.y;
+	float fov = rqParams.width_height_fov_frameIndex.z;
+	uint frame_index = uint(rqParams.width_height_fov_frameIndex.w);
+	uvec2 seed = uvec2(gl_LaunchIDEXT.xy) ^ uvec2(frame_index << 16, (frame_index + 237) << 16);
+
+	const float std = 0.9;
+	vec2 randoms = 2.0 * get_random_numbers(seed) - vec2(1.0);
+	vec2 jitter = (std * sqrt(2.0)) * vec2(erfinv(randoms.x), erfinv(randoms.y));
+	vec2 jittered = gl_LaunchIDEXT.xy + jitter;
+	// Compute the primary ray using either a pinhole camera or a hemispherical
+	// camera
+	vec2 ray_tex_coord = jittered / (rqParams.width_height_fov_frameIndex.xy);
+	vec3 ray_origin = get_camera_ray_origin(ray_tex_coord, rqParams.proj_to_world_space);
+	vec3 ray_dir = get_camera_ray_direction(ray_tex_coord, rqParams.world_to_proj_space);
+
+    IndirectGbufferRayPayload payload = shootRay(ray_origin, ray_dir);
+
+	if (payload.position_objectID.w > 0)
+	{
+		imageStore(albedoMetalnessO, ivec2(gl_LaunchIDEXT.xy), payload.albedo_metalness);
+		imageStore(emissionRoughnessO, ivec2(gl_LaunchIDEXT.xy), payload.emission_roughness);
+		imageStore(normalO, ivec2(gl_LaunchIDEXT.xy), payload.normal_);
+		imageStore(positionObjectIDO, ivec2(gl_LaunchIDEXT.xy), payload.position_objectID);
+	}
+	else
+	{
+		imageStore(albedoMetalnessO, ivec2(gl_LaunchIDEXT.xy), vec4(0., 0., 0., 0.));
+    	imageStore(emissionRoughnessO, ivec2(gl_LaunchIDEXT.xy), vec4(0., 0., 0., 0.));
+    	imageStore(normalO, ivec2(gl_LaunchIDEXT.xy), vec4(0., 0., 0., 0.));
+    	imageStore(positionObjectIDO, ivec2(gl_LaunchIDEXT.xy), vec4(0., 0., 0., -1));
+	}
+
+}

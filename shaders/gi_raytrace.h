@@ -101,6 +101,14 @@ struct IndirectRayPayload
 	vec4 worldNormGeometryXYZ_ObjectId;
 };
 
+struct IndirectGbufferRayPayload
+{
+	vec4 albedo_metalness;
+	vec4 emission_roughness;
+	vec4 normal_;
+	vec4 position_objectID;
+};
+
 int unpackObjID_IndirectRayPayload(IndirectRayPayload inputData)
 {
 	return int(inputData.worldNormGeometryXYZ_ObjectId.w);
