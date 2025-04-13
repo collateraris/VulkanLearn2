@@ -211,6 +211,9 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 	for (int nodeIndex = 1; nodeIndex < scene._hierarchy.size(); nodeIndex++)
 	{
 		RenderObject map;
+		auto it = scene._meshes.find(nodeIndex);
+		if (it == scene._meshes.end())
+			continue;
 		map.meshIndex = scene._meshes[nodeIndex];
 		map.mesh = resManager.meshList[map.meshIndex].get();
 		map.matDescIndex = scene._matForNode[nodeIndex];
@@ -307,6 +310,18 @@ void ResourceManager::init_rt_scene(VulkanEngine* _engine, ResourceManager& resM
 			rtBuilder.build_blas(*_engine, allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 	};
 
+	// Convert a Mat4x4 to the matrix required by acceleration structures
+	auto toTransformMatrixKHR = [&](glm::mat4 matrix)
+	{
+			// VkTransformMatrixKHR uses a row-major memory layout, while glm::mat4
+			// uses a column-major memory layout. We transpose the matrix so we can
+			// memcpy the matrix's data directly.
+			glm::mat4            temp = glm::transpose(matrix);
+			VkTransformMatrixKHR out_matrix;
+			memcpy(&out_matrix, &temp, sizeof(VkTransformMatrixKHR));
+			return out_matrix;
+	};
+
 	auto create_tlas = [&](VulkanRaytracerBuilder & rtBuilder, const std::vector<RenderObject>&renderables)
 	{
 		std::vector<VkAccelerationStructureInstanceKHR> tlas;
@@ -314,9 +329,7 @@ void ResourceManager::init_rt_scene(VulkanEngine* _engine, ResourceManager& resM
 		for (const auto& inst : renderables)
 		{
 			VkAccelerationStructureInstanceKHR rayInst{};
-			VkTransformMatrixKHR out_matrix;
-			memcpy(&out_matrix, &inst.transformMatrix, sizeof(VkTransformMatrixKHR));
-			rayInst.transform = out_matrix;  // Position of the instance
+			rayInst.transform = toTransformMatrixKHR(inst.transformMatrix);  // Position of the instance
 			rayInst.instanceCustomIndex = inst.meshIndex; // gl_InstanceCustomIndexEXT
 			rayInst.accelerationStructureReference = rtBuilder.get_blas_device_address(_engine->_device, inst.meshIndex);
 			rayInst.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;

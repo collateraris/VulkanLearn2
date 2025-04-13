@@ -8,10 +8,10 @@
 	></window>
 			
 	<current_scene
-		id="1"
+		id="3"
 	></current_scene>
 
-	<render_mode name="RESTIR_GI"></render_mode>
+	<render_mode name="PATHTRACER"></render_mode>
 
 	<env_map
 		size="512"
@@ -64,6 +64,21 @@
 			useSun = "1"
 			useUniformGeneratePointLight = "1"
 			numUniformPointLightPerAxis = "2"
+			sunDirection_axisX = "1" 
+			sunDirection_axisY = "0" 
+			sunDirection_axisZ ="0"
+			sunColor_axisX = "1" 
+			sunColor_axisY = "0" 
+			sunColor_axisZ ="0" 
+		></scene>
+		<scene id="3" 
+			path="r46_subway/scene.gltf"
+			hdr="kloppenheim_06_puresky_2k.hdr" 			 
+			scaleFactor = "1" 
+			needRotation = "0"
+			useSun = "1"
+			useUniformGeneratePointLight = "0"
+			numUniformPointLightPerAxis = "0"
 			sunDirection_axisX = "1" 
 			sunDirection_axisY = "0" 
 			sunDirection_axisZ ="0"

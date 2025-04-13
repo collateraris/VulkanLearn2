@@ -52,7 +52,16 @@ void PlayerCamera::process_input_event(SDL_Event* ev)
 		case SDLK_e:
 			if (bActiveCamera)
 				yaw -= 0.1f;
-			break;			
+			break;
+		case SDLK_z:
+			if (bActiveCamera)
+				pitch += 0.1f;
+			break;
+
+		case SDLK_x:
+			if (bActiveCamera)
+				pitch -= 0.1f;
+			break;
 		case SDLK_LSHIFT:
 			if (bActiveCamera)
 				bSprint = true;
@@ -103,7 +112,17 @@ void PlayerCamera::process_input_event(SDL_Event* ev)
 		case SDLK_e:
 			if (bActiveCamera)
 				yaw -= 0.1f;
-			break;			
+			break;
+
+		case SDLK_z:
+			if (bActiveCamera)
+				pitch += 0.1f;
+			break;
+
+		case SDLK_x:
+			if (bActiveCamera)
+				pitch -= 0.1f;
+			break;
 		case SDLK_LSHIFT:
 			if (bActiveCamera)
 				bSprint = false;

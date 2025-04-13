@@ -142,7 +142,7 @@ void VulkanEngine::init()
 	if (get_mode() == ERenderMode::Pathtracer)
 	{
 		_ptGbuffer.init(this);
-		_gBufShadingGraphicsPipeline.init(this, _ptGbuffer.get_tex(ETextureResourceNames::PT_GBUFFER_NORMAL));
+		_gBufShadingGraphicsPipeline.init(this, _ptGbuffer.get_tex(ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS));
 	}
 
 	_camera = {};
