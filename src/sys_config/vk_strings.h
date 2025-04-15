@@ -5,6 +5,7 @@
 namespace vk_utils
 {
 	static const std::string SHADERS_PATH = "../../shaders/";
+	static const std::string SHADERS_SLANG_PATH = "../../shaders_slang/";
 	//ASSETS
 	static const std::string ASSETS_PATH = "../../assets/";
 	static const std::string BOX_MODEL = "../../assets/Box.gltf";

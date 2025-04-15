@@ -110,9 +110,6 @@ PBRShadeData getShadeData(DirectInputData inputData)
     return data;
 };
 
-#define LightSun            1
-#define LightPoint          2
-
 DirectOutputData ggxDirect(uint lightToSample, PBRShadeData prbSD, vec3 camPos, bool withShadow)
 {
     vec3 viewDir = normalize(prbSD.worldPos.xyz - camPos.xyz);

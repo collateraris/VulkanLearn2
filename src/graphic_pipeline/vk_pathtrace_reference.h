@@ -23,16 +23,36 @@ public:
 		vec4 width_height_fov_frameIndex;
 	};
 
+	struct alignas(16) GlobalGIParams
+	{
+		glm::mat4 projView;
+		glm::mat4 viewInverse;
+		glm::mat4 projInverse;
+		glm::mat4 prevProjView;
+		glm::vec4 camPos;
+		uint32_t  frameCount;
+		float shadowMult;
+		uint32_t lightsCount;
+		uint32_t  numRays;
+		uint32_t mode = 0;
+		uint32_t pad1 = 0;
+		uint32_t pad2 = 0;
+		uint32_t pad3 = 0;
+	};
+
 	VulkanPTRef() = default;
 	void init(VulkanEngine* engine);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
 	void copy_global_uniform_data(VulkanPTRef::SGlobalRQParams& rqData, int current_frame_index);
+	void copy_global_uniform_data(VulkanPTRef::GlobalGIParams& giData, int current_frame_index);
 
 	void barrier_for_reading(VulkanCommandBuffer* cmd);
 	void barrier_for_writing(VulkanCommandBuffer* cmd);
 
 	Texture& get_tex(ETextureResourceNames name) const;
+
+	void reset_accumulation();
 
 private:
 
@@ -48,6 +68,7 @@ private:
 	AllocatedBuffer                 _rtSBTBuffer;
 
 	std::array<AllocatedBuffer, 2> _globalRQBuffer;
+	std::array<AllocatedBuffer, 2> _globalUniformsBuffer;
 	VkDescriptorSetLayout          _globalDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _globalDescSet;
 

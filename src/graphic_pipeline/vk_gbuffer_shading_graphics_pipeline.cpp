@@ -18,7 +18,7 @@ void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine,const Textu
 		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::GBufferShading,
 			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
 				ShaderEffect defaultEffect;
-				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("fullscreen.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
+				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("fullscreen.vert.slang.spv")), VK_SHADER_STAGE_VERTEX_BIT);
 				defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("gbuffer_shading.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
 
 				defaultEffect.reflect_layout(engine->_device, nullptr, 0);

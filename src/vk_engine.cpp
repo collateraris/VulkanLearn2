@@ -925,6 +925,10 @@ std::string VulkanEngine::shader_path(std::string_view path)
 {
 	return vk_utils::SHADERS_PATH + std::string(path);
 }
+std::string VulkanEngine::shader_slang_path(std::string_view path)
+{
+	return vk_utils::SHADERS_SLANG_PATH + std::string(path);
+}
 
 VkQueryPool VulkanEngine::createQueryPool(uint32_t queryCount)
 {

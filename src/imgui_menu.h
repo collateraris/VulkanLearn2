@@ -168,8 +168,8 @@ static void ShowFPSLog(Stats stats)
     // Actually call in the regular Log helper (which will Begin() into the same window as we just did)
     log.Draw("Example: Log", &p_open);
 }
-
-static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, VulkanGIShadowsRaytracingGraphicsPipeline& giGP, int current_frame_index, int frameNumber)
+template<class T>
+static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, T& giGP, int current_frame_index, int frameNumber)
 {
     static bool p_open = true;
     static bool bChangedValue = true;
@@ -180,7 +180,7 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, Vulka
     static uint32_t RESTIR_DI_SpacialReuse = 1u << 2;
     static uint32_t RESTIR_GI_SpacialReuse = 1u << 3;
     static glm::mat4 prevCameraMatrix;
-    static VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams giParams = {.shadowMult = 0.0, .numRays = 1};
+    static T::GlobalGIParams giParams = {.shadowMult = 0.0, .numRays = 1};
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
     ImGui::Begin("Edit GI", &p_open);
     static int numRays = 0;
@@ -270,7 +270,11 @@ static void ShowVkMenu(VulkanEngine& engine)
     ImguiAppLog::ShowFPSLog(engine._stats);
     if (engine.get_mode() == ERenderMode::ReSTIR_GI)
     {
-        ImguiAppLog::EditGI(engine._lightManager, engine._camera, engine._giRtGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
+        ImguiAppLog::EditGI<VulkanGIShadowsRaytracingGraphicsPipeline>(engine._lightManager, engine._camera, engine._giRtGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
+    }
+    if (engine.get_mode() == ERenderMode::Pathtracer)
+    {
+        ImguiAppLog::EditGI<VulkanPTRef>(engine._lightManager, engine._camera, engine._ptReference, engine.get_current_frame_index(), engine._frameNumber);
     }
 }
 

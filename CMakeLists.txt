@@ -34,6 +34,7 @@ add_subdirectory(src)
 
 find_program(GLSLC "glslc.exe" $ENV{VULKAN_SDK}/Bin/)
 find_program(DXC "dxc.exe" ${PROJECT_SOURCE_DIR}/third_party/dxc/)
+find_program(SLANG "slangc.exe" ${PROJECT_SOURCE_DIR}/third_party/slang/bin)
 
 ## find all the shader files under the shaders folder
 file(GLOB_RECURSE GLSL_SOURCE_FILES
@@ -60,6 +61,34 @@ foreach(GLSL_SRC ${GLSL_SOURCE_FILES})
     DEPENDS ${GLSL_SRC})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(GLSL_SRC)
+
+file(GLOB_RECURSE SLANG_SOURCE_FILES
+    "${PROJECT_SOURCE_DIR}/shaders_slang/*.frag.slang"
+    "${PROJECT_SOURCE_DIR}/shaders_slang/*.vert.slang"
+    "${PROJECT_SOURCE_DIR}/shaders_slang/*.comp.slang"
+    "${PROJECT_SOURCE_DIR}/shaders_slang/*.mesh.slang"
+    "${PROJECT_SOURCE_DIR}/shaders_slang/*.task.slang"
+    "${PROJECT_SOURCE_DIR}/shaders_slang/*.rgen.slang"
+    "${PROJECT_SOURCE_DIR}/shaders_slang/*.rmiss.slang"
+    "${PROJECT_SOURCE_DIR}/shaders_slang/*.rchit.slang"
+    )
+
+## iterate each shader
+foreach(SLANG_SRC ${SLANG_SOURCE_FILES})
+  message(STATUS "BUILDING SHADER")
+  get_filename_component(FILE_NAME ${SLANG_SRC} NAME)
+  set(SPIRV "${PROJECT_SOURCE_DIR}/shaders_slang/${FILE_NAME}.spv")
+  set(GLSL "${PROJECT_SOURCE_DIR}/shaders_slang/${FILE_NAME}.glsl")
+  message(STATUS ${SLANG_SRC})
+  ##execute glslang command to compile that specific shader
+  add_custom_command(
+    OUTPUT ${SPIRV}
+    COMMAND ${SLANG}  ${SLANG_SRC} -profile glsl_460 -target spirv -entry main -o ${SPIRV}
+    OUTPUT ${GLSL}
+   COMMAND ${SLANG}  ${SLANG_SRC} -profile glsl_460 -target glsl -entry main -o ${GLSL}
+    DEPENDS ${SLANG_SRC})
+  list(APPEND SPIRV_BINARY_FILES ${SPIRV})
+endforeach(SLANG_SRC)    
 
 ## find all the shader files under the shaders folder
 file(GLOB_RECURSE HLSL_NRD_CS_SOURCE_FILES

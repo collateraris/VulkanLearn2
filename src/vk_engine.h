@@ -285,6 +285,7 @@ public:
 	static std::string asset_path(std::string_view path);
 
 	static std::string shader_path(std::string_view path);
+	static std::string shader_slang_path(std::string_view path);
 
 	VkQueryPool createQueryPool(uint32_t queryCount);
 

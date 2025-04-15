@@ -38,6 +38,7 @@ struct SGlobalRQParams
 };
 
 layout(set = 1, binding = 0) uniform _GlobalRQParams { SGlobalRQParams rqParams; };
+layout(set = 1, binding = 1) uniform _GlobalGIParams { SGlobalGIParams giParams; };
 
 layout(set = 2, binding = 0, rgba32f) uniform image2D ptOutput;
 
@@ -66,16 +67,20 @@ void main()
 	vec3 ray_origin = get_camera_ray_origin(ray_tex_coord, rqParams.proj_to_world_space);
 	vec3 ray_dir = get_camera_ray_direction(ray_tex_coord, rqParams.world_to_proj_space);
 
-    IndirectGbufferRayPayload payload = shootRay(ray_origin, ray_dir);
+	// Initialize path tracing data
+	vec3 radiance = vec3(0.0f, 0.0f, 0.0f);
+	vec3 throughput = vec3(1.0f, 1.0f, 1.0f);
 
-	if (payload.position_objectID.w < -1e-3)
+	for (int bounce = 0; bounce < giParams.numRays; bounce++) 
 	{
-		imageStore(ptOutput, ivec2(gl_LaunchIDEXT.xy), vec4(0., 0., 0., 0.));
-	}
-	else
-	{
-		vec3 radiance = payload.emission_roughness.xyz + payload.albedo_metalness.xyz/M_PI;
-		imageStore(ptOutput, ivec2(gl_LaunchIDEXT.xy), vec4(radiance, 1.));
+		IndirectGbufferRayPayload payload = shootRay(ray_origin, ray_dir);
+
+		if (payload.position_objectID.w > -1e3)
+		{
+			radiance = payload.albedo_metalness.xyz / M_PI;
+		}
 	}
 
+
+	imageStore(ptOutput, ivec2(gl_LaunchIDEXT.xy), vec4(radiance, 1.));
 }

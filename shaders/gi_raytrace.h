@@ -17,6 +17,9 @@ struct SGlobalGIParams
 
 const uint SUN_COLOR_TYPE = 0;
 
+#define LightSun            1
+#define LightPoint          2
+
 struct SLight
 {
 	vec4 position;
