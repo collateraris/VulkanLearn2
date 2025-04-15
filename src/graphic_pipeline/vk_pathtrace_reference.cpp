@@ -110,6 +110,11 @@ Texture& VulkanPTRef::get_tex(ETextureResourceNames name) const
 	return *_engine->get_engine_texture(name);
 }
 
+void VulkanPTRef::reset_accumulation()
+{
+
+}
+
 void VulkanPTRef::init_description_set_global_buffer()
 {
 	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
@@ -125,8 +130,16 @@ void VulkanPTRef::init_description_set_global_buffer()
 		globalRQUniformsInfo.offset = 0;
 		globalRQUniformsInfo.range = _globalRQBuffer[i]._size;
 
+		_globalUniformsBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanPTRef::GlobalGIParams), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+		VkDescriptorBufferInfo globalUniformsInfo;
+		globalUniformsInfo.buffer = _globalUniformsBuffer[i]._buffer;
+		globalUniformsInfo.offset = 0;
+		globalUniformsInfo.range = VK_WHOLE_SIZE;
+
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			.bind_buffer(0, &globalRQUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_buffer(1, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.build(_globalDescSet[i], _globalDescSetLayout);
 	}
 }
@@ -155,6 +168,13 @@ void VulkanPTRef::copy_global_uniform_data(VulkanPTRef::SGlobalRQParams& rqData,
 	_engine->map_buffer(_engine->_allocator, _globalRQBuffer[current_frame_index]._allocation, [&](void*& data) {
 		memcpy(data, &rqData, sizeof(VulkanPTRef::SGlobalRQParams));
 	});
+}
+
+void VulkanPTRef::copy_global_uniform_data(VulkanPTRef::GlobalGIParams& giData, int current_frame_index)
+{
+	_engine->map_buffer(_engine->_allocator, _globalUniformsBuffer[current_frame_index]._allocation, [&](void*& data) {
+		memcpy(data, &giData, sizeof(VulkanPTRef::GlobalGIParams));
+		});
 }
 
 void VulkanPTRef::barrier_for_reading(VulkanCommandBuffer* cmd)
