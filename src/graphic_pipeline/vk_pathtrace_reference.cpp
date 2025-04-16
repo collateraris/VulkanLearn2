@@ -161,7 +161,7 @@ void VulkanPTRef::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 		cmd->clear_image(get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT), clear_value);
 	}
 
-	if (bResetAccumulation)
+	//if (bResetAccumulation)
 	{
 		bResetAccumulation = false;
 		VkClearValue clear_value = { 0., 0., 0., 0. };

@@ -120,9 +120,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 			float lightDistance;
 			getLightData(candidate, hitPosition, lightVector, lightDistance);
 
-			// Ignore backfacing light
 			float3 L = normalize(lightVector);
-			if (dot(surfaceNormal, L) < 0.00001f) continue;
 
 			float candidatePdfG = luminance(getLightIntensityAtPoint(candidate, length(lightVector)));
 			const float candidateRISWeight = candidatePdfG * candidateWeight;
@@ -200,15 +198,22 @@ void main()
 		// Load material properties at the hit point
 		MaterialProperties material = loadMaterialProperties(payload);
 
-		radiance += throughput * material.emissive;
+		float3 geometryNormal;
+		float3 shadingNormal;
+		decodeNormals(payload.normal_, geometryNormal, shadingNormal);
 
 		float3 V = -rayDir;
-		if (dot(payload.normal_.xyz, V) < 0.f) payload.normal_.xyz = -payload.normal_.xyz;
+		//if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
+		//if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
+
+		radiance += throughput * material.emissive;
+		//radiance = geometryNormal;
+		//break;
 
 		// Evaluate direct light (next event estimation), start by sampling one light 
 		SLight light;
 		float lightWeight;
-		if (sampleLightRIS(rngState, payload.position_objectID.xyz, payload.normal_.xyz, light, lightWeight)) {
+		if (sampleLightRIS(rngState, payload.position_objectID.xyz, geometryNormal, light, lightWeight)) {
 
 			// Prepare data needed to evaluate the light
 			float3 lightVector;
@@ -217,10 +222,10 @@ void main()
 			float3 L = normalize(lightVector);
 
 			// Cast shadow ray towards the selected light
-			if (castShadowRay(payload.position_objectID.xyz, payload.normal_.xyz, L, lightDistance))
+			if (castShadowRay(payload.position_objectID.xyz, geometryNormal, L, lightDistance))
 			{
 				// If light is not in shadow, evaluate BRDF and accumulate its contribution into radiance
-				radiance += throughput * evalCombinedBRDF(payload.normal_.xyz, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * lightWeight);
+				radiance += throughput * evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * lightWeight);
 			}
 		}
 
@@ -240,7 +245,7 @@ void main()
 		} else {
 
 			// Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
-			float brdfProbability = getBrdfProbability(material, V, payload.normal_.xyz);
+			float brdfProbability = getBrdfProbability(material, V, shadingNormal);
 
 			if (rand(rngState) < brdfProbability) {
 				brdfType = SPECULAR_TYPE;
@@ -254,7 +259,7 @@ void main()
 				// Run importance sampling of selected BRDF to generate reflecting ray direction
 		float3 brdfWeight;
 		float2 u = float2(rand(rngState), rand(rngState));
-		if (!evalIndirectCombinedBRDF(u, payload.normal_.xyz, payload.normal_.xyz, V, material, brdfType, rayDir, brdfWeight)) {
+		if (!evalIndirectCombinedBRDF(u, shadingNormal, geometryNormal, V, material, brdfType, rayDir, brdfWeight)) {
 			break; // Ray was eaten by the surface :(
 		}
 
@@ -262,14 +267,14 @@ void main()
 		throughput *= brdfWeight;
 
 		// Offset a new ray origin from the hitpoint to prevent self-intersections
-		rayOri = offsetRay(payload.position_objectID.xyz, payload.normal_.xyz);
+		rayOri = offsetRay(payload.position_objectID.xyz, geometryNormal);
 	}
 
 	// Temporal accumulation
-	float3 previousColor = accumulationBuffer[LaunchIndex].rgb;
-	float3 accumulatedColor = radiance;
-	accumulatedColor = previousColor + radiance;
-	accumulationBuffer[LaunchIndex] = float4(accumulatedColor, 1.0f);	
+	//float3 previousColor = accumulationBuffer[LaunchIndex].rgb;
+	//float3 accumulatedColor = radiance;
+	//accumulatedColor = previousColor + radiance;
+	//accumulationBuffer[LaunchIndex] = float4(accumulatedColor, 1.0f);	
 
 	ptOutput[LaunchIndex] = float4(radiance, 1.);
 };

@@ -36,6 +36,37 @@ struct IndirectGbufferRayPayload
     }
 };
 
+// Helpers for octahedron encoding of normals
+float2 octWrap(float2 v)
+{
+	return float2((1.0f - abs(v.y)) * (v.x >= 0.0f ? 1.0f : -1.0f), (1.0f - abs(v.x)) * (v.y >= 0.0f ? 1.0f : -1.0f));
+}
+
+float2 encodeNormalOctahedron(float3 n)
+{
+	float2 p = float2(n.x, n.y) * (1.0f / (abs(n.x) + abs(n.y) + abs(n.z)));
+	p = (n.z < 0.0f) ? octWrap(p) : p;
+	return p;
+}
+
+float3 decodeNormalOctahedron(float2 p)
+{
+	float3 n = float3(p.x, p.y, 1.0f - abs(p.x) - abs(p.y));
+	float2 tmp = (n.z < 0.0f) ? octWrap(float2(n.x, n.y)) : float2(n.x, n.y);
+	n.x = tmp.x;
+	n.y = tmp.y;
+	return normalize(n);
+}
+
+float4 encodeNormals(float3 geometryNormal, float3 shadingNormal) {
+	return float4(encodeNormalOctahedron(geometryNormal), encodeNormalOctahedron(shadingNormal));
+}
+
+void decodeNormals(float4 encodedNormals, out float3 geometryNormal, out float3 shadingNormal) {
+	geometryNormal = decodeNormalOctahedron(encodedNormals.xy);
+	shadingNormal = decodeNormalOctahedron(encodedNormals.zw);
+}
+
 struct ShadowHitInfo
 {
 	bool hasHit;

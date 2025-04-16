@@ -48,7 +48,7 @@ layout(binding = 2)
 uniform accelerationStructureEXT topLevelAS_0;
 
 
-#line 51 1
+#line 82 1
 struct SLight_std430_0
 {
     vec4 position_0;
@@ -62,19 +62,13 @@ layout(std430, binding = 6) readonly buffer StructuredBuffer_SLight_std430_t_0 {
     SLight_std430_0 _data[];
 } lightsBuffer_0;
 
-#line 26
-layout(rgba32f)
-layout(binding = 1, set = 2)
-uniform image2D accumulationBuffer_0;
-
-
 #line 23
 layout(rgba32f)
 layout(binding = 0, set = 2)
 uniform image2D ptOutput_0;
 
 
-#line 39 1
+#line 70 1
 struct ShadowHitInfo_0
 {
     bool hasHit_0;
@@ -103,11 +97,11 @@ rayPayloadEXT
 IndirectGbufferRayPayload_0 p_1;
 
 
-#line 139 1
+#line 170 1
 uvec4 initRNG_0(uvec2 pixelCoords_0, uvec2 resolution_0, uint frameNumber_0)
 {
 
-#line 140
+#line 171
     return uvec4(pixelCoords_0.xy, frameNumber_0, 0U);
 }
 
@@ -195,55 +189,165 @@ MaterialProperties_0 loadMaterialProperties_0(IndirectGbufferRayPayload_0 payloa
 }
 
 
-#line 93 1
-uvec4 pcg4d_0(uvec4 v_0)
+#line 40 1
+vec2 octWrap_0(vec2 v_0)
 {
-    uvec4 _S3 = v_0 * 1664525U + 1013904223U;
+    float _S3 = v_0.y;
 
-#line 93
-    uvec4 _S4 = _S3;
+#line 42
+    float _S4 = 1.0 - abs(_S3);
 
+#line 42
+    float _S5 = v_0.x;
 
+#line 42
+    float _S6;
 
-    _S4[0] = _S4[0] + _S3.y * _S3.w;
-    _S4[1] = _S4[1] + _S4.z * _S4.x;
-    _S4[2] = _S4[2] + _S4.x * _S4.y;
-    _S4[3] = _S4[3] + _S4.y * _S4.z;
+#line 42
+    if(_S5 >= 0.0)
+    {
 
-    uvec4 _S5 = _S4 ^ (_S4 >> 16U);
+#line 42
+        _S6 = 1.0;
 
-#line 102
-    _S4 = _S5;
+#line 42
+    }
+    else
+    {
 
-    _S4[0] = _S4[0] + _S5.y * _S5.w;
-    _S4[1] = _S4[1] + _S4.z * _S4.x;
-    _S4[2] = _S4[2] + _S4.x * _S4.y;
-    _S4[3] = _S4[3] + _S4.y * _S4.z;
+#line 42
+        _S6 = -1.0;
 
-    return _S4;
+#line 42
+    }
+
+#line 42
+    float _S7 = _S4 * _S6;
+
+#line 42
+    float _S8 = 1.0 - abs(_S5);
+
+#line 42
+    if(_S3 >= 0.0)
+    {
+
+#line 42
+        _S6 = 1.0;
+
+#line 42
+    }
+    else
+    {
+
+#line 42
+        _S6 = -1.0;
+
+#line 42
+    }
+
+#line 42
+    return vec2(_S7, _S8 * _S6);
 }
 
 
-#line 132
+#line 52
+vec3 decodeNormalOctahedron_0(vec2 p_2)
+{
+    float _S9 = p_2.x;
+
+#line 54
+    float _S10 = p_2.y;
+
+#line 54
+    float _S11 = 1.0 - abs(_S9) - abs(_S10);
+
+#line 54
+    vec3 n_0 = vec3(_S9, _S10, _S11);
+
+#line 54
+    vec2 tmp_0;
+    if(_S11 < 0.0)
+    {
+
+#line 55
+        tmp_0 = octWrap_0(vec2(n_0.x, n_0.y));
+
+#line 55
+    }
+    else
+    {
+
+#line 55
+        tmp_0 = vec2(n_0.x, n_0.y);
+
+#line 55
+    }
+    n_0[0] = tmp_0.x;
+    n_0[1] = tmp_0.y;
+    return normalize(n_0);
+}
+
+
+#line 65
+void decodeNormals_0(vec4 encodedNormals_0, out vec3 geometryNormal_0, out vec3 shadingNormal_0)
+{
+
+#line 66
+    geometryNormal_0 = decodeNormalOctahedron_0(encodedNormals_0.xy);
+    shadingNormal_0 = decodeNormalOctahedron_0(encodedNormals_0.zw);
+    return;
+}
+
+
+#line 124
+uvec4 pcg4d_0(uvec4 v_1)
+{
+    uvec4 _S12 = v_1 * 1664525U + 1013904223U;
+
+#line 124
+    uvec4 _S13 = _S12;
+
+
+
+    _S13[0] = _S13[0] + _S12.y * _S12.w;
+    _S13[1] = _S13[1] + _S13.z * _S13.x;
+    _S13[2] = _S13[2] + _S13.x * _S13.y;
+    _S13[3] = _S13[3] + _S13.y * _S13.z;
+
+    uvec4 _S14 = _S13 ^ (_S13 >> 16U);
+
+#line 133
+    _S13 = _S14;
+
+    _S13[0] = _S13[0] + _S14.y * _S14.w;
+    _S13[1] = _S13[1] + _S13.z * _S13.x;
+    _S13[2] = _S13[2] + _S13.x * _S13.y;
+    _S13[3] = _S13[3] + _S13.y * _S13.z;
+
+    return _S13;
+}
+
+
+#line 163
 float uintToFloat_0(uint x_0)
 {
 
-#line 133
+#line 164
     return uintBitsToFloat(1065353216U | (x_0 >> 9)) - 1.0;
 }
 
 
-#line 144
+#line 175
 float rand_0(inout uvec4 rngState_0)
 {
 
-#line 145
+#line 176
     rngState_0[3] = rngState_0[3] + 1U;
     return uintToFloat_0(pcg4d_0(rngState_0).x);
 }
 
 
-#line 47
+#line 78
 struct SLight_0
 {
     vec4 position_0;
@@ -261,25 +365,25 @@ bool sampleLightUniform_0(inout uvec4 rngState_1, vec3 hitPosition_0, vec3 surfa
 #line 93
         return false;
     }
-    uint _S6 = MyContantBuffer_0.giParams_0.lightsCount_0 - 1U;
+    uint _S15 = MyContantBuffer_0.giParams_0.lightsCount_0 - 1U;
 
 #line 95
-    float _S7 = rand_0(rngState_1);
+    float _S16 = rand_0(rngState_1);
 
 #line 95
-    vec4 _S8 = lightsBuffer_0._data[uint(min(_S6, uint(_S7 * float(MyContantBuffer_0.giParams_0.lightsCount_0))))].direction_0;
+    vec4 _S17 = lightsBuffer_0._data[uint(min(_S15, uint(_S16 * float(MyContantBuffer_0.giParams_0.lightsCount_0))))].direction_0;
 
 #line 95
-    vec4 _S9 = lightsBuffer_0._data[uint(min(_S6, uint(_S7 * float(MyContantBuffer_0.giParams_0.lightsCount_0))))].color_type_0;
+    vec4 _S18 = lightsBuffer_0._data[uint(min(_S15, uint(_S16 * float(MyContantBuffer_0.giParams_0.lightsCount_0))))].color_type_0;
 
 #line 95
-    light_0.position_0 = lightsBuffer_0._data[uint(min(_S6, uint(_S7 * float(MyContantBuffer_0.giParams_0.lightsCount_0))))].position_0;
+    light_0.position_0 = lightsBuffer_0._data[uint(min(_S15, uint(_S16 * float(MyContantBuffer_0.giParams_0.lightsCount_0))))].position_0;
 
 #line 95
-    light_0.direction_0 = _S8;
+    light_0.direction_0 = _S17;
 
 #line 95
-    light_0.color_type_0 = _S9;
+    light_0.color_type_0 = _S18;
 
 
 
@@ -289,36 +393,36 @@ bool sampleLightUniform_0(inout uvec4 rngState_1, vec3 hitPosition_0, vec3 surfa
 }
 
 
-#line 196 1
+#line 227 1
 void getLightData_0(SLight_0 light_1, vec3 hitPosition_1, out vec3 lightVector_0, out float lightDistance_0)
 {
 
-#line 197
-    float _S10 = light_1.color_type_0.w;
+#line 228
+    float _S19 = light_1.color_type_0.w;
 
-#line 197
-    if((abs(_S10 - 2.0)) < 9.99999997475242708e-07)
+#line 228
+    if((abs(_S19 - 2.0)) < 9.99999997475242708e-07)
     {
 
-#line 198
-        vec3 _S11 = light_1.position_0.xyz - hitPosition_1;
+#line 229
+        vec3 _S20 = light_1.position_0.xyz - hitPosition_1;
 
-#line 198
-        lightVector_0 = _S11;
-        lightDistance_0 = length(_S11);
+#line 229
+        lightVector_0 = _S20;
+        lightDistance_0 = length(_S20);
 
-#line 197
+#line 228
     }
     else
     {
-        if((abs(_S10 - 1.0)) < 9.99999997475242708e-07)
+        if((abs(_S19 - 1.0)) < 9.99999997475242708e-07)
         {
 
-#line 201
+#line 232
             lightVector_0 = - light_1.direction_0.xyz;
             lightDistance_0 = 3.4028234663852886e+38;
 
-#line 200
+#line 231
         }
         else
         {
@@ -326,52 +430,52 @@ void getLightData_0(SLight_0 light_1, vec3 hitPosition_1, out vec3 lightVector_0
             lightDistance_0 = 3.4028234663852886e+38;
             lightVector_0 = vec3(0.0, 1.0, 0.0);
 
-#line 200
+#line 231
         }
 
-#line 197
+#line 228
     }
 
-#line 207
+#line 238
     return;
 }
 
 vec3 getLightIntensityAtPoint_0(SLight_0 light_2, float distance_0)
 {
 
-#line 211
-    float _S12 = light_2.color_type_0.w;
+#line 242
+    float _S21 = light_2.color_type_0.w;
 
-#line 211
-    if((abs(_S12 - 2.0)) < 9.99999997475242708e-07)
+#line 242
+    if((abs(_S21 - 2.0)) < 9.99999997475242708e-07)
     {
 
-#line 217
-        float _S13 = distance_0 * distance_0 + 0.25;
+#line 248
+        float _S22 = distance_0 * distance_0 + 0.25;
 
-        return light_2.color_type_0.xyz * (2.0 / (_S13 + distance_0 * sqrt(_S13)));
+        return light_2.color_type_0.xyz * (2.0 / (_S22 + distance_0 * sqrt(_S22)));
     }
     else
     {
 
-#line 221
-        if((abs(_S12 - 1.0)) < 9.99999997475242708e-07)
+#line 252
+        if((abs(_S21 - 1.0)) < 9.99999997475242708e-07)
         {
 
-#line 222
+#line 253
             return light_2.color_type_0.xyz;
         }
         else
         {
 
-#line 224
+#line 255
             return vec3(1.0, 0.0, 1.0);
         }
 
-#line 224
+#line 255
     }
 
-#line 224
+#line 255
 }
 
 
@@ -391,16 +495,16 @@ bool sampleLightRIS_0(inout uvec4 rngState_2, vec3 hitPosition_2, vec3 surfaceNo
 #line 107
         return false;
     }
-    const vec4 _S14 = vec4(0.0, 0.0, 0.0, 0.0);
+    const vec4 _S23 = vec4(0.0, 0.0, 0.0, 0.0);
 
 #line 109
-    selectedSample_0.position_0 = _S14;
+    selectedSample_0.position_0 = _S23;
 
 #line 109
-    selectedSample_0.direction_0 = _S14;
+    selectedSample_0.direction_0 = _S23;
 
 #line 109
-    selectedSample_0.color_type_0 = _S14;
+    selectedSample_0.color_type_0 = _S23;
 
 #line 109
     float samplePdfG_0 = 0.0;
@@ -428,16 +532,10 @@ bool sampleLightRIS_0(inout uvec4 rngState_2, vec3 hitPosition_2, vec3 surfaceNo
         }
         float candidateWeight_0;
         SLight_0 candidate_0;
-        bool _S15 = sampleLightUniform_0(rngState_2, hitPosition_2, surfaceNormal_1, candidate_0, candidateWeight_0);
+        bool _S24 = sampleLightUniform_0(rngState_2, hitPosition_2, surfaceNormal_1, candidate_0, candidateWeight_0);
 
 #line 117
-        float samplePdfG_1;
-
-#line 117
-        float totalWeights_1;
-
-#line 117
-        if(_S15)
+        if(_S24)
         {
             vec3 lightVector_1;
             float lightDistance_1;
@@ -445,109 +543,240 @@ bool sampleLightRIS_0(inout uvec4 rngState_2, vec3 hitPosition_2, vec3 surfaceNo
 
 
 
-            if((dot(surfaceNormal_1, normalize(lightVector_1))) < 0.00000999999974738)
-            {
-
-#line 125
-                samplePdfG_1 = samplePdfG_0;
-
-#line 113
-                int _S16 = i_0 + 1;
-
-#line 113
-                samplePdfG_0 = samplePdfG_1;
-
-#line 113
-                i_0 = _S16;
-
-#line 113
-                continue;
-            }
-
-#line 127
             float candidatePdfG_0 = luminance_0(getLightIntensityAtPoint_0(candidate_0, length(lightVector_1)));
             float candidateRISWeight_0 = candidatePdfG_0 * candidateWeight_0;
 
-            float totalWeights_2 = totalWeights_0 + candidateRISWeight_0;
-            float _S17 = rand_0(rngState_2);
+            float totalWeights_1 = totalWeights_0 + candidateRISWeight_0;
+            float _S25 = rand_0(rngState_2);
 
-#line 131
-            if(_S17 < (candidateRISWeight_0 / totalWeights_2))
+#line 129
+            float samplePdfG_1;
+
+#line 129
+            if(_S25 < (candidateRISWeight_0 / totalWeights_1))
             {
 
-#line 132
+#line 130
                 selectedSample_0 = candidate_0;
 
-#line 132
+#line 130
                 samplePdfG_1 = candidatePdfG_0;
 
-#line 131
+#line 129
             }
             else
             {
 
-#line 131
+#line 129
                 samplePdfG_1 = samplePdfG_0;
 
-#line 131
+#line 129
             }
 
-#line 131
-            totalWeights_1 = totalWeights_2;
+#line 129
+            samplePdfG_0 = samplePdfG_1;
 
-#line 117
-        }
-        else
-        {
-
-#line 117
-            samplePdfG_1 = samplePdfG_0;
-
-#line 117
-            totalWeights_1 = totalWeights_0;
+#line 129
+            totalWeights_0 = totalWeights_1;
 
 #line 117
         }
 
-#line 117
-        totalWeights_0 = totalWeights_1;
-
 #line 113
-        int _S16 = i_0 + 1;
-
-#line 113
-        samplePdfG_0 = samplePdfG_1;
-
-#line 113
-        i_0 = _S16;
+        i_0 = i_0 + 1;
 
 #line 113
     }
 
-#line 138
+#line 136
     if(totalWeights_0 == 0.0)
     {
 
-#line 139
+#line 137
         return false;
     }
     else
     {
 
-#line 141
+#line 139
         lightSampleWeight_1 = totalWeights_0 / 8.0 / samplePdfG_0;
         return true;
     }
 
-#line 142
+#line 140
 }
 
 
-#line 54
+#line 203 1
+vec3 offsetRay_0(vec3 p_3, vec3 n_1)
+{
+
+#line 209
+    float _S26 = n_1.x;
+
+#line 209
+    int _S27 = int(256.0 * _S26);
+
+#line 209
+    float _S28 = n_1.y;
+
+#line 209
+    int _S29 = int(256.0 * _S28);
+
+#line 209
+    float _S30 = n_1.z;
+
+#line 209
+    int _S31 = int(256.0 * _S30);
+
+
+    float _S32 = p_3.x;
+
+#line 212
+    int _S33 = floatBitsToInt(_S32);
+
+#line 212
+    int _S34;
+
+#line 212
+    if(_S32 < 0.0)
+    {
+
+#line 212
+        _S34 = - _S27;
+
+#line 212
+    }
+    else
+    {
+
+#line 212
+        _S34 = _S27;
+
+#line 212
+    }
+
+#line 212
+    float _S35 = intBitsToFloat(_S33 + _S34);
+    float _S36 = p_3.y;
+
+#line 213
+    int _S37 = floatBitsToInt(_S36);
+
+#line 213
+    if(_S36 < 0.0)
+    {
+
+#line 213
+        _S34 = - _S29;
+
+#line 213
+    }
+    else
+    {
+
+#line 213
+        _S34 = _S29;
+
+#line 213
+    }
+
+#line 213
+    float _S38 = intBitsToFloat(_S37 + _S34);
+    float _S39 = p_3.z;
+
+#line 214
+    int _S40 = floatBitsToInt(_S39);
+
+#line 214
+    if(_S39 < 0.0)
+    {
+
+#line 214
+        _S34 = - _S31;
+
+#line 214
+    }
+    else
+    {
+
+#line 214
+        _S34 = _S31;
+
+#line 214
+    }
+
+#line 214
+    float _S41 = intBitsToFloat(_S40 + _S34);
+
+#line 214
+    float _S42;
+
+    if((abs(_S32)) < 0.03125)
+    {
+
+#line 216
+        _S42 = _S32 + 0.0000152587890625 * _S26;
+
+#line 216
+    }
+    else
+    {
+
+#line 216
+        _S42 = _S35;
+
+#line 216
+    }
+
+#line 216
+    float _S43;
+    if((abs(_S36)) < 0.03125)
+    {
+
+#line 217
+        _S43 = _S36 + 0.0000152587890625 * _S28;
+
+#line 217
+    }
+    else
+    {
+
+#line 217
+        _S43 = _S38;
+
+#line 217
+    }
+
+#line 217
+    float _S44;
+    if((abs(_S39)) < 0.03125)
+    {
+
+#line 218
+        _S44 = _S39 + 0.0000152587890625 * _S30;
+
+#line 218
+    }
+    else
+    {
+
+#line 218
+        _S44 = _S41;
+
+#line 218
+    }
+
+#line 216
+    return vec3(_S42, _S43, _S44);
+}
+
+
+#line 54 2
 bool castShadowRay_0(vec3 hitPosition_3, vec3 surfaceNormal_2, vec3 directionToLight_0, float TMax_1)
 {
     RayDesc_0 ray_1;
-    ray_1.Origin_0 = hitPosition_3;
+    ray_1.Origin_0 = offsetRay_0(hitPosition_3, surfaceNormal_2);
     ray_1.Direction_0 = directionToLight_0;
     ray_1.TMin_0 = 0.0;
     ray_1.TMax_0 = TMax_1;
@@ -556,13 +785,13 @@ bool castShadowRay_0(vec3 hitPosition_3, vec3 surfaceNormal_2, vec3 directionToL
     payload_1.hasHit_0 = true;
 
 
-    RayDesc_0 _S18 = ray_1;
+    RayDesc_0 _S45 = ray_1;
 
 #line 66
     p_0 = payload_1;
 
 #line 66
-    traceRayEXT(topLevelAS_0, 12U, 255U, 1U, 0U, 1U, _S18.Origin_0, _S18.TMin_0, _S18.Direction_0, _S18.TMax_0, 0);
+    traceRayEXT(topLevelAS_0, 12U, 255U, 1U, 0U, 1U, _S45.Origin_0, _S45.TMin_0, _S45.Direction_0, _S45.TMax_0, 0);
 
 #line 66
     payload_1 = p_0;
@@ -675,11 +904,11 @@ BrdfData_0 prepareBRDFData_0(vec3 N_1, vec3 L_1, vec3 V_1, MaterialProperties_0 
 
 
     data_1.roughness_1 = material_0.roughness_0;
-    float _S19 = material_0.roughness_0 * material_0.roughness_0;
+    float _S46 = material_0.roughness_0 * material_0.roughness_0;
 
 #line 866
-    data_1.alpha_0 = _S19;
-    data_1.alphaSquared_0 = _S19 * _S19;
+    data_1.alpha_0 = _S46;
+    data_1.alphaSquared_0 = _S46 * _S46;
 
 
     data_1.F_0 = evalFresnel_0(data_1.specularF0_0, shadowedF90_0(data_1.specularF0_0), data_1.LdotH_0);
@@ -741,14 +970,14 @@ vec3 evalCombinedBRDF_0(vec3 N_2, vec3 L_2, vec3 V_2, MaterialProperties_0 mater
     BrdfData_0 data_4 = prepareBRDFData_0(N_2, L_2, V_2, material_1);
 
 #line 879
-    bool _S20;
+    bool _S47;
 
 
     if(data_4.Vbackfacing_0)
     {
 
 #line 882
-        _S20 = true;
+        _S47 = true;
 
 #line 882
     }
@@ -756,13 +985,13 @@ vec3 evalCombinedBRDF_0(vec3 N_2, vec3 L_2, vec3 V_2, MaterialProperties_0 mater
     {
 
 #line 882
-        _S20 = data_4.Lbackfacing_0;
+        _S47 = data_4.Lbackfacing_0;
 
 #line 882
     }
 
 #line 882
-    if(_S20)
+    if(_S47)
     {
 
 #line 882
@@ -774,17 +1003,17 @@ vec3 evalCombinedBRDF_0(vec3 N_2, vec3 L_2, vec3 V_2, MaterialProperties_0 mater
 }
 
 
-#line 147 2
-float getBrdfProbability_0(MaterialProperties_0 material_2, vec3 V_3, vec3 shadingNormal_0)
+#line 145 2
+float getBrdfProbability_0(MaterialProperties_0 material_2, vec3 V_3, vec3 shadingNormal_1)
 {
 
-#line 153
-    vec3 _S21 = vec3(luminance_0(baseColorToSpecularF0_0(material_2.baseColor_0, material_2.metalness_0)));
+#line 151
+    vec3 _S48 = vec3(luminance_0(baseColorToSpecularF0_0(material_2.baseColor_0, material_2.metalness_0)));
 
-#line 153
-    float Fresnel_0 = saturate_0(luminance_0(evalFresnel_0(_S21, shadowedF90_0(_S21), max(0.0, dot(V_3, shadingNormal_0)))));
+#line 151
+    float Fresnel_0 = saturate_0(luminance_0(evalFresnel_0(_S48, shadowedF90_0(_S48), max(0.0, dot(V_3, shadingNormal_1)))));
 
-#line 163
+#line 161
     return clamp(Fresnel_0 / max(0.00009999999747379, Fresnel_0 + luminance_0(baseColorToDiffuseReflectance_0(material_2.baseColor_0, material_2.metalness_0)) * (1.0 - Fresnel_0)), 0.10000000149011612, 0.89999997615814209);
 }
 
@@ -793,49 +1022,49 @@ float getBrdfProbability_0(MaterialProperties_0 material_2, vec3 V_3, vec3 shadi
 vec4 getRotationToZAxis_0(vec3 input_0)
 {
 
-    float _S22 = input_0.z;
+    float _S49 = input_0.z;
 
 #line 283
-    if(_S22 < -0.99998998641967773)
+    if(_S49 < -0.99998998641967773)
     {
 
 #line 283
         return vec4(1.0, 0.0, 0.0, 0.0);
     }
-    return normalize(vec4(input_0.y, - input_0.x, 0.0, 1.0 + _S22));
+    return normalize(vec4(input_0.y, - input_0.x, 0.0, 1.0 + _S49));
 }
 
 
 #line 306
-vec3 rotatePoint_0(vec4 q_0, vec3 v_1)
+vec3 rotatePoint_0(vec4 q_0, vec3 v_2)
 {
 
 #line 307
     vec3 qAxis_0 = vec3(q_0.x, q_0.y, q_0.z);
-    float _S23 = q_0.w;
+    float _S50 = q_0.w;
 
 #line 308
-    return 2.0 * dot(qAxis_0, v_1) * qAxis_0 + (_S23 * _S23 - dot(qAxis_0, qAxis_0)) * v_1 + 2.0 * _S23 * cross(qAxis_0, v_1);
+    return 2.0 * dot(qAxis_0, v_2) * qAxis_0 + (_S50 * _S50 - dot(qAxis_0, qAxis_0)) * v_2 + 2.0 * _S50 * cross(qAxis_0, v_2);
 }
 
 
 #line 317
 vec3 sampleHemisphere_0(vec2 u_0, out float pdf_0)
 {
-    float _S24 = u_0.x;
+    float _S51 = u_0.x;
 
 #line 319
-    float a_0 = sqrt(_S24);
+    float a_0 = sqrt(_S51);
     float b_1 = 6.28318548202514648 * u_0.y;
 
 #line 325
-    float _S25 = sqrt(1.0 - _S24);
+    float _S52 = sqrt(1.0 - _S51);
 
 #line 322
-    vec3 result_1 = vec3(a_0 * cos(b_1), a_0 * sin(b_1), _S25);
+    vec3 result_1 = vec3(a_0 * cos(b_1), a_0 * sin(b_1), _S52);
 
 #line 327
-    pdf_0 = _S25 * 0.31830987334251404;
+    pdf_0 = _S52 * 0.31830987334251404;
 
     return result_1;
 }
@@ -862,22 +1091,22 @@ float lambertian_0(BrdfData_0 data_5)
 vec3 sampleGGXVNDF_0(vec3 Ve_0, vec2 alpha2D_0, vec2 u_2)
 {
 
-    float _S26 = alpha2D_0.x;
+    float _S53 = alpha2D_0.x;
 
 #line 706
-    float _S27 = alpha2D_0.y;
+    float _S54 = alpha2D_0.y;
 
 #line 706
-    vec3 Vh_0 = normalize(vec3(_S26 * Ve_0.x, _S27 * Ve_0.y, Ve_0.z));
+    vec3 Vh_0 = normalize(vec3(_S53 * Ve_0.x, _S54 * Ve_0.y, Ve_0.z));
 
 
-    float _S28 = Vh_0.x;
-
-#line 709
-    float _S29 = Vh_0.y;
+    float _S55 = Vh_0.x;
 
 #line 709
-    float lensq_0 = _S28 * _S28 + _S29 * _S29;
+    float _S56 = Vh_0.y;
+
+#line 709
+    float lensq_0 = _S55 * _S55 + _S56 * _S56;
 
 #line 709
     vec3 T1_0;
@@ -885,7 +1114,7 @@ vec3 sampleGGXVNDF_0(vec3 Ve_0, vec2 alpha2D_0, vec2 u_2)
     {
 
 #line 710
-        T1_0 = vec3(- _S29, _S28, 0.0) * (inversesqrt((lensq_0)));
+        T1_0 = vec3(- _S56, _S55, 0.0) * (inversesqrt((lensq_0)));
 
 #line 710
     }
@@ -905,16 +1134,16 @@ vec3 sampleGGXVNDF_0(vec3 Ve_0, vec2 alpha2D_0, vec2 u_2)
     float t1_0 = r_0 * cos(phi_0);
 
 
-    float _S30 = 1.0 - t1_0 * t1_0;
+    float _S57 = 1.0 - t1_0 * t1_0;
 
 #line 719
-    float t2_0 = mix(sqrt(_S30), r_0 * sin(phi_0), 0.5 * (1.0 + Vh_0.z));
+    float t2_0 = mix(sqrt(_S57), r_0 * sin(phi_0), 0.5 * (1.0 + Vh_0.z));
 
 
-    vec3 Nh_0 = t1_0 * T1_0 + t2_0 * cross(Vh_0, T1_0) + sqrt(max(0.0, _S30 - t2_0 * t2_0)) * Vh_0;
+    vec3 Nh_0 = t1_0 * T1_0 + t2_0 * cross(Vh_0, T1_0) + sqrt(max(0.0, _S57 - t2_0 * t2_0)) * Vh_0;
 
 
-    return normalize(vec3(_S26 * Nh_0.x, _S27 * Nh_0.y, max(0.0, Nh_0.z)));
+    return normalize(vec3(_S53 * Nh_0.x, _S54 * Nh_0.y, max(0.0, Nh_0.z)));
 }
 
 
@@ -994,10 +1223,10 @@ vec4 invertRotation_0(vec4 q_1)
 
 
 #line 898
-bool evalIndirectCombinedBRDF_0(vec2 u_4, vec3 shadingNormal_1, vec3 geometryNormal_0, vec3 V_4, MaterialProperties_0 material_3, int brdfType_0, out vec3 rayDirection_0, out vec3 sampleWeight_0)
+bool evalIndirectCombinedBRDF_0(vec2 u_4, vec3 shadingNormal_2, vec3 geometryNormal_1, vec3 V_4, MaterialProperties_0 material_3, int brdfType_0, out vec3 rayDirection_0, out vec3 sampleWeight_0)
 {
 
-    if((dot(shadingNormal_1, V_4)) <= 0.0)
+    if((dot(shadingNormal_2, V_4)) <= 0.0)
     {
 
 #line 901
@@ -1005,11 +1234,11 @@ bool evalIndirectCombinedBRDF_0(vec2 u_4, vec3 shadingNormal_1, vec3 geometryNor
     }
 
 
-    vec4 qRotationToZ_0 = getRotationToZAxis_0(shadingNormal_1);
+    vec4 qRotationToZ_0 = getRotationToZAxis_0(shadingNormal_2);
     vec3 Vlocal_1 = rotatePoint_0(qRotationToZ_0, V_4);
     const vec3 Nlocal_1 = vec3(0.0, 0.0, 1.0);
 
-    const vec3 _S31 = vec3(0.0, 0.0, 0.0);
+    const vec3 _S58 = vec3(0.0, 0.0, 0.0);
 
 #line 909
     vec3 rayDirectionLocal_0;
@@ -1021,10 +1250,10 @@ bool evalIndirectCombinedBRDF_0(vec2 u_4, vec3 shadingNormal_1, vec3 geometryNor
         BrdfData_0 data_6 = prepareBRDFData_0(Nlocal_1, rayDirectionLocal_1, Vlocal_1, material_3);
 
 #line 915
-        float _S32 = data_6.alpha_0;
+        float _S59 = data_6.alpha_0;
 
 #line 926
-        sampleWeight_0 = data_6.diffuseReflectance_0 * lambertian_0(data_6) * (vec3(1.0, 1.0, 1.0) - evalFresnel_0(data_6.specularF0_0, shadowedF90_0(data_6.specularF0_0), max(0.00000999999974738, min(1.0, dot(Vlocal_1, sampleGGXVNDF_0(Vlocal_1, vec2(_S32, _S32), u_4))))));
+        sampleWeight_0 = data_6.diffuseReflectance_0 * lambertian_0(data_6) * (vec3(1.0, 1.0, 1.0) - evalFresnel_0(data_6.specularF0_0, shadowedF90_0(data_6.specularF0_0), max(0.00000999999974738, min(1.0, dot(Vlocal_1, sampleGGXVNDF_0(Vlocal_1, vec2(_S59, _S59), u_4))))));
 
 #line 926
         rayDirectionLocal_0 = rayDirectionLocal_1;
@@ -1040,10 +1269,10 @@ bool evalIndirectCombinedBRDF_0(vec2 u_4, vec3 shadingNormal_1, vec3 geometryNor
 
 #line 930
             BrdfData_0 data_7 = prepareBRDFData_0(Nlocal_1, Nlocal_1, Vlocal_1, material_3);
-            vec3 _S33 = sampleSpecularMicrofacet_0(Vlocal_1, data_7.alpha_0, data_7.alphaSquared_0, data_7.specularF0_0, u_4, sampleWeight_0);
+            vec3 _S60 = sampleSpecularMicrofacet_0(Vlocal_1, data_7.alpha_0, data_7.alphaSquared_0, data_7.specularF0_0, u_4, sampleWeight_0);
 
 #line 931
-            rayDirectionLocal_0 = _S33;
+            rayDirectionLocal_0 = _S60;
 
 #line 929
         }
@@ -1051,7 +1280,7 @@ bool evalIndirectCombinedBRDF_0(vec2 u_4, vec3 shadingNormal_1, vec3 geometryNor
         {
 
 #line 929
-            rayDirectionLocal_0 = _S31;
+            rayDirectionLocal_0 = _S58;
 
 #line 929
         }
@@ -1067,13 +1296,13 @@ bool evalIndirectCombinedBRDF_0(vec2 u_4, vec3 shadingNormal_1, vec3 geometryNor
         return false;
     }
 
-    vec3 _S34 = normalize(rotatePoint_0(invertRotation_0(qRotationToZ_0), rayDirectionLocal_0));
+    vec3 _S61 = normalize(rotatePoint_0(invertRotation_0(qRotationToZ_0), rayDirectionLocal_0));
 
 #line 938
-    rayDirection_0 = _S34;
+    rayDirection_0 = _S61;
 
 
-    if((dot(geometryNormal_0, _S34)) <= 0.0)
+    if((dot(geometryNormal_1, _S61)) <= 0.0)
     {
 
 #line 941
@@ -1083,186 +1312,21 @@ bool evalIndirectCombinedBRDF_0(vec2 u_4, vec3 shadingNormal_1, vec3 geometryNor
 }
 
 
-#line 172 1
-vec3 offsetRay_0(vec3 p_2, vec3 n_0)
-{
-
-#line 178
-    float _S35 = n_0.x;
-
-#line 178
-    int _S36 = int(256.0 * _S35);
-
-#line 178
-    float _S37 = n_0.y;
-
-#line 178
-    int _S38 = int(256.0 * _S37);
-
-#line 178
-    float _S39 = n_0.z;
-
-#line 178
-    int _S40 = int(256.0 * _S39);
-
-
-    float _S41 = p_2.x;
-
-#line 181
-    int _S42 = floatBitsToInt(_S41);
-
-#line 181
-    int _S43;
-
-#line 181
-    if(_S41 < 0.0)
-    {
-
-#line 181
-        _S43 = - _S36;
-
-#line 181
-    }
-    else
-    {
-
-#line 181
-        _S43 = _S36;
-
-#line 181
-    }
-
-#line 181
-    float _S44 = intBitsToFloat(_S42 + _S43);
-    float _S45 = p_2.y;
-
-#line 182
-    int _S46 = floatBitsToInt(_S45);
-
-#line 182
-    if(_S45 < 0.0)
-    {
-
-#line 182
-        _S43 = - _S38;
-
-#line 182
-    }
-    else
-    {
-
-#line 182
-        _S43 = _S38;
-
-#line 182
-    }
-
-#line 182
-    float _S47 = intBitsToFloat(_S46 + _S43);
-    float _S48 = p_2.z;
-
-#line 183
-    int _S49 = floatBitsToInt(_S48);
-
-#line 183
-    if(_S48 < 0.0)
-    {
-
-#line 183
-        _S43 = - _S40;
-
-#line 183
-    }
-    else
-    {
-
-#line 183
-        _S43 = _S40;
-
-#line 183
-    }
-
-#line 183
-    float _S50 = intBitsToFloat(_S49 + _S43);
-
-#line 183
-    float _S51;
-
-    if((abs(_S41)) < 0.03125)
-    {
-
-#line 185
-        _S51 = _S41 + 0.0000152587890625 * _S35;
-
-#line 185
-    }
-    else
-    {
-
-#line 185
-        _S51 = _S44;
-
-#line 185
-    }
-
-#line 185
-    float _S52;
-    if((abs(_S45)) < 0.03125)
-    {
-
-#line 186
-        _S52 = _S45 + 0.0000152587890625 * _S37;
-
-#line 186
-    }
-    else
-    {
-
-#line 186
-        _S52 = _S47;
-
-#line 186
-    }
-
-#line 186
-    float _S53;
-    if((abs(_S48)) < 0.03125)
-    {
-
-#line 187
-        _S53 = _S48 + 0.0000152587890625 * _S39;
-
-#line 187
-    }
-    else
-    {
-
-#line 187
-        _S53 = _S50;
-
-#line 187
-    }
-
-#line 185
-    return vec3(_S51, _S52, _S53);
-}
-
-
-#line 168 2
+#line 166 2
 void main()
 {
 
-#line 168
+#line 166
     vec3 radiance_0;
 
-    uvec3 _S54 = ((gl_LaunchIDEXT));
+    uvec3 _S62 = ((gl_LaunchIDEXT));
 
-#line 170
-    uvec2 LaunchIndex_0 = _S54.xy;
-    uvec3 _S55 = ((gl_LaunchSizeEXT));
+#line 168
+    uvec2 LaunchIndex_0 = _S62.xy;
+    uvec3 _S63 = ((gl_LaunchSizeEXT));
 
-#line 171
-    uvec2 LaunchDimensions_0 = _S55.xy;
+#line 169
+    uvec2 LaunchDimensions_0 = _S63.xy;
 
 
     vec2 d_0 = (vec2(LaunchIndex_0) + vec2(0.5)) / vec2(LaunchDimensions_0) * 2.0 - 1.0;
@@ -1272,53 +1336,50 @@ void main()
 
 
     vec3 rayDir_0 = (((vec4(normalize((((vec4(d_0.x, d_0.y, 1.0, 1.0)) * (mat4x4(MyContantBuffer_0.giParams_0.projInverse_0.data_0[0][0], MyContantBuffer_0.giParams_0.projInverse_0.data_0[1][0], MyContantBuffer_0.giParams_0.projInverse_0.data_0[2][0], MyContantBuffer_0.giParams_0.projInverse_0.data_0[3][0], MyContantBuffer_0.giParams_0.projInverse_0.data_0[0][1], MyContantBuffer_0.giParams_0.projInverse_0.data_0[1][1], MyContantBuffer_0.giParams_0.projInverse_0.data_0[2][1], MyContantBuffer_0.giParams_0.projInverse_0.data_0[3][1], MyContantBuffer_0.giParams_0.projInverse_0.data_0[0][2], MyContantBuffer_0.giParams_0.projInverse_0.data_0[1][2], MyContantBuffer_0.giParams_0.projInverse_0.data_0[2][2], MyContantBuffer_0.giParams_0.projInverse_0.data_0[3][2], MyContantBuffer_0.giParams_0.projInverse_0.data_0[0][3], MyContantBuffer_0.giParams_0.projInverse_0.data_0[1][3], MyContantBuffer_0.giParams_0.projInverse_0.data_0[2][3], MyContantBuffer_0.giParams_0.projInverse_0.data_0[3][3])))).xyz), 0.0)) * (mat4x4(MyContantBuffer_0.giParams_0.viewInverse_0.data_0[0][0], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[1][0], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[2][0], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[3][0], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[0][1], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[1][1], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[2][1], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[3][1], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[0][2], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[1][2], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[2][2], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[3][2], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[0][3], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[1][3], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[2][3], MyContantBuffer_0.giParams_0.viewInverse_0.data_0[3][3])))).xyz;
-    vec3 _S56 = origin_0.xyz;
+    vec3 _S64 = origin_0.xyz;
 
 
     uvec4 rngState_3 = initRNG_0(LaunchIndex_0, LaunchDimensions_0, MyContantBuffer_0.giParams_0.frameCount_0);
 
 
-    const vec3 _S57 = vec3(0.0, 0.0, 0.0);
-    const vec3 _S58 = vec3(1.0, 1.0, 1.0);
+    const vec3 _S65 = vec3(0.0, 0.0, 0.0);
+    const vec3 _S66 = vec3(1.0, 1.0, 1.0);
 
-#line 188
-    vec3 rayOri_0 = _S56;
+#line 186
+    vec3 rayOri_0 = _S64;
 
-#line 188
+#line 186
     int bounce_0 = 0;
 
-#line 188
-    vec3 throughput_0 = _S58;
+#line 186
+    vec3 throughput_0 = _S66;
 
-#line 188
-    vec3 radiance_1 = _S57;
+#line 186
+    vec3 radiance_1 = _S65;
 
     for(;;)
     {
 
-#line 190
+#line 188
         if(uint(bounce_0) <= (MyContantBuffer_0.giParams_0.numRays_0))
         {
         }
         else
         {
 
-#line 190
+#line 188
             radiance_0 = radiance_1;
 
-#line 190
+#line 188
             break;
         }
-        IndirectGbufferRayPayload_0 _S59 = shootRay_0(rayOri_0, rayDir_0);
+        IndirectGbufferRayPayload_0 payload_2 = shootRay_0(rayOri_0, rayDir_0);
 
-#line 192
-        IndirectGbufferRayPayload_0 payload_2 = _S59;
-
-        if(!IndirectGbufferRayPayload_hasHit_0(_S59))
+        if(!IndirectGbufferRayPayload_hasHit_0(payload_2))
         {
 
-#line 194
-            radiance_0 = radiance_1 + throughput_0 * _S57;
+#line 192
+            radiance_0 = radiance_1 + throughput_0 * _S65;
 
 
             break;
@@ -1327,166 +1388,167 @@ void main()
 
         MaterialProperties_0 material_4 = loadMaterialProperties_0(payload_2);
 
-        vec3 radiance_2 = radiance_1 + throughput_0 * material_4.emissive_0;
+        vec3 geometryNormal_2;
+        vec3 shadingNormal_3;
+        decodeNormals_0(payload_2.normal_0, geometryNormal_2, shadingNormal_3);
 
         vec3 V_5 = - rayDir_0;
-        if((dot(payload_2.normal_0.xyz, V_5)) < 0.0)
-        {
-
-#line 206
-            payload_2.normal_0.xyz = - payload_2.normal_0.xyz;
-
-#line 206
-        }
 
 
+
+        vec3 radiance_2 = radiance_1 + throughput_0 * material_4.emissive_0;
+
+#line 216
+        vec3 _S67 = payload_2.position_objectID_0.xyz;
+
+#line 214
         SLight_0 light_3;
         float lightWeight_0;
-        bool _S60 = sampleLightRIS_0(rngState_3, payload_2.position_objectID_0.xyz, payload_2.normal_0.xyz, light_3, lightWeight_0);
+        bool _S68 = sampleLightRIS_0(rngState_3, _S67, geometryNormal_2, light_3, lightWeight_0);
 
-#line 211
-        if(_S60)
+#line 216
+        if(_S68)
         {
 
             vec3 lightVector_2;
             float lightDistance_2;
-            getLightData_0(light_3, payload_2.position_objectID_0.xyz, lightVector_2, lightDistance_2);
+            getLightData_0(light_3, _S67, lightVector_2, lightDistance_2);
             vec3 L_3 = normalize(lightVector_2);
 
 
-            bool _S61 = castShadowRay_0(payload_2.position_objectID_0.xyz, payload_2.normal_0.xyz, L_3, lightDistance_2);
+            bool _S69 = castShadowRay_0(_S67, geometryNormal_2, L_3, lightDistance_2);
 
-#line 220
-            if(_S61)
+#line 225
+            if(_S69)
             {
 
-#line 220
-                radiance_0 = radiance_2 + throughput_0 * evalCombinedBRDF_0(payload_2.normal_0.xyz, L_3, V_5, material_4) * (getLightIntensityAtPoint_0(light_3, lightDistance_2) * lightWeight_0);
+#line 225
+                radiance_0 = radiance_2 + throughput_0 * evalCombinedBRDF_0(shadingNormal_3, L_3, V_5, material_4) * (getLightIntensityAtPoint_0(light_3, lightDistance_2) * lightWeight_0);
 
-#line 220
+#line 225
             }
             else
             {
 
-#line 220
+#line 225
                 radiance_0 = radiance_2;
 
-#line 220
+#line 225
             }
 
-#line 211
+#line 216
         }
         else
         {
 
-#line 211
+#line 216
             radiance_0 = radiance_2;
 
-#line 211
+#line 216
         }
 
-#line 211
+#line 216
         vec3 throughput_1;
 
-#line 228
+#line 233
         if(bounce_0 > 3)
         {
 
-#line 228
-            vec3 _S62;
+#line 233
+            vec3 _S70;
             float rrProbability_0 = min(0.94999998807907104, luminance_0(throughput_0));
-            float _S63 = rand_0(rngState_3);
+            float _S71 = rand_0(rngState_3);
 
-#line 230
-            if(rrProbability_0 < _S63)
+#line 235
+            if(rrProbability_0 < _S71)
             {
 
-#line 230
+#line 235
                 break;
             }
             else
             {
 
-#line 230
-                _S62 = throughput_0 / rrProbability_0;
+#line 235
+                _S70 = throughput_0 / rrProbability_0;
 
-#line 230
+#line 235
             }
 
-#line 230
-            throughput_1 = _S62;
+#line 235
+            throughput_1 = _S70;
 
-#line 228
+#line 233
         }
         else
         {
 
-#line 228
+#line 233
             throughput_1 = throughput_0;
 
-#line 228
+#line 233
         }
 
-#line 228
-        bool _S64;
+#line 233
+        bool _S72;
 
-#line 237
+#line 242
         if((material_4.metalness_0) == 1.0)
         {
 
-#line 237
-            _S64 = (material_4.roughness_0) == 0.0;
+#line 242
+            _S72 = (material_4.roughness_0) == 0.0;
 
-#line 237
+#line 242
         }
         else
         {
 
-#line 237
-            _S64 = false;
+#line 242
+            _S72 = false;
 
-#line 237
+#line 242
         }
 
-#line 237
+#line 242
         vec3 throughput_2;
 
-#line 237
+#line 242
         int brdfType_1;
 
-#line 237
-        if(_S64)
+#line 242
+        if(_S72)
         {
 
-#line 237
+#line 242
             brdfType_1 = 2;
 
-#line 237
+#line 242
             throughput_2 = throughput_1;
 
-#line 237
+#line 242
         }
         else
         {
 
 
 
-            float brdfProbability_0 = getBrdfProbability_0(material_4, V_5, payload_2.normal_0.xyz);
+            float brdfProbability_0 = getBrdfProbability_0(material_4, V_5, shadingNormal_3);
 
-            float _S65 = rand_0(rngState_3);
+            float _S73 = rand_0(rngState_3);
 
-#line 245
-            if(_S65 < brdfProbability_0)
+#line 250
+            if(_S73 < brdfProbability_0)
             {
                 vec3 throughput_3 = throughput_1 / brdfProbability_0;
 
-#line 247
+#line 252
                 brdfType_1 = 2;
 
-#line 247
+#line 252
                 throughput_2 = throughput_3;
 
-#line 245
+#line 250
             }
             else
             {
@@ -1494,34 +1556,34 @@ void main()
 
                 vec3 throughput_4 = throughput_1 / (1.0 - brdfProbability_0);
 
-#line 250
+#line 255
                 brdfType_1 = 1;
 
-#line 250
+#line 255
                 throughput_2 = throughput_4;
 
-#line 245
+#line 250
             }
 
-#line 237
+#line 242
         }
 
-#line 256
-        float _S66 = rand_0(rngState_3);
+#line 261
+        float _S74 = rand_0(rngState_3);
 
-#line 256
-        float _S67 = rand_0(rngState_3);
+#line 261
+        float _S75 = rand_0(rngState_3);
 
-#line 255
+#line 260
         vec3 brdfWeight_0;
 
-        bool _S68 = evalIndirectCombinedBRDF_0(vec2(_S66, _S67), payload_2.normal_0.xyz, payload_2.normal_0.xyz, V_5, material_4, brdfType_1, rayDir_0, brdfWeight_0);
+        bool _S76 = evalIndirectCombinedBRDF_0(vec2(_S74, _S75), shadingNormal_3, geometryNormal_2, V_5, material_4, brdfType_1, rayDir_0, brdfWeight_0);
 
-#line 257
-        if(!_S68)
+#line 262
+        if(!_S76)
         {
 
-#line 258
+#line 263
             break;
         }
 
@@ -1529,36 +1591,28 @@ void main()
         vec3 throughput_5 = throughput_2 * brdfWeight_0;
 
 
-        vec3 _S69 = offsetRay_0(payload_2.position_objectID_0.xyz, payload_2.normal_0.xyz);
+        vec3 _S77 = offsetRay_0(_S67, geometryNormal_2);
 
-#line 190
-        int _S70 = bounce_0 + 1;
+#line 188
+        int _S78 = bounce_0 + 1;
 
-#line 190
-        rayOri_0 = _S69;
+#line 188
+        rayOri_0 = _S77;
 
-#line 190
-        bounce_0 = _S70;
+#line 188
+        bounce_0 = _S78;
 
-#line 190
+#line 188
         throughput_0 = throughput_5;
 
-#line 190
+#line 188
         radiance_1 = radiance_0;
 
-#line 190
+#line 188
     }
 
-#line 269
-    ivec2 _S71 = ivec2(LaunchIndex_0);
-
-#line 269
-    vec4 _S72 = (imageLoad((accumulationBuffer_0), (_S71)));
-
-
-    imageStore((accumulationBuffer_0), (_S71), vec4(_S72.xyz + radiance_0, 1.0));
-
-    imageStore((ptOutput_0), (_S71), vec4(radiance_0, 1.0));
+#line 279
+    imageStore((ptOutput_0), (ivec2(LaunchIndex_0)), vec4(radiance_0, 1.0));
     return;
 }
 

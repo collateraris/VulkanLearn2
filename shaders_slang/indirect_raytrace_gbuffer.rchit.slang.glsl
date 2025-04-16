@@ -11,7 +11,7 @@ struct _MatrixStorage_float4x4_ColMajorstd430_0
 };
 
 
-#line 69 1
+#line 109 1
 struct SObjectData_std430_0
 {
     _MatrixStorage_float4x4_ColMajorstd430_0 model_0;
@@ -34,7 +34,7 @@ layout(std430, binding = 7) readonly buffer StructuredBuffer_vectorx3Cintx2C4x3E
     ivec4 _data[];
 } indices_0[];
 
-#line 48 1
+#line 88 1
 struct SVertex_std430_0
 {
     vec4 positionXYZ_normalX_0;
@@ -55,7 +55,111 @@ layout(binding = 8)
 uniform sampler linearSampler_0;
 
 
-#line 22 1
+#line 40 1
+vec2 octWrap_0(vec2 v_0)
+{
+    float _S1 = v_0.y;
+
+#line 42
+    float _S2 = 1.0 - abs(_S1);
+
+#line 42
+    float _S3 = v_0.x;
+
+#line 42
+    float _S4;
+
+#line 42
+    if(_S3 >= 0.0)
+    {
+
+#line 42
+        _S4 = 1.0;
+
+#line 42
+    }
+    else
+    {
+
+#line 42
+        _S4 = -1.0;
+
+#line 42
+    }
+
+#line 42
+    float _S5 = _S2 * _S4;
+
+#line 42
+    float _S6 = 1.0 - abs(_S3);
+
+#line 42
+    if(_S1 >= 0.0)
+    {
+
+#line 42
+        _S4 = 1.0;
+
+#line 42
+    }
+    else
+    {
+
+#line 42
+        _S4 = -1.0;
+
+#line 42
+    }
+
+#line 42
+    return vec2(_S5, _S6 * _S4);
+}
+
+vec2 encodeNormalOctahedron_0(vec3 n_0)
+{
+    float _S7 = n_0.x;
+
+#line 47
+    float _S8 = n_0.y;
+
+#line 47
+    float _S9 = n_0.z;
+
+#line 47
+    vec2 p_0 = vec2(_S7, _S8) * (1.0 / (abs(_S7) + abs(_S8) + abs(_S9)));
+
+#line 47
+    vec2 p_1;
+    if(_S9 < 0.0)
+    {
+
+#line 48
+        p_1 = octWrap_0(p_0);
+
+#line 48
+    }
+    else
+    {
+
+#line 48
+        p_1 = p_0;
+
+#line 48
+    }
+    return p_1;
+}
+
+
+#line 61
+vec4 encodeNormals_0(vec3 geometryNormal_0, vec3 shadingNormal_0)
+{
+
+#line 62
+    return vec4(encodeNormalOctahedron_0(geometryNormal_0), encodeNormalOctahedron_0(shadingNormal_0));
+}
+
+
+#line 26
 struct IndirectGbufferRayPayload_0
 {
     vec4 albedo_metalness_0;
@@ -66,7 +170,7 @@ struct IndirectGbufferRayPayload_0
 
 
 #line 24 2
-rayPayloadInEXT IndirectGbufferRayPayload_0 _S1;
+rayPayloadInEXT IndirectGbufferRayPayload_0 _S10;
 
 
 #line 3
@@ -77,183 +181,160 @@ struct BuiltInTriangleIntersectionAttributes_0
 
 
 #line 24
-hitAttributeEXT BuiltInTriangleIntersectionAttributes_0 _S2;
+hitAttributeEXT BuiltInTriangleIntersectionAttributes_0 _S11;
 
 
 #line 24
 void main()
 {
-    uint _S3 = ((gl_InstanceCustomIndexEXT));
+    uint _S12 = ((gl_InstanceCustomIndexEXT));
 
-    uint _S4 = ((gl_PrimitiveID));
+    uint _S13 = ((gl_PrimitiveID));
 
 #line 28
-    uvec4 _S5 = uvec4(indices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S4)]);
+    uvec4 _S14 = uvec4(indices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S13)]);
 
 #line 34
-    float _S6 = _S2.baryCoord_0.x;
+    float _S15 = _S11.baryCoord_0.x;
 
 #line 34
-    float _S7 = _S2.baryCoord_0.y;
+    float _S16 = _S11.baryCoord_0.y;
 
 #line 34
-    float _S8 = 1.0 - _S6 - _S7;
+    float _S17 = 1.0 - _S15 - _S16;
 
-    vec2 uv0_0 = vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.x)].normalYZ_texCoordUV_0.zw;
-    vec2 uv1_0 = vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.y)].normalYZ_texCoordUV_0.zw;
-    vec2 uv2_0 = vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.z)].normalYZ_texCoordUV_0.zw;
+    vec2 uv0_0 = vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.x)].normalYZ_texCoordUV_0.zw;
+    vec2 uv1_0 = vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.y)].normalYZ_texCoordUV_0.zw;
+    vec2 uv2_0 = vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.z)].normalYZ_texCoordUV_0.zw;
 
 
-    vec2 texCoord_0 = uv0_0 * _S8 + uv1_0 * _S6 + uv2_0 * _S7;
+    vec2 texCoord_0 = uv0_0 * _S17 + uv1_0 * _S15 + uv2_0 * _S16;
 
-    vec3 v0_pos_0 = vec3(vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.x)].positionXYZ_normalX_0.x, vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.x)].positionXYZ_normalX_0.y, vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.x)].positionXYZ_normalX_0.z);
-    vec3 v1_pos_0 = vec3(vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.y)].positionXYZ_normalX_0.x, vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.y)].positionXYZ_normalX_0.y, vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.y)].positionXYZ_normalX_0.z);
-    vec3 v2_pos_0 = vec3(vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.z)].positionXYZ_normalX_0.x, vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.z)].positionXYZ_normalX_0.y, vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.z)].positionXYZ_normalX_0.z);
+    vec3 v0_pos_0 = vec3(vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.x)].positionXYZ_normalX_0.x, vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.x)].positionXYZ_normalX_0.y, vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.x)].positionXYZ_normalX_0.z);
+    vec3 v1_pos_0 = vec3(vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.y)].positionXYZ_normalX_0.x, vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.y)].positionXYZ_normalX_0.y, vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.y)].positionXYZ_normalX_0.z);
+    vec3 v2_pos_0 = vec3(vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.z)].positionXYZ_normalX_0.x, vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.z)].positionXYZ_normalX_0.y, vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.z)].positionXYZ_normalX_0.z);
 
-    vec3 pos_0 = v0_pos_0 * _S8 + v1_pos_0 * _S6 + v2_pos_0 * _S7;
-    mat3x4 _S9 = (transpose(gl_ObjectToWorldEXT));
+    vec3 pos_0 = v0_pos_0 * _S17 + v1_pos_0 * _S15 + v2_pos_0 * _S16;
+    mat3x4 _S18 = (transpose(gl_ObjectToWorldEXT));
 
 #line 48
-    vec3 worldPos_0 = (((mat3x3(_S9[0].xyz, _S9[1].xyz, _S9[2].xyz)) * (pos_0)));
+    vec3 worldPos_0 = (((vec4(pos_0, 0.0)) * (_S18)));
 
 #line 56
-    vec3 nrm_0 = vec3(vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.x)].positionXYZ_normalX_0.w, vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.x)].normalYZ_texCoordUV_0.x, vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.x)].normalYZ_texCoordUV_0.y) * _S8 + vec3(vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.y)].positionXYZ_normalX_0.w, vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.y)].normalYZ_texCoordUV_0.x, vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.y)].normalYZ_texCoordUV_0.y) * _S6 + vec3(vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.z)].positionXYZ_normalX_0.w, vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.z)].normalYZ_texCoordUV_0.x, vertices_0[objectBuffer_0._data[uint(_S3)].meshIndex_0]._data[uint(_S5.z)].normalYZ_texCoordUV_0.y) * _S7;
-    mat3x4 _S10 = (transpose(gl_ObjectToWorldEXT));
+    vec3 nrm_0 = vec3(vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.x)].positionXYZ_normalX_0.w, vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.x)].normalYZ_texCoordUV_0.x, vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.x)].normalYZ_texCoordUV_0.y) * _S17 + vec3(vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.y)].positionXYZ_normalX_0.w, vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.y)].normalYZ_texCoordUV_0.x, vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.y)].normalYZ_texCoordUV_0.y) * _S15 + vec3(vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.z)].positionXYZ_normalX_0.w, vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.z)].normalYZ_texCoordUV_0.x, vertices_0[objectBuffer_0._data[uint(_S12)].meshIndex_0]._data[uint(_S14.z)].normalYZ_texCoordUV_0.y) * _S16;
+    mat3x4 _S19 = (transpose(gl_ObjectToWorldEXT));
 
 #line 57
-    vec3 worldNorm_0 = normalize((((mat3x3(_S10[0].xyz, _S10[1].xyz, _S10[2].xyz)) * (nrm_0))));
+    vec3 worldNorm_0 = normalize((((vec4(nrm_0, 0.0)) * (_S19))));
 
     vec3 edge1_0 = v1_pos_0 - v0_pos_0;
     vec3 edge2_0 = v2_pos_0 - v0_pos_0;
     vec2 deltaUV1_0 = uv1_0 - uv0_0;
     vec2 deltaUV2_0 = uv2_0 - uv0_0;
 
-    float _S11 = deltaUV1_0.x;
+    float _S20 = deltaUV1_0.x;
 
 #line 64
-    float _S12 = deltaUV2_0.y;
+    float _S21 = deltaUV2_0.y;
 
 #line 64
-    float _S13 = deltaUV2_0.x;
+    float _S22 = deltaUV2_0.x;
 
 #line 64
-    float _S14 = deltaUV1_0.y;
+    float _S23 = deltaUV1_0.y;
 
 #line 64
-    float f_0 = 1.0 / (_S11 * _S12 - _S13 * _S14);
+    float f_0 = 1.0 / (_S20 * _S21 - _S22 * _S23);
 
-    const vec3 _S15 = vec3(0.0, 0.0, 0.0);
+    const vec3 _S24 = vec3(0.0, 0.0, 0.0);
 
 #line 66
-    vec3 tangent_0 = _S15;
-    float _S16 = edge1_0.x;
+    vec3 tangent_0 = _S24;
+    float _S25 = edge1_0.x;
 
 #line 67
-    float _S17 = edge2_0.x;
+    float _S26 = edge2_0.x;
 
 #line 67
-    tangent_0[0] = f_0 * (_S12 * _S16 - _S14 * _S17);
-    float _S18 = edge1_0.y;
+    tangent_0[0] = f_0 * (_S21 * _S25 - _S23 * _S26);
+    float _S27 = edge1_0.y;
 
 #line 68
-    float _S19 = edge2_0.y;
+    float _S28 = edge2_0.y;
 
 #line 68
-    tangent_0[1] = f_0 * (_S12 * _S18 - _S14 * _S19);
-    float _S20 = edge1_0.z;
+    tangent_0[1] = f_0 * (_S21 * _S27 - _S23 * _S28);
+    float _S29 = edge1_0.z;
 
 #line 69
-    float _S21 = edge2_0.z;
+    float _S30 = edge2_0.z;
 
 #line 69
-    tangent_0[2] = f_0 * (_S12 * _S20 - _S14 * _S21);
-    vec3 _S22 = normalize(tangent_0);
+    tangent_0[2] = f_0 * (_S21 * _S29 - _S23 * _S30);
+    tangent_0 = normalize(tangent_0);
+    mat3x4 _S31 = (transpose(gl_ObjectToWorldEXT));
 
-#line 70
-    tangent_0 = _S22;
-    mat3x4 _S23 = (transpose(gl_ObjectToWorldEXT));
-
-#line 71
-    vec3 worldTangent_0 = normalize((((mat3x3(_S23[0].xyz, _S23[1].xyz, _S23[2].xyz)) * (_S22))));
-
-    vec3 bitangent_0 = _S15;
-    float _S24 = - _S13;
+    vec3 bitangent_0 = _S24;
+    float _S32 = - _S22;
 
 #line 74
-    bitangent_0[0] = f_0 * (_S24 * _S16 + _S11 * _S17);
-    bitangent_0[1] = f_0 * (_S24 * _S18 + _S11 * _S19);
-    bitangent_0[2] = f_0 * (_S24 * _S20 + _S11 * _S21);
-    vec3 _S25 = normalize(bitangent_0);
+    bitangent_0[0] = f_0 * (_S32 * _S25 + _S20 * _S26);
+    bitangent_0[1] = f_0 * (_S32 * _S27 + _S20 * _S28);
+    bitangent_0[2] = f_0 * (_S32 * _S29 + _S20 * _S30);
+    bitangent_0 = normalize(bitangent_0);
+    mat3x4 _S33 = (transpose(gl_ObjectToWorldEXT));
 
-#line 77
-    bitangent_0 = _S25;
-    mat3x4 _S26 = (transpose(gl_ObjectToWorldEXT));
 
-    mat3x3 TBN_0 = mat3x3(worldTangent_0, normalize((((mat3x3(_S26[0].xyz, _S26[1].xyz, _S26[2].xyz)) * (_S25)))), worldNorm_0);
 
-    _S1.albedo_metalness_0.xyz = (texture(sampler2D(texSet_0[objectBuffer_0._data[uint(_S3)].diffuseTexIndex_0],linearSampler_0), (texCoord_0))).xyz;
+    _S10.albedo_metalness_0.xyz = (texture(sampler2D(texSet_0[objectBuffer_0._data[uint(_S12)].diffuseTexIndex_0],linearSampler_0), (texCoord_0))).xyz;
 
-    _S1.emission_roughness_0.xyz = _S15;
+    _S10.emission_roughness_0.xyz = _S24;
 
 #line 84
-    int _S27 = objectBuffer_0._data[uint(_S3)].emissionTexIndex_0;
-    if((objectBuffer_0._data[uint(_S3)].emissionTexIndex_0) > 0)
+    int _S34 = objectBuffer_0._data[uint(_S12)].emissionTexIndex_0;
+    if((objectBuffer_0._data[uint(_S12)].emissionTexIndex_0) > 0)
     {
 
 #line 86
-        _S1.emission_roughness_0.xyz = (texture(sampler2D(texSet_0[_S27],linearSampler_0), (texCoord_0))).xyz;
+        _S10.emission_roughness_0.xyz = (texture(sampler2D(texSet_0[_S34],linearSampler_0), (texCoord_0))).xyz;
 
 #line 85
     }
 
 
-    _S1.albedo_metalness_0[3] = 0.0;
+    _S10.albedo_metalness_0[3] = 0.0;
 
 #line 88
-    int _S28 = objectBuffer_0._data[uint(_S3)].metalnessTexIndex_0;
-    if((objectBuffer_0._data[uint(_S3)].metalnessTexIndex_0) > 0)
+    int _S35 = objectBuffer_0._data[uint(_S12)].metalnessTexIndex_0;
+    if((objectBuffer_0._data[uint(_S12)].metalnessTexIndex_0) > 0)
     {
 
 #line 90
-        _S1.albedo_metalness_0[3] = 1.0 - (texture(sampler2D(texSet_0[_S28],linearSampler_0), (texCoord_0))).x;
+        _S10.albedo_metalness_0[3] = 1.0 - (texture(sampler2D(texSet_0[_S35],linearSampler_0), (texCoord_0))).x;
 
 #line 89
     }
 
 
-    _S1.emission_roughness_0[3] = 1.0;
+    _S10.emission_roughness_0[3] = 1.0;
 
 #line 92
-    int _S29 = objectBuffer_0._data[uint(_S3)].roughnessTexIndex_0;
-    if((objectBuffer_0._data[uint(_S3)].roughnessTexIndex_0) > 0)
+    int _S36 = objectBuffer_0._data[uint(_S12)].roughnessTexIndex_0;
+    if((objectBuffer_0._data[uint(_S12)].roughnessTexIndex_0) > 0)
     {
 
 #line 94
-        _S1.emission_roughness_0[3] = (texture(sampler2D(texSet_0[_S29],linearSampler_0), (texCoord_0))).z;
+        _S10.emission_roughness_0[3] = (texture(sampler2D(texSet_0[_S36],linearSampler_0), (texCoord_0))).z;
 
 #line 93
     }
 
-
-    _S1.normal_0 = vec4(worldNorm_0, 1.0);
-
-#line 96
-    int _S30 = objectBuffer_0._data[uint(_S3)].normalTexIndex_0;
-    if((objectBuffer_0._data[uint(_S3)].normalTexIndex_0) > 0)
-    {
-
-
-        _S1.normal_0.xyz = normalize((((normalize(vec3((texture(sampler2D(texSet_0[_S30],linearSampler_0), (texCoord_0))).z) * 2.0 - 1.0)) * (TBN_0))));
-        _S1.normal_0[3] = 1.0;
-
-#line 97
-    }
+#line 104
+    _S10.normal_0 = encodeNormals_0(worldNorm_0, worldNorm_0);
+    uint _S37 = ((gl_InstanceCustomIndexEXT));
 
 #line 105
-    uint _S31 = ((gl_InstanceCustomIndexEXT));
-
-#line 105
-    _S1.position_objectID_0 = vec4(worldPos_0, float(_S31));
+    _S10.position_objectID_0 = vec4(worldPos_0, float(_S37));
     return;
 }
 
