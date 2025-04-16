@@ -108,6 +108,17 @@ void VulkanPTRef::init_tex()
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
 			.create_engine_texture(ETextureResourceNames::PT_REFERENCE_OUTPUT);
 	}
+
+	{
+		VulkanTextureBuilder texBuilder;
+		texBuilder.init(_engine);
+		texBuilder.start()
+			.make_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; })
+			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
+			.create_engine_texture(ETextureResourceNames::PT_REFERENCE_ACCUMULATE);
+	}
 }
 
 Texture& VulkanPTRef::get_tex(ETextureResourceNames name) const
@@ -117,13 +128,14 @@ Texture& VulkanPTRef::get_tex(ETextureResourceNames name) const
 
 void VulkanPTRef::reset_accumulation()
 {
-
+	bResetAccumulation = true;
 }
 
 void VulkanPTRef::init_description_set_global_buffer()
 {
 	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 		.bind_image(0, ETextureResourceNames::PT_REFERENCE_OUTPUT, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(1, ETextureResourceNames::PT_REFERENCE_ACCUMULATE, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.create_desciptor_manager();
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
@@ -147,6 +159,13 @@ void VulkanPTRef::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 	{
 		VkClearValue clear_value = { 0., 0., 0., 0. };
 		cmd->clear_image(get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT), clear_value);
+	}
+
+	if (bResetAccumulation)
+	{
+		bResetAccumulation = false;
+		VkClearValue clear_value = { 0., 0., 0., 0. };
+		cmd->clear_image(get_tex(ETextureResourceNames::PT_REFERENCE_ACCUMULATE), clear_value);
 	}
 
 	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,

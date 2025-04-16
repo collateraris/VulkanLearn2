@@ -36,7 +36,7 @@ public:
 		uint32_t lightsCount;
 		uint32_t  numRays;
 		uint32_t mode = 0;
-		uint32_t pad1 = 0;
+		uint32_t enableAccumulation = 0;
 		uint32_t pad2 = 0;
 		uint32_t pad3 = 0;
 	};

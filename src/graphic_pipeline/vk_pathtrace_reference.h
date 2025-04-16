@@ -34,7 +34,7 @@ public:
 		uint32_t lightsCount;
 		uint32_t  numRays;
 		uint32_t mode = 0;
-		uint32_t pad1 = 0;
+		uint32_t enableAccumulation = 0;
 		uint32_t pad2 = 0;
 		uint32_t pad3 = 0;
 	};
@@ -63,6 +63,8 @@ private:
 
 	VkExtent3D _imageExtent;
 	VkFormat      _colorFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
+
+	bool bResetAccumulation = false;
 
 	AllocatedBuffer                 _rtSBTBuffer;
 

@@ -10,7 +10,7 @@ struct SGlobalGIParams
 	uint lightsCount;
 	uint  numRays;
 	uint mode;
-	uint pad1;
+	uint enableAccumulation;
 	uint pad2;
 	uint pad3;
 };

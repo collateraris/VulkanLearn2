@@ -1,7 +1,11 @@
 #include "gi_pathtrace.h"
+#include "brdf.h"
 
 #define STANDARD_RAY_INDEX 0
 #define SHADOW_RAY_INDEX 1
+
+// Defines after how many bounces will be the Russian Roulette applied
+#define MIN_BOUNCES 3
 
 [[vk::binding(2, 0)]]
 RaytracingAccelerationStructure topLevelAS	: register(t2);
@@ -17,6 +21,9 @@ cbuffer MyContantBuffer : register(b0)
 
 [[vk::binding(0, 2)]]
 RWTexture2D<float4> ptOutput : register(u0);
+
+[[vk::binding(1, 2)]]
+RWTexture2D<float4> accumulationBuffer	: register(u1);
 
 
 IndirectGbufferRayPayload shootRay(float3 orig, float3 dir)
@@ -69,6 +76,93 @@ bool castShadowRay(float3 hitPosition, float3 surfaceNormal, float3 directionToL
 	return !payload.hasHit;
 }
 
+MaterialProperties loadMaterialProperties(IndirectGbufferRayPayload payload)
+{
+    MaterialProperties result = (MaterialProperties) 0;
+    result.baseColor = payload.albedo_metalness.xyz;
+    result.metalness = payload.albedo_metalness.w;
+    result.emissive = payload.emission_roughness.xyz;
+    result.roughness = payload.emission_roughness.w;
+
+    return result;
+}
+
+// Samples a random light from the pool of all lights using simplest uniform distirbution
+bool sampleLightUniform(inout RngStateType rngState, float3 hitPosition, float3 surfaceNormal, out SLight light, out float lightSampleWeight) {
+
+	if (giParams.lightsCount == 0) return false;
+
+	uint randomLightIndex = min(giParams.lightsCount - 1, uint(rand(rngState) * giParams.lightsCount));
+	light = lightsBuffer[randomLightIndex];
+
+	// PDF of uniform distribution is (1/light count). Reciprocal of that PDF (simply a light count) is a weight of this sample
+	lightSampleWeight = float(giParams.lightsCount);
+
+	return true;
+};
+
+// Samples a random light from the pool of all lights using RIS (Resampled Importance Sampling)
+bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surfaceNormal, out SLight selectedSample, out float lightSampleWeight) {
+	
+	if (giParams.lightsCount == 0) return false;
+
+	selectedSample = (SLight) 0;
+	float totalWeights = 0.0f;
+	float samplePdfG = 0.0f;
+
+	for (int i = 0; i < RIS_CANDIDATES_LIGHTS; i++) {
+
+		float candidateWeight;
+		SLight candidate;
+		if (sampleLightUniform(rngState, hitPosition, surfaceNormal, candidate, candidateWeight)) {
+
+			float3	lightVector;
+			float lightDistance;
+			getLightData(candidate, hitPosition, lightVector, lightDistance);
+
+			// Ignore backfacing light
+			float3 L = normalize(lightVector);
+			if (dot(surfaceNormal, L) < 0.00001f) continue;
+
+			float candidatePdfG = luminance(getLightIntensityAtPoint(candidate, length(lightVector)));
+			const float candidateRISWeight = candidatePdfG * candidateWeight;
+
+			totalWeights += candidateRISWeight;
+			if (rand(rngState) < (candidateRISWeight / totalWeights)) {
+				selectedSample = candidate;
+				samplePdfG = candidatePdfG;
+			}
+		}
+	}
+
+	if (totalWeights == 0.0f) {
+		return false;
+	} else {
+		lightSampleWeight = (totalWeights / float(RIS_CANDIDATES_LIGHTS)) / samplePdfG;
+		return true;
+	}
+};
+
+// Calculates probability of selecting BRDF (specular or diffuse) using the approximate Fresnel term
+float getBrdfProbability(MaterialProperties material, float3 V, float3 shadingNormal) {
+	
+	// Evaluate Fresnel term using the shading normal
+	// Note: we use the shading normal instead of the microfacet normal (half-vector) for Fresnel term here. That's suboptimal for rough surfaces at grazing angles, but half-vector is yet unknown at this point
+	float specularF0 = luminance(baseColorToSpecularF0(material.baseColor, material.metalness));
+	float diffuseReflectance = luminance(baseColorToDiffuseReflectance(material.baseColor, material.metalness));
+	float Fresnel = saturate(luminance(evalFresnel(specularF0, shadowedF90(specularF0), max(0.0f, dot(V, shadingNormal)))));
+
+	// Approximate relative contribution of BRDFs using the Fresnel term
+	float specular = Fresnel;
+	float diffuse = diffuseReflectance * (1.0f - Fresnel); //< If diffuse term is weighted by Fresnel, apply it here as well
+
+	// Return probability of selecting specular BRDF over diffuse BRDF
+	float p = (specular / max(0.0001f, (specular + diffuse)));
+
+	// Clamp probability to avoid undersampling of less prominent BRDF
+	return clamp(p, 0.1f, 0.9f);
+};
+
 
 [shader("raygeneration")]
 void main() 
@@ -83,13 +177,19 @@ void main()
     float4 target    = mul(giParams.projInverse , float4(d.x, d.y, 1, 1));
     float4 direction = mul(giParams.viewInverse , float4(normalize(target.xyz), 0));
 
+	float3 rayDir = direction.xyz;
+	float3 rayOri = origin.xyz;
+
+	// Initialize random numbers generator
+	RngStateType rngState = initRNG(LaunchIndex, LaunchDimensions, giParams.frameCount);
+
 	// Initialize path tracing data
 	float3 radiance = float3(0.0f, 0.0f, 0.0f);
 	float3 throughput = float3(1.0f, 1.0f, 1.0f);
 
-	for (int bounce = 0; bounce < giParams.numRays; bounce++) 
+	for (int bounce = 0; bounce <= giParams.numRays; bounce++) 
 	{
-		IndirectGbufferRayPayload payload = shootRay(origin.xyz, direction.xyz);
+		IndirectGbufferRayPayload payload = shootRay(rayOri, rayDir);
 
 		if (!payload.hasHit())
 		{
@@ -97,18 +197,79 @@ void main()
 			break;
 		}
 
-		SLight sunLight = lightsBuffer[0];
-		float3 lightVector;
-		float lightDistance;
-		getLightData(sunLight, payload.position_objectID.xyz, lightVector, lightDistance);
-		float3 L = -normalize(lightVector);
+		// Load material properties at the hit point
+		MaterialProperties material = loadMaterialProperties(payload);
 
-		float k = 0.05;
-		if (castShadowRay(payload.position_objectID.xyz, payload.normal_.xyz, L, lightDistance))
-			k = 3;
+		radiance += throughput * material.emissive;
 
-		radiance += k * payload.albedo_metalness.xyz / M_PI;
+		float3 V = -rayDir;
+		if (dot(payload.normal_.xyz, V) < 0.f) payload.normal_.xyz = -payload.normal_.xyz;
+
+		// Evaluate direct light (next event estimation), start by sampling one light 
+		SLight light;
+		float lightWeight;
+		if (sampleLightRIS(rngState, payload.position_objectID.xyz, payload.normal_.xyz, light, lightWeight)) {
+
+			// Prepare data needed to evaluate the light
+			float3 lightVector;
+			float lightDistance;
+			getLightData(light, payload.position_objectID.xyz, lightVector, lightDistance);
+			float3 L = normalize(lightVector);
+
+			// Cast shadow ray towards the selected light
+			if (castShadowRay(payload.position_objectID.xyz, payload.normal_.xyz, L, lightDistance))
+			{
+				// If light is not in shadow, evaluate BRDF and accumulate its contribution into radiance
+				radiance += throughput * evalCombinedBRDF(payload.normal_.xyz, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * lightWeight);
+			}
+		}
+
+		// Russian Roulette
+		if (bounce > MIN_BOUNCES) {
+			float rrProbability = min(0.95f, luminance(throughput));
+			if (rrProbability < rand(rngState)) break;
+			else throughput /= rrProbability;
+		}
+
+		// Sample BRDF to generate the next ray
+		// First, figure out whether to sample diffuse or specular BRDF
+		int brdfType;
+		if (material.metalness == 1.0f && material.roughness == 0.0f) {
+			// Fast path for mirrors
+			brdfType = SPECULAR_TYPE;
+		} else {
+
+			// Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
+			float brdfProbability = getBrdfProbability(material, V, payload.normal_.xyz);
+
+			if (rand(rngState) < brdfProbability) {
+				brdfType = SPECULAR_TYPE;
+				throughput /= brdfProbability;
+			} else {
+				brdfType = DIFFUSE_TYPE;
+				throughput /= (1.0f - brdfProbability);
+			}
+		}
+
+				// Run importance sampling of selected BRDF to generate reflecting ray direction
+		float3 brdfWeight;
+		float2 u = float2(rand(rngState), rand(rngState));
+		if (!evalIndirectCombinedBRDF(u, payload.normal_.xyz, payload.normal_.xyz, V, material, brdfType, rayDir, brdfWeight)) {
+			break; // Ray was eaten by the surface :(
+		}
+
+		// Account for surface properties using the BRDF "weight"
+		throughput *= brdfWeight;
+
+		// Offset a new ray origin from the hitpoint to prevent self-intersections
+		rayOri = offsetRay(payload.position_objectID.xyz, payload.normal_.xyz);
 	}
+
+	// Temporal accumulation
+	float3 previousColor = accumulationBuffer[LaunchIndex].rgb;
+	float3 accumulatedColor = radiance;
+	accumulatedColor = previousColor + radiance;
+	accumulationBuffer[LaunchIndex] = float4(accumulatedColor, 1.0f);	
 
 	ptOutput[LaunchIndex] = float4(radiance, 1.);
 };

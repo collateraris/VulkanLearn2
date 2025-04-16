@@ -172,6 +172,7 @@ template<class T>
 static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, T& giGP, int current_frame_index, int frameNumber)
 {
     static bool p_open = true;
+    static bool bResetAccumulation = false;
     static bool bChangedValue = true;
     static bool bRestirGI = false;
     static bool bRestirDI_SpacialReuse = false;
@@ -223,8 +224,9 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, T& gi
     giParams.projView = camera.get_projection_matrix() * camera.get_view_matrix();
     giParams.viewInverse = glm::inverse(camera.get_view_matrix());
     giParams.projInverse = glm::inverse(camera.get_projection_matrix());
-    giParams.prevProjView = prevCameraMatrix;
     prevCameraMatrix = camera.get_projection_matrix() * camera.get_view_matrix();
+    bResetAccumulation = bChangedValue = giParams.prevProjView != prevCameraMatrix;
+    giParams.prevProjView = prevCameraMatrix;
     giParams.lightsCount = lightManager.get_lights().size();
 
     if (lightManager.is_sun_active())
@@ -257,8 +259,14 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, T& gi
     {
 
         bChangedValue = false;
-        giGP.reset_accumulation();
+        if (bResetAccumulation)
+            giGP.reset_accumulation();
+        giParams.enableAccumulation = 0;
         giParams.prevProjView = prevCameraMatrix;
+    }
+    else
+    {
+        giParams.enableAccumulation = 1;
     }
   
     giGP.copy_global_uniform_data(giParams, current_frame_index);
