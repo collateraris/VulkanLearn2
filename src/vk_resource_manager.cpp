@@ -326,11 +326,12 @@ void ResourceManager::init_rt_scene(VulkanEngine* _engine, ResourceManager& resM
 	{
 		std::vector<VkAccelerationStructureInstanceKHR> tlas;
 		tlas.reserve(renderables.size());
+		uint32_t counter = 0;
 		for (const auto& inst : renderables)
 		{
 			VkAccelerationStructureInstanceKHR rayInst{};
 			rayInst.transform = toTransformMatrixKHR(inst.transformMatrix);  // Position of the instance
-			rayInst.instanceCustomIndex = inst.meshIndex; // gl_InstanceCustomIndexEXT
+			rayInst.instanceCustomIndex = counter++; // gl_InstanceCustomIndexEXT
 			rayInst.accelerationStructureReference = rtBuilder.get_blas_device_address(_engine->_device, inst.meshIndex);
 			rayInst.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
 			rayInst.mask = 0xFF;       //  Only be hit if rayMask & instance.mask != 0
@@ -354,6 +355,7 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	const uint32_t meshletsDataBinding = 5;
 	const uint32_t lightBufferBinding = 6;
 	const uint32_t indicesBinding = 7;
+	const uint32_t blockySamplerBinding = 8;
 
 	const uint32_t irradianceMapBinding = 8;
 	const uint32_t prefilteredMapBinding = 9;
@@ -444,6 +446,11 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	brdflutMapImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::IBL_BRDFLUT)->imageView;
 	brdflutMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
+	VkDescriptorImageInfo blockySamplerInfo;
+	blockySamplerInfo.sampler = blockySampler;
+	blockySamplerInfo.imageView = nullptr;
+	blockySamplerInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
 	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
 		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, vertexBufferInfoList.size())
 		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, imageInfoList.size())		
@@ -456,5 +463,6 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		.bind_image(irradianceMapBinding, &irradMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(prefilteredMapBinding, &prefilteredMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(brdfLUTBinding, &brdflutMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(blockySamplerBinding, &blockySamplerInfo, VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
 		.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene);
 }

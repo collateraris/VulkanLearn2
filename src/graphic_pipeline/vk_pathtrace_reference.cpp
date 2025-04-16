@@ -30,9 +30,9 @@ void VulkanPTRef::init(VulkanEngine* engine)
 		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::PT_Reference,
 			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
 				ShaderEffect defaultEffect;
-				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("raytrace_reference.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
-				uint32_t rayIndirectMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace_gbuffer.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
-				uint32_t rayIndirectClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace_gbuffer.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("raytrace_reference.rgen.slang.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
+				uint32_t rayIndirectMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("indirect_raytrace_gbuffer.rmiss.slang.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
+				uint32_t rayIndirectClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("indirect_raytrace_gbuffer.rchit.slang.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
 				defaultEffect.reflect_layout(engine->_device, nullptr, 0);
 
@@ -123,12 +123,6 @@ void VulkanPTRef::init_description_set_global_buffer()
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
-		_globalRQBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanPTGBuffer::SGlobalRQParams), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-		VkDescriptorBufferInfo globalRQUniformsInfo;
-		globalRQUniformsInfo.buffer = _globalRQBuffer[i]._buffer;
-		globalRQUniformsInfo.offset = 0;
-		globalRQUniformsInfo.range = _globalRQBuffer[i]._size;
 
 		_globalUniformsBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanPTRef::GlobalGIParams), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
@@ -138,8 +132,7 @@ void VulkanPTRef::init_description_set_global_buffer()
 		globalUniformsInfo.range = VK_WHOLE_SIZE;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_buffer(0, &globalRQUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-			.bind_buffer(1, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 			.build(_globalDescSet[i], _globalDescSetLayout);
 	}
 }
@@ -161,13 +154,6 @@ void VulkanPTRef::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 
 			_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::PT_Reference), 2);
 		});
-}
-
-void VulkanPTRef::copy_global_uniform_data(VulkanPTRef::SGlobalRQParams& rqData, int current_frame_index)
-{
-	_engine->map_buffer(_engine->_allocator, _globalRQBuffer[current_frame_index]._allocation, [&](void*& data) {
-		memcpy(data, &rqData, sizeof(VulkanPTRef::SGlobalRQParams));
-	});
 }
 
 void VulkanPTRef::copy_global_uniform_data(VulkanPTRef::GlobalGIParams& giData, int current_frame_index)

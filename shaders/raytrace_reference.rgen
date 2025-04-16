@@ -29,43 +29,21 @@ IndirectGbufferRayPayload shootRay(vec3 orig, vec3 dir)
 	return indirectRpl;
 };
 
+#define M_PI     3.14159265358979323846
 
-struct SGlobalRQParams
-{
-	mat4 proj_to_world_space;
-	mat4 world_to_proj_space;
-	vec4 width_height_fov_frameIndex;
-};
-
-layout(set = 1, binding = 0) uniform _GlobalRQParams { SGlobalRQParams rqParams; };
-layout(set = 1, binding = 1) uniform _GlobalGIParams { SGlobalGIParams giParams; };
+layout(set = 1, binding = 0) uniform _GlobalGIParams { SGlobalGIParams giParams; };
 
 layout(set = 2, binding = 0, rgba32f) uniform image2D ptOutput;
 
-#include "camera_ray_func.h"
-
-#define M_PI     3.14159265358979323846
-
 void main() 
 {
-    const vec2 uv = vec2(gl_LaunchIDEXT.xy)/vec2(gl_LaunchSizeEXT.xy);
     const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+    const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
+    vec2 d = inUV * 2.0 - 1.0;
 
-    float w = rqParams.width_height_fov_frameIndex.x;
-	float h = rqParams.width_height_fov_frameIndex.y;
-	float fov = rqParams.width_height_fov_frameIndex.z;
-	uint frame_index = uint(rqParams.width_height_fov_frameIndex.w);
-	uvec2 seed = uvec2(gl_LaunchIDEXT.xy) ^ uvec2(frame_index << 16, (frame_index + 237) << 16);
-
-	const float std = 0.9;
-	vec2 randoms = 2.0 * get_random_numbers(seed) - vec2(1.0);
-	vec2 jitter = (std * sqrt(2.0)) * vec2(erfinv(randoms.x), erfinv(randoms.y));
-	vec2 jittered = gl_LaunchIDEXT.xy + jitter;
-	// Compute the primary ray using either a pinhole camera or a hemispherical
-	// camera
-	vec2 ray_tex_coord = jittered / (rqParams.width_height_fov_frameIndex.xy);
-	vec3 ray_origin = get_camera_ray_origin(ray_tex_coord, rqParams.proj_to_world_space);
-	vec3 ray_dir = get_camera_ray_direction(ray_tex_coord, rqParams.world_to_proj_space);
+	vec4 origin    = giParams.viewInverse * vec4(0, 0, 0, 1);
+    vec4 target    = giParams.projInverse * vec4(d.x, d.y, 1, 1);
+    vec4 direction = giParams.viewInverse * vec4(normalize(target.xyz), 0);
 
 	// Initialize path tracing data
 	vec3 radiance = vec3(0.0f, 0.0f, 0.0f);
@@ -73,7 +51,7 @@ void main()
 
 	for (int bounce = 0; bounce < giParams.numRays; bounce++) 
 	{
-		IndirectGbufferRayPayload payload = shootRay(ray_origin, ray_dir);
+		IndirectGbufferRayPayload payload = shootRay(origin.xyz, direction.xyz);
 
 		if (payload.position_objectID.w > -1e3)
 		{

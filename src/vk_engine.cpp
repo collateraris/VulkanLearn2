@@ -241,15 +241,6 @@ void VulkanEngine::draw()
 				_gBufGenerateGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
 			}
 #endif
-			if (get_mode() == ERenderMode::Pathtracer)
-			{
-				VulkanPTRef::SGlobalRQParams globalRQData;
-				globalRQData.world_to_proj_space = projection * view;
-				globalRQData.proj_to_world_space = glm::inverse(globalRQData.world_to_proj_space);
-				globalRQData.width_height_fov_frameIndex = glm::vec4(_windowExtent.width, _windowExtent.height, _camera.FOV, _frameNumber);
-				_ptReference.copy_global_uniform_data(globalRQData, get_current_frame_index());
-			}
-
 			if (get_mode() == ERenderMode::ReSTIR_GI)
 			{
 				VulkanVbufferGraphicsPipeline::SGlobalCamera globalCameraData;

@@ -18,9 +18,8 @@ public:
 
 	struct alignas(16) SGlobalRQParams
 	{
-		glm::mat4 proj_to_world_space;
-		glm::mat4 world_to_proj_space;
-		vec4 width_height_fov_frameIndex;
+		glm::mat4 view;
+		glm::mat4 proj;
 	};
 
 	struct alignas(16) GlobalGIParams
@@ -67,7 +66,6 @@ private:
 
 	AllocatedBuffer                 _rtSBTBuffer;
 
-	std::array<AllocatedBuffer, 2> _globalRQBuffer;
 	std::array<AllocatedBuffer, 2> _globalUniformsBuffer;
 	VkDescriptorSetLayout          _globalDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _globalDescSet;
