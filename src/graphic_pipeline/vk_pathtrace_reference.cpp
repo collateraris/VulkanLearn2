@@ -32,6 +32,7 @@ void VulkanPTRef::init(VulkanEngine* engine)
 				ShaderEffect defaultEffect;
 				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("raytrace_reference.rgen.slang.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
 				uint32_t rayIndirectMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("indirect_raytrace_gbuffer.rmiss.slang.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
+				uint32_t rayShadowMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("shadow.rmiss.slang.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayIndirectClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("indirect_raytrace_gbuffer.rchit.slang.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
 
 				defaultEffect.reflect_layout(engine->_device, nullptr, 0);
@@ -69,6 +70,10 @@ void VulkanPTRef::init(VulkanEngine* engine)
 				group.generalShader = rayIndirectMissIndex;
 				rtShaderGroups.push_back(group);
 
+				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+				group.generalShader = rayShadowMissIndex;
+				rtShaderGroups.push_back(group);
+
 				// closest hit shader
 				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 				group.generalShader = VK_SHADER_UNUSED_KHR;
@@ -84,7 +89,7 @@ void VulkanPTRef::init(VulkanEngine* engine)
 			});
 	}
 
-	_rtSBTBuffer = VulkanRaytracerBuilder::create_SBTBuffer(engine, 1, 1, EPipelineType::PT_Reference,
+	_rtSBTBuffer = VulkanRaytracerBuilder::create_SBTBuffer(engine, 2, 1, EPipelineType::PT_Reference,
 		_rgenRegion,
 		_missRegion,
 		_hitRegion,
