@@ -8,7 +8,7 @@
 	></window>
 			
 	<current_scene
-		id="1"
+		id="0"
 	></current_scene>
 
 	<render_mode name="PATHTRACER"></render_mode>
@@ -93,7 +93,12 @@
 			sunColor_axisX = "1" 
 			sunColor_axisY = "0" 
 			sunColor_axisZ ="0"
-			useCustomCameraPos = "0" 
+			useCustomCameraPos = "1"
+			camPos_axisX = "15.949" 
+			camPos_axisY = "0.655" 
+			camPos_axisZ = "-4.472"
+			camPitch = "0.354"
+			camYaw	= "1.816"
 		></scene>				
 	</scene_configs>
 	

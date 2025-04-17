@@ -88,6 +88,7 @@ void VulkanRaytracerBuilder::build_tlas(VulkanEngine& engine, std::vector<VkAcce
     // Put the above into a VkAccelerationStructureGeometryKHR. We need to put the instances struct in a union and label it as instance data.
     VkAccelerationStructureGeometryKHR topASGeometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
     topASGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+    topASGeometry.flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;  // Avoid double hits;
     topASGeometry.geometry.instances = instancesVk;
 
     // Find sizes
@@ -221,10 +222,10 @@ AllocatedBuffer VulkanRaytracerBuilder::create_SBTBuffer(VulkanEngine* engine, u
     auto result = vkGetRayTracingShaderGroupHandlesKHR(engine->_device, engine->_renderPipelineManager.get_pipeline(pipType), 0, handleCount, dataSize, handles.data());
 
     // Allocate a buffer for storing the SBT.
-    VkDeviceSize sbtSize = rgenRegion.size + missRegion.size + hitRegion.size;
+    VkDeviceSize sbtSize = rgenRegion.size + missRegion.size + hitRegion.size + callRegion.size;
     AllocatedBuffer rtSBTBuffer = engine->create_staging_buffer(sbtSize,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-        | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR);
+        | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     // Find the SBT addresses of each group
     VkBufferDeviceAddressInfo info{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, rtSBTBuffer._buffer };

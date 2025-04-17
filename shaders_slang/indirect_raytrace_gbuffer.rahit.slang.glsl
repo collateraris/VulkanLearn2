@@ -128,7 +128,7 @@ void main()
     }
 
 
-    if(opacity_1 < 0.5)
+    if(opacity_1 < 1.0)
     {
 
 #line 49

@@ -206,9 +206,10 @@ void main()
 		//if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
 		//if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
 
-		radiance += throughput * material.emissive;// * 10 + material.baseColor/M_PI;
+		radiance += throughput * material.emissive * 10 + material.baseColor/M_PI;
 		//radiance = geometryNormal;
-		//break;
+		//radiance += float3(material.baseColor.x, material.baseColor.x, material.baseColor.x);
+		break;
 
 		// Evaluate direct light (next event estimation), start by sampling one light 
 		SLight light;

@@ -20,7 +20,7 @@ StructuredBuffer<SObjectData> objectBuffer  : register(t3);
 StructuredBuffer<int4> indices[]   : register(t7);
 
 [shader("anyhit")]
-void main(inout IndirectGbufferRayPayload indirectRpl : SV_RayPayload, BuiltInTriangleIntersectionAttributes attrib : SV_IntersectionAttributes)
+void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersectionAttributes attrib)
 {
     SObjectData shadeData = objectBuffer[InstanceID()];
 

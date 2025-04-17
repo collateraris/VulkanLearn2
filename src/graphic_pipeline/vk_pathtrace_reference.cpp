@@ -52,7 +52,11 @@ void VulkanPTRef::init(VulkanEngine* engine)
 
 				vkCreatePipelineLayout(_engine->_device, &mesh_pipeline_layout_info, nullptr, &pipelineBuilder._pipelineLayout);
 
-				pipelineBuilder._rayPipelineInfo.maxPipelineRayRecursionDepth = 1;  // Ray depth
+				// The ray tracing process can shoot rays from the camera, and a shadow ray can be shot from the
+				// hit points of the camera rays, hence a recursion level of 2. This number should be kept as low
+				// as possible for performance reasons. Even recursive ray tracing should be flattened into a loop
+				// in the ray generation to avoid deep recursion.
+				pipelineBuilder._rayPipelineInfo.maxPipelineRayRecursionDepth = 2;  // Ray depth
 
 				// Shader groups
 				std::vector<VkRayTracingShaderGroupCreateInfoKHR> rtShaderGroups;

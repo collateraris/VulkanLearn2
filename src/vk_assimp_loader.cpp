@@ -236,4 +236,8 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 	aiColor4D color(0.f, 0.f, 0.f, 0.f);
 	amat->Get(AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_BASE_COLOR_FACTOR, color);
 	newMatDesc->baseColorFactor = glm::vec4(color.r, color.g, color.b, color.a);
+
+	float opacity = 1;
+	amat->Get(AI_MATKEY_OPACITY, opacity);
+	newMatDesc->baseColorFactor.a = opacity;
 }

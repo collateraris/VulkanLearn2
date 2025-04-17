@@ -20,7 +20,7 @@ StructuredBuffer<SObjectData> objectBuffer  : register(t3);
 StructuredBuffer<int4> indices[]   : register(t7);
 
 [shader("anyhit")]
-void main(inout IndirectGbufferRayPayload indirectRpl : SV_RayPayload, BuiltInTriangleIntersectionAttributes attrib : SV_IntersectionAttributes)
+void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersectionAttributes attrib)
 {
     SObjectData shadeData = objectBuffer[InstanceID()];
 
@@ -45,6 +45,6 @@ void main(inout IndirectGbufferRayPayload indirectRpl : SV_RayPayload, BuiltInTr
     if (shadeData.opacityTexIndex > 0)
         opacity = texSet[shadeData.opacityTexIndex].Sample(linearSampler, texCoord).r;
 
-    if (opacity < 0.5)
+    if (opacity < 1)
         IgnoreHit();
 }
