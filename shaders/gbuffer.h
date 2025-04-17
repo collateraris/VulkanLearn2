@@ -33,4 +33,5 @@ struct SObjectData
 	int roughnessTexIndex;
 	int emissionTexIndex;
 	int opacityTexIndex;
+	float4 baseColorFactor;
 };

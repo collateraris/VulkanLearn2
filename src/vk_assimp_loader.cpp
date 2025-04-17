@@ -232,4 +232,8 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 	ProcessMeshLoadMaterialTextures(amat, aiTextureType_EMISSION_COLOR, lastDirectory, newMatDesc, resManager);
 	ProcessMeshLoadMaterialTextures(amat, aiTextureType_METALNESS, lastDirectory, newMatDesc, resManager);
 	ProcessMeshLoadMaterialTextures(amat, aiTextureType_DIFFUSE_ROUGHNESS, lastDirectory, newMatDesc, resManager);
+
+	aiColor4D color(0.f, 0.f, 0.f, 0.f);
+	amat->Get(AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_BASE_COLOR_FACTOR, color);
+	newMatDesc->baseColorFactor = glm::vec4(color.r, color.g, color.b, color.a);
 }

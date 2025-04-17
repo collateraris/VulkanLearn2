@@ -97,11 +97,11 @@ rayPayloadEXT
 IndirectGbufferRayPayload_0 p_1;
 
 
-#line 170 1
+#line 171 1
 uvec4 initRNG_0(uvec2 pixelCoords_0, uvec2 resolution_0, uint frameNumber_0)
 {
 
-#line 171
+#line 172
     return uvec4(pixelCoords_0.xy, frameNumber_0, 0U);
 }
 
@@ -299,12 +299,12 @@ void decodeNormals_0(vec4 encodedNormals_0, out vec3 geometryNormal_0, out vec3 
 }
 
 
-#line 124
+#line 125
 uvec4 pcg4d_0(uvec4 v_1)
 {
     uvec4 _S12 = v_1 * 1664525U + 1013904223U;
 
-#line 124
+#line 125
     uvec4 _S13 = _S12;
 
 
@@ -316,7 +316,7 @@ uvec4 pcg4d_0(uvec4 v_1)
 
     uvec4 _S14 = _S13 ^ (_S13 >> 16U);
 
-#line 133
+#line 134
     _S13 = _S14;
 
     _S13[0] = _S13[0] + _S14.y * _S14.w;
@@ -328,20 +328,20 @@ uvec4 pcg4d_0(uvec4 v_1)
 }
 
 
-#line 163
+#line 164
 float uintToFloat_0(uint x_0)
 {
 
-#line 164
+#line 165
     return uintBitsToFloat(1065353216U | (x_0 >> 9)) - 1.0;
 }
 
 
-#line 175
+#line 176
 float rand_0(inout uvec4 rngState_0)
 {
 
-#line 176
+#line 177
     rngState_0[3] = rngState_0[3] + 1U;
     return uintToFloat_0(pcg4d_0(rngState_0).x);
 }
@@ -393,36 +393,36 @@ bool sampleLightUniform_0(inout uvec4 rngState_1, vec3 hitPosition_0, vec3 surfa
 }
 
 
-#line 227 1
+#line 228 1
 void getLightData_0(SLight_0 light_1, vec3 hitPosition_1, out vec3 lightVector_0, out float lightDistance_0)
 {
 
-#line 228
+#line 229
     float _S19 = light_1.color_type_0.w;
 
-#line 228
+#line 229
     if((abs(_S19 - 2.0)) < 9.99999997475242708e-07)
     {
 
-#line 229
+#line 230
         vec3 _S20 = light_1.position_0.xyz - hitPosition_1;
 
-#line 229
+#line 230
         lightVector_0 = _S20;
         lightDistance_0 = length(_S20);
 
-#line 228
+#line 229
     }
     else
     {
         if((abs(_S19 - 1.0)) < 9.99999997475242708e-07)
         {
 
-#line 232
+#line 233
             lightVector_0 = - light_1.direction_0.xyz;
             lightDistance_0 = 3.4028234663852886e+38;
 
-#line 231
+#line 232
         }
         else
         {
@@ -430,27 +430,27 @@ void getLightData_0(SLight_0 light_1, vec3 hitPosition_1, out vec3 lightVector_0
             lightDistance_0 = 3.4028234663852886e+38;
             lightVector_0 = vec3(0.0, 1.0, 0.0);
 
-#line 231
+#line 232
         }
 
-#line 228
+#line 229
     }
 
-#line 238
+#line 239
     return;
 }
 
 vec3 getLightIntensityAtPoint_0(SLight_0 light_2, float distance_0)
 {
 
-#line 242
+#line 243
     float _S21 = light_2.color_type_0.w;
 
-#line 242
+#line 243
     if((abs(_S21 - 2.0)) < 9.99999997475242708e-07)
     {
 
-#line 248
+#line 249
         float _S22 = distance_0 * distance_0 + 0.25;
 
         return light_2.color_type_0.xyz * (2.0 / (_S22 + distance_0 * sqrt(_S22)));
@@ -458,24 +458,24 @@ vec3 getLightIntensityAtPoint_0(SLight_0 light_2, float distance_0)
     else
     {
 
-#line 252
+#line 253
         if((abs(_S21 - 1.0)) < 9.99999997475242708e-07)
         {
 
-#line 253
+#line 254
             return light_2.color_type_0.xyz;
         }
         else
         {
 
-#line 255
+#line 256
             return vec3(1.0, 0.0, 1.0);
         }
 
-#line 255
+#line 256
     }
 
-#line 255
+#line 256
 }
 
 
@@ -607,167 +607,167 @@ bool sampleLightRIS_0(inout uvec4 rngState_2, vec3 hitPosition_2, vec3 surfaceNo
 }
 
 
-#line 203 1
+#line 204 1
 vec3 offsetRay_0(vec3 p_3, vec3 n_1)
 {
 
-#line 209
+#line 210
     float _S26 = n_1.x;
 
-#line 209
+#line 210
     int _S27 = int(256.0 * _S26);
 
-#line 209
+#line 210
     float _S28 = n_1.y;
 
-#line 209
+#line 210
     int _S29 = int(256.0 * _S28);
 
-#line 209
+#line 210
     float _S30 = n_1.z;
 
-#line 209
+#line 210
     int _S31 = int(256.0 * _S30);
 
 
     float _S32 = p_3.x;
 
-#line 212
+#line 213
     int _S33 = floatBitsToInt(_S32);
 
-#line 212
+#line 213
     int _S34;
 
-#line 212
+#line 213
     if(_S32 < 0.0)
     {
 
-#line 212
+#line 213
         _S34 = - _S27;
 
-#line 212
+#line 213
     }
     else
     {
 
-#line 212
+#line 213
         _S34 = _S27;
 
-#line 212
+#line 213
     }
 
-#line 212
+#line 213
     float _S35 = intBitsToFloat(_S33 + _S34);
     float _S36 = p_3.y;
 
-#line 213
+#line 214
     int _S37 = floatBitsToInt(_S36);
 
-#line 213
+#line 214
     if(_S36 < 0.0)
     {
 
-#line 213
+#line 214
         _S34 = - _S29;
 
-#line 213
+#line 214
     }
     else
     {
 
-#line 213
+#line 214
         _S34 = _S29;
 
-#line 213
+#line 214
     }
 
-#line 213
+#line 214
     float _S38 = intBitsToFloat(_S37 + _S34);
     float _S39 = p_3.z;
 
-#line 214
+#line 215
     int _S40 = floatBitsToInt(_S39);
 
-#line 214
+#line 215
     if(_S39 < 0.0)
     {
 
-#line 214
+#line 215
         _S34 = - _S31;
 
-#line 214
+#line 215
     }
     else
     {
 
-#line 214
+#line 215
         _S34 = _S31;
 
-#line 214
+#line 215
     }
 
-#line 214
+#line 215
     float _S41 = intBitsToFloat(_S40 + _S34);
 
-#line 214
+#line 215
     float _S42;
 
     if((abs(_S32)) < 0.03125)
     {
 
-#line 216
+#line 217
         _S42 = _S32 + 0.0000152587890625 * _S26;
 
-#line 216
+#line 217
     }
     else
     {
 
-#line 216
+#line 217
         _S42 = _S35;
 
-#line 216
+#line 217
     }
 
-#line 216
+#line 217
     float _S43;
     if((abs(_S36)) < 0.03125)
     {
 
-#line 217
+#line 218
         _S43 = _S36 + 0.0000152587890625 * _S28;
 
-#line 217
+#line 218
     }
     else
     {
 
-#line 217
+#line 218
         _S43 = _S38;
 
-#line 217
+#line 218
     }
 
-#line 217
+#line 218
     float _S44;
     if((abs(_S39)) < 0.03125)
     {
 
-#line 218
+#line 219
         _S44 = _S39 + 0.0000152587890625 * _S30;
 
-#line 218
+#line 219
     }
     else
     {
 
-#line 218
+#line 219
         _S44 = _S41;
 
-#line 218
+#line 219
     }
 
-#line 216
+#line 217
     return vec3(_S42, _S43, _S44);
 }
 

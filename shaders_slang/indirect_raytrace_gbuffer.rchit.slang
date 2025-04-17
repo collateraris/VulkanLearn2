@@ -78,8 +78,9 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
   float3 worldBitangent = normalize(mul(ObjectToWorld3x4(), float4(bitangent, 0.0f)));
 
   float3x3 TBN = float3x3(worldTangent, worldBitangent, worldNorm);
-
+ 
   indirectRpl.albedo_metalness.xyz = texSet[shadeData.diffuseTexIndex].Sample(linearSampler, texCoord).rgb;
+  //indirectRpl.albedo_metalness.xyz = float3(indirectRpl.albedo_metalness.x * shadeData.baseColorFactor.x, indirectRpl.albedo_metalness.y * shadeData.baseColorFactor.y,indirectRpl.albedo_metalness.z * shadeData.baseColorFactor.z);
 
   indirectRpl.emission_roughness.xyz = float3(0., 0., 0);
   if (shadeData.emissionTexIndex > 0)

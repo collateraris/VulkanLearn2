@@ -71,6 +71,7 @@ file(GLOB_RECURSE SLANG_SOURCE_FILES
     "${PROJECT_SOURCE_DIR}/shaders_slang/*.rgen.slang"
     "${PROJECT_SOURCE_DIR}/shaders_slang/*.rmiss.slang"
     "${PROJECT_SOURCE_DIR}/shaders_slang/*.rchit.slang"
+    "${PROJECT_SOURCE_DIR}/shaders_slang/*.rahit.slang"
     )
 
 ## iterate each shader

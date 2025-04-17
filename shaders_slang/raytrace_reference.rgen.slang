@@ -206,7 +206,7 @@ void main()
 		//if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
 		//if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
 
-		radiance += throughput * material.emissive;
+		radiance += throughput * material.emissive;// * 10 + material.baseColor/M_PI;
 		//radiance = geometryNormal;
 		//break;
 

@@ -34,6 +34,8 @@ void VulkanPTRef::init(VulkanEngine* engine)
 				uint32_t rayIndirectMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("indirect_raytrace_gbuffer.rmiss.slang.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayShadowMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("shadow.rmiss.slang.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
 				uint32_t rayIndirectClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("indirect_raytrace_gbuffer.rchit.slang.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+				uint32_t rayIndirectAnyHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("indirect_raytrace_gbuffer.rahit.slang.spv")), VK_SHADER_STAGE_ANY_HIT_BIT_NV);
+				uint32_t rayShadowAnyHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("shadow.rahit.slang.spv")), VK_SHADER_STAGE_ANY_HIT_BIT_NV);
 
 				defaultEffect.reflect_layout(engine->_device, nullptr, 0);
 
@@ -75,9 +77,18 @@ void VulkanPTRef::init(VulkanEngine* engine)
 				rtShaderGroups.push_back(group);
 
 				// closest hit shader
+				// Payload 0
 				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 				group.generalShader = VK_SHADER_UNUSED_KHR;
 				group.closestHitShader = rayIndirectClosestHitIndex;
+				group.anyHitShader = rayIndirectAnyHitIndex;
+				rtShaderGroups.push_back(group);
+
+				// Payload 1
+				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+				group.generalShader = VK_SHADER_UNUSED_KHR;
+				group.closestHitShader = VK_SHADER_UNUSED_KHR;
+				group.anyHitShader = rayShadowAnyHitIndex;
 				rtShaderGroups.push_back(group);
 
 				pipelineBuilder._rayPipelineInfo.groupCount = static_cast<uint32_t>(rtShaderGroups.size());
@@ -89,7 +100,7 @@ void VulkanPTRef::init(VulkanEngine* engine)
 			});
 	}
 
-	_rtSBTBuffer = VulkanRaytracerBuilder::create_SBTBuffer(engine, 2, 1, EPipelineType::PT_Reference,
+	_rtSBTBuffer = VulkanRaytracerBuilder::create_SBTBuffer(engine, 2, 2, EPipelineType::PT_Reference,
 		_rgenRegion,
 		_missRegion,
 		_hitRegion,

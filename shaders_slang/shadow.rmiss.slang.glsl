@@ -3,7 +3,7 @@
 layout(row_major) uniform;
 layout(row_major) buffer;
 
-#line 35 0
+#line 70 0
 struct ShadowHitInfo_0
 {
     bool hasHit_0;

@@ -11,7 +11,7 @@ struct _MatrixStorage_float4x4_ColMajorstd430_0
 };
 
 
-#line 109 1
+#line 110 1
 struct SObjectData_std430_0
 {
     _MatrixStorage_float4x4_ColMajorstd430_0 model_0;
@@ -23,6 +23,7 @@ struct SObjectData_std430_0
     int roughnessTexIndex_0;
     int emissionTexIndex_0;
     int opacityTexIndex_0;
+    vec4 baseColorFactor_0;
 };
 
 
@@ -288,52 +289,53 @@ void main()
 
     _S10.albedo_metalness_0.xyz = (texture(sampler2D(texSet_0[objectBuffer_0._data[uint(_S12)].diffuseTexIndex_0],linearSampler_0), (texCoord_0))).xyz;
 
+
     _S10.emission_roughness_0.xyz = _S24;
 
-#line 84
+#line 85
     int _S34 = objectBuffer_0._data[uint(_S12)].emissionTexIndex_0;
     if((objectBuffer_0._data[uint(_S12)].emissionTexIndex_0) > 0)
     {
 
-#line 86
+#line 87
         _S10.emission_roughness_0.xyz = (texture(sampler2D(texSet_0[_S34],linearSampler_0), (texCoord_0))).xyz;
 
-#line 85
+#line 86
     }
 
 
     _S10.albedo_metalness_0[3] = 0.0;
 
-#line 88
+#line 89
     int _S35 = objectBuffer_0._data[uint(_S12)].metalnessTexIndex_0;
     if((objectBuffer_0._data[uint(_S12)].metalnessTexIndex_0) > 0)
     {
 
-#line 90
+#line 91
         _S10.albedo_metalness_0[3] = 1.0 - (texture(sampler2D(texSet_0[_S35],linearSampler_0), (texCoord_0))).x;
 
-#line 89
+#line 90
     }
 
 
     _S10.emission_roughness_0[3] = 1.0;
 
-#line 92
+#line 93
     int _S36 = objectBuffer_0._data[uint(_S12)].roughnessTexIndex_0;
     if((objectBuffer_0._data[uint(_S12)].roughnessTexIndex_0) > 0)
     {
 
-#line 94
+#line 95
         _S10.emission_roughness_0[3] = (texture(sampler2D(texSet_0[_S36],linearSampler_0), (texCoord_0))).z;
 
-#line 93
+#line 94
     }
 
-#line 104
+#line 105
     _S10.normal_0 = encodeNormals_0(worldNorm_0, worldNorm_0);
     uint _S37 = ((gl_InstanceCustomIndexEXT));
 
-#line 105
+#line 106
     _S10.position_objectID_0 = vec4(worldPos_0, float(_S37));
     return;
 }

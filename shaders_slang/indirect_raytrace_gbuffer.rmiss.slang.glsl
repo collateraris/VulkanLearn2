@@ -3,7 +3,7 @@
 layout(row_major) uniform;
 layout(row_major) buffer;
 
-#line 22 0
+#line 26 0
 struct IndirectGbufferRayPayload_0
 {
     vec4 albedo_metalness_0;
