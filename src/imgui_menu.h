@@ -229,6 +229,18 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, T& gi
     giParams.prevProjView = prevCameraMatrix;
     giParams.lightsCount = lightManager.get_lights().size();
 
+    float camera_pos[3] = { camera.position.r, camera.position.g, camera.position.b };
+    if (ImGui::InputFloat3("camera position", camera_pos))
+    {
+        camera.position = glm::vec3(camera_pos[0], camera_pos[1], camera_pos[2]);
+    }
+    float camera_pitch_yaw[2] = { camera.pitch, camera.yaw};
+    if (ImGui::InputFloat2("camera rotation", camera_pitch_yaw))
+    {
+        camera.pitch = camera_pitch_yaw[0];
+        camera.yaw = camera_pitch_yaw[1];
+    }
+
     if (lightManager.is_sun_active())
     {
         bool bSunChangedValue = false;

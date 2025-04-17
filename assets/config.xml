@@ -40,6 +40,7 @@
 			sunColor_axisX = "1" 
 			sunColor_axisY = "0" 
 			sunColor_axisZ ="0"
+			useCustomCameraPos = "0"
 		></scene>
 		<scene id="1" 
 			path="sponza.obj"
@@ -48,13 +49,19 @@
 			needRotation = "0"
 			useSun = "1"
 			useUniformGeneratePointLight = "0"
-			numUniformPointLightPerAxis = "3"
+			numUniformPointLightPerAxis = "2"
 			sunDirection_axisX = "0.532" 
 			sunDirection_axisY = "-0.847" 
 			sunDirection_axisZ ="-0.008"
 			sunColor_axisX = "1" 
-			sunColor_axisY = "0" 
-			sunColor_axisZ ="0"			 
+			sunColor_axisY = "1" 
+			sunColor_axisZ ="1"
+			useCustomCameraPos = "1"
+			camPos_axisX = "-950" 
+			camPos_axisY = "407" 
+			camPos_axisZ = "28"
+			camPitch = "-0.006"
+			camYaw	= "4.581"		 
 		></scene>
 		<scene id="2" 
 			path="lost_empire.obj"
@@ -70,6 +77,7 @@
 			sunColor_axisX = "1" 
 			sunColor_axisY = "0" 
 			sunColor_axisZ ="0" 
+			useCustomCameraPos = "0"
 		></scene>
 		<scene id="3" 
 			path="r46_subway/scene.gltf"
@@ -84,7 +92,8 @@
 			sunDirection_axisZ ="0"
 			sunColor_axisX = "1" 
 			sunColor_axisY = "0" 
-			sunColor_axisZ ="0" 
+			sunColor_axisZ ="0"
+			useCustomCameraPos = "0" 
 		></scene>				
 	</scene_configs>
 	

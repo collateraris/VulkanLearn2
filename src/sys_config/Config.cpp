@@ -84,7 +84,15 @@ SceneConfig vk_utils::Config::GetCurrentScene()
         config.lightConfig.numUniformPointLightPerAxis = sceneConfig.GetAttribute<int>("numUniformPointLightPerAxis");
     }
 
-
+    config.bUseCustomCam = sceneConfig.GetAttribute<int>("useCustomCameraPos");
+    if (config.bUseCustomCam)
+    {
+        config.camPos[0] = sceneConfig.GetAttribute<float>("camPos_axisX");
+        config.camPos[1] = sceneConfig.GetAttribute<float>("camPos_axisY");
+        config.camPos[2] = sceneConfig.GetAttribute<float>("camPos_axisZ");
+        config.camPith = sceneConfig.GetAttribute<float>("camPitch");
+        config.camYaw = sceneConfig.GetAttribute<float>("camYaw");
+    }
 
 
     return config;

@@ -359,6 +359,10 @@ struct SceneConfig
 	float scaleFactor = 1.;
 	glm::mat4 model = glm::mat4(1.0);
 	LightConfig lightConfig;
+	bool bUseCustomCam = false;
+	glm::vec3 camPos = glm::vec3(1.);
+	float camPith = 1;
+	float camYaw = 1;
 };
 
 template <class T>

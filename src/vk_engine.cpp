@@ -147,6 +147,12 @@ void VulkanEngine::init()
 
 	_camera = {};
 	_camera.position = { 0.f,-6.f,-10.f };
+	if (config.bUseCustomCam)
+	{
+		_camera.position = config.camPos;
+		_camera.pitch = config.camPith;
+		_camera.yaw = config.camYaw;
+	}
 	
 	//everything went fine
 	_isInitialized = true;
