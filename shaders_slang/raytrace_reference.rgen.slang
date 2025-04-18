@@ -240,6 +240,7 @@ void main()
 		}
 
 		//naive sample emissive triangle
+		if (giParams.emissiveCount > 0)
 		{
 			uint emissiveIndx = sampleEmissiveUniform(rngState);
 			float3 emissiveCenter = emissiveTriangles[emissiveIndx];
