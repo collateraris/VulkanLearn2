@@ -8,7 +8,7 @@
 	></window>
 			
 	<current_scene
-		id="2"
+		id="3"
 	></current_scene>
 
 	<render_mode name="PATHTRACER"></render_mode>
@@ -69,22 +69,27 @@
 			scaleFactor = "1" 
 			needRotation = "0"
 			useSun = "1"
-			useUniformGeneratePointLight = "1"
+			useUniformGeneratePointLight = "0"
 			numUniformPointLightPerAxis = "2"
-			sunDirection_axisX = "1" 
-			sunDirection_axisY = "0" 
-			sunDirection_axisZ ="0"
+			sunDirection_axisX = "0.721" 
+			sunDirection_axisY = "-0.693" 
+			sunDirection_axisZ ="-0.013"
 			sunColor_axisX = "1" 
-			sunColor_axisY = "0" 
-			sunColor_axisZ ="0" 
-			useCustomCameraPos = "0"
+			sunColor_axisY = "1" 
+			sunColor_axisZ ="1" 
+			useCustomCameraPos = "1"
+			camPos_axisX = "-30.816" 
+			camPos_axisY = "27.660" 
+			camPos_axisZ = "14.089"
+			camPitch = "-0.027"
+			camYaw	= "-1.464"
 		></scene>
 		<scene id="3" 
 			path="r46_subway/scene.gltf"
 			hdr="kloppenheim_06_puresky_2k.hdr" 			 
 			scaleFactor = "1" 
 			needRotation = "0"
-			useSun = "1"
+			useSun = "0"
 			useUniformGeneratePointLight = "0"
 			numUniformPointLightPerAxis = "0"
 			sunDirection_axisX = "1" 

@@ -11,7 +11,7 @@ struct _MatrixStorage_float4x4_ColMajorstd430_0
 };
 
 
-#line 115 1
+#line 110 1
 struct SObjectData_std430_0
 {
     _MatrixStorage_float4x4_ColMajorstd430_0 model_0;
@@ -35,7 +35,7 @@ layout(std430, binding = 7) readonly buffer StructuredBuffer_vectorx3Cintx2C4x3E
     ivec4 _data[];
 } indices_0[];
 
-#line 93 1
+#line 88 1
 struct SVertex_std430_0
 {
     vec4 positionXYZ_normalX_0;
@@ -52,7 +52,7 @@ uniform texture2D  texSet_0[];
 
 
 #line 14
-layout(binding = 11)
+layout(binding = 8)
 uniform sampler linearSampler_0;
 
 

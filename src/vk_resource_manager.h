@@ -52,8 +52,6 @@ public:
 	std::vector<std::unique_ptr<Mesh>> meshList;
 	std::vector<std::unique_ptr<MaterialDesc>> matDescList; 
 	std::vector<Texture*> textureList;
-	std::vector<glm::vec3> emissiveTriangles = {};
-	AllocatedBuffer emissiveTrianglesBuffer;
 
 	//default array of renderable objects
 	std::vector<RenderObject> renderables;

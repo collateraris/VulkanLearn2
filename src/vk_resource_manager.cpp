@@ -230,32 +230,6 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 				resManager.renderables.push_back(map);
 	resManager.indirectBatchRO = compact_draws(resManager.renderables.data(), resManager.renderables.size());
 
-	//candidate for emissive triangles
-	for (RenderObject& object: resManager.renderables)
-	{
-		if (resManager.matDescList[object.matDescIndex]->emissionTextureIndex >= 0)
-		{
-			size_t numIndx = resManager.meshList[object.meshIndex]->_indices.size();
-			for (size_t i = 0; i < numIndx; i+=3)
-			{
-				Mesh* mesh = resManager.meshList[object.meshIndex].get();
-				uint32_t indx0 = mesh->_indices[i];
-				uint32_t indx1 = mesh->_indices[i+1];
-				uint32_t indx2 = mesh->_indices[i+2];
-				glm::vec3 vpos0 = glm::vec3(mesh->_vertices[indx0].positionXYZ_normalX);
-				glm::vec3 vpos1 = glm::vec3(mesh->_vertices[indx1].positionXYZ_normalX);
-				glm::vec3 vpos2 = glm::vec3(mesh->_vertices[indx2].positionXYZ_normalX);
-				glm::vec3 center = (vpos0 + vpos1 + vpos2);
-				center = glm::vec3(center.x / 3, center.y / 3, center.z / 3);
-				center = glm::vec3(object.transformMatrix * glm::vec4(center, 1.));
-
-				resManager.emissiveTriangles.push_back(center);
-			}
-		}
-	}
-	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(resManager.emissiveTriangles.size() * sizeof(glm::vec3));
-	resManager.emissiveTrianglesBuffer = _engine->create_buffer_n_copy_data(bufferSize, resManager.emissiveTriangles.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-
 	//create global object buffer
 
 	std::vector<GlobalObjectData> objectSSBO;
@@ -277,7 +251,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 		});
 	}
 
-	bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(objectSSBO.size() * sizeof(GlobalObjectData));
+	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(objectSSBO.size() * sizeof(GlobalObjectData));
 	resManager.globalObjectBuffer = _engine->create_buffer_n_copy_data(bufferSize, objectSSBO.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 }
 
@@ -382,12 +356,11 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	const uint32_t meshletsDataBinding = 5;
 	const uint32_t lightBufferBinding = 6;
 	const uint32_t indicesBinding = 7;
+	const uint32_t blockySamplerBinding = 8;
 
 	const uint32_t irradianceMapBinding = 8;
 	const uint32_t prefilteredMapBinding = 9;
 	const uint32_t brdfLUTBinding = 10;
-	const uint32_t blockySamplerBinding = 11;
-	const uint32_t emissiveTrianglesBinding = 12;
 
 	const auto& meshList = resManager.meshList;
 	const auto& textureList = resManager.textureList;
@@ -447,16 +420,10 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
 	descASInfo.accelerationStructureCount = 1;
 	descASInfo.pAccelerationStructures = &tlas;
-
 	VkDescriptorBufferInfo objectBufferInfo;
 	objectBufferInfo.buffer = resManager.globalObjectBuffer._buffer;
 	objectBufferInfo.offset = 0;
 	objectBufferInfo.range = VK_WHOLE_SIZE;
-
-	VkDescriptorBufferInfo emissiveBufferInfo;
-	emissiveBufferInfo.buffer = resManager.emissiveTrianglesBuffer._buffer;
-	emissiveBufferInfo.offset = 0;
-	emissiveBufferInfo.range = VK_WHOLE_SIZE;
 
 	VkDescriptorBufferInfo lightsInfo;
 	lightsInfo.buffer = _engine->_lightManager.get_light_buffer()._buffer;
@@ -498,6 +465,5 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		.bind_image(prefilteredMapBinding, &prefilteredMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(brdfLUTBinding, &brdflutMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(blockySamplerBinding, &blockySamplerInfo, VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
-		.bind_buffer(emissiveTrianglesBinding, &emissiveBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene); 
+		.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene);
 }

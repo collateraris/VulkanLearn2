@@ -11,7 +11,7 @@ struct _MatrixStorage_float4x4_ColMajorstd430_0
 };
 
 
-#line 115 1
+#line 110 1
 struct SObjectData_std430_0
 {
     _MatrixStorage_float4x4_ColMajorstd430_0 model_0;
@@ -35,7 +35,7 @@ layout(std430, binding = 7) readonly buffer StructuredBuffer_vectorx3Cintx2C4x3E
     ivec4 _data[];
 } indices_0[];
 
-#line 93 1
+#line 88 1
 struct SVertex_std430_0
 {
     vec4 positionXYZ_normalX_0;
@@ -52,67 +52,67 @@ uniform texture2D  texSet_0[];
 
 
 #line 14
-layout(binding = 11)
+layout(binding = 8)
 uniform sampler linearSampler_0;
 
 
-#line 45 1
+#line 40 1
 vec2 octWrap_0(vec2 v_0)
 {
     float _S1 = v_0.y;
 
-#line 47
+#line 42
     float _S2 = 1.0 - abs(_S1);
 
-#line 47
+#line 42
     float _S3 = v_0.x;
 
-#line 47
+#line 42
     float _S4;
 
-#line 47
+#line 42
     if(_S3 >= 0.0)
     {
 
-#line 47
+#line 42
         _S4 = 1.0;
 
-#line 47
+#line 42
     }
     else
     {
 
-#line 47
+#line 42
         _S4 = -1.0;
 
-#line 47
+#line 42
     }
 
-#line 47
+#line 42
     float _S5 = _S2 * _S4;
 
-#line 47
+#line 42
     float _S6 = 1.0 - abs(_S3);
 
-#line 47
+#line 42
     if(_S1 >= 0.0)
     {
 
-#line 47
+#line 42
         _S4 = 1.0;
 
-#line 47
+#line 42
     }
     else
     {
 
-#line 47
+#line 42
         _S4 = -1.0;
 
-#line 47
+#line 42
     }
 
-#line 47
+#line 42
     return vec2(_S5, _S6 * _S4);
 }
 
@@ -120,42 +120,42 @@ vec2 encodeNormalOctahedron_0(vec3 n_0)
 {
     float _S7 = n_0.x;
 
-#line 52
+#line 47
     float _S8 = n_0.y;
 
-#line 52
+#line 47
     float _S9 = n_0.z;
 
-#line 52
+#line 47
     vec2 p_0 = vec2(_S7, _S8) * (1.0 / (abs(_S7) + abs(_S8) + abs(_S9)));
 
-#line 52
+#line 47
     vec2 p_1;
     if(_S9 < 0.0)
     {
 
-#line 53
+#line 48
         p_1 = octWrap_0(p_0);
 
-#line 53
+#line 48
     }
     else
     {
 
-#line 53
+#line 48
         p_1 = p_0;
 
-#line 53
+#line 48
     }
     return p_1;
 }
 
 
-#line 66
+#line 61
 vec4 encodeNormals_0(vec3 geometryNormal_0, vec3 shadingNormal_0)
 {
 
-#line 67
+#line 62
     return vec4(encodeNormalOctahedron_0(geometryNormal_0), encodeNormalOctahedron_0(shadingNormal_0));
 }
 

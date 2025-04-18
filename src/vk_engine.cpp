@@ -101,7 +101,6 @@ void VulkanEngine::init()
 	init_pipelines();
 
 	_lightManager.init(this);
-	_lightManager.set_emissive_count(_resManager.emissiveTriangles.size());
 	if (config.lightConfig.bUseSun) {
 		_lightManager.add_sun_light(std::move(config.lightConfig.sunDirection), std::move(config.lightConfig.sunColor));
 	}

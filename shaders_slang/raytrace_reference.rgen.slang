@@ -13,9 +13,6 @@ RaytracingAccelerationStructure topLevelAS	: register(t2);
 [[vk::binding(6, 0)]]
 StructuredBuffer<SLight> lightsBuffer  : register(t6);
 
-[[vk::binding(12, 0)]]
-StructuredBuffer<float3> emissiveTriangles   : register(t12);
-
 [[vk::binding(0, 1)]]
 cbuffer MyContantBuffer : register(b0)
 {
@@ -103,12 +100,6 @@ bool sampleLightUniform(inout RngStateType rngState, float3 hitPosition, float3 
 
 	return true;
 };
-
-uint sampleEmissiveUniform(inout RngStateType rngState)
-{
-	uint randomEmissiveIndex = min(giParams.emissiveCount - 1, uint(rand(rngState) * giParams.emissiveCount));
-	return randomEmissiveIndex;
-}
 
 // Samples a random light from the pool of all lights using RIS (Resampled Importance Sampling)
 bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surfaceNormal, out SLight selectedSample, out float lightSampleWeight) {
@@ -212,8 +203,8 @@ void main()
 		decodeNormals(payload.normal_, geometryNormal, shadingNormal);
 
 		float3 V = -rayDir;
-		if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
-		if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
+		//if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
+		//if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
 
 		radiance += throughput * material.emissive;// * 10 + material.baseColor/M_PI;
 		//radiance = geometryNormal;
@@ -240,25 +231,25 @@ void main()
 		}
 
 		//naive sample emissive triangle
-		if (giParams.emissiveCount > 0)
 		{
-			uint emissiveIndx = sampleEmissiveUniform(rngState);
-			float3 emissiveCenter = emissiveTriangles[emissiveIndx];
-			float3 emissiveLightDir = emissiveCenter - payload.position_objectID.xyz;
-			IndirectGbufferRayPayload payloadEmissive = shootRay(payload.position_objectID.xyz, emissiveLightDir);
-			if (payloadEmissive.hasEmissive())
+			for (uint i = 0; i < 10; i++)
 			{
-				float3 lightVector = payloadEmissive.position_objectID.xyz - payload.position_objectID.xyz;
-				float  lightDistance = length(lightVector);
-				float3 L = normalize(lightVector);
-				// Cem Yuksel's improved attenuation avoiding singularity at distance=0
-				// Source: http://www.cemyuksel.com/research/pointlightattenuation/
-				const float radius = 0.5f; //< We hardcode radius at 0.5, but this should be a light parameter
-				const float radiusSquared = radius * radius;
-				const float distanceSquared = lightDistance * lightDistance;
-				const float attenuation = 2.0f / (distanceSquared + radiusSquared + lightDistance * sqrt(distanceSquared + radiusSquared));
-				float3 emissiveIntensity = payloadEmissive.emission_roughness.xyz * attenuation * 10000;
-				radiance += throughput * evalCombinedBRDF(shadingNormal, L, V, material) * emissiveIntensity;
+				float3 emissiveLightDir = getCosHemisphereSample(rngState, geometryNormal);
+				IndirectGbufferRayPayload payloadEmissive = shootRay(payload.position_objectID.xyz, emissiveLightDir);
+				if (payloadEmissive.hasEmissive())
+				{
+					float3 lightVector = payloadEmissive.position_objectID.xyz - payload.position_objectID.xyz;
+					float  lightDistance = length(lightVector);
+					float3 L = normalize(lightVector);
+					// Cem Yuksel's improved attenuation avoiding singularity at distance=0
+					// Source: http://www.cemyuksel.com/research/pointlightattenuation/
+					const float radius = 0.5f; //< We hardcode radius at 0.5, but this should be a light parameter
+					const float radiusSquared = radius * radius;
+					const float distanceSquared = lightDistance * lightDistance;
+					const float attenuation = 2.0f / (distanceSquared + radiusSquared + lightDistance * sqrt(distanceSquared + radiusSquared));
+					float3 emissiveIntensity = payloadEmissive.emission_roughness.xyz * attenuation * 10000;
+					radiance += throughput * evalCombinedBRDF(shadingNormal, L, V, material) * emissiveIntensity;
+				}
 			}
 		}
 
