@@ -38,11 +38,16 @@ public:
 	void create_light_buffer();
 	void create_cpu_host_visible_light_buffer();
 
+	void set_emissive_count(size_t size) { _emissiveCount = size;}
+	size_t get_emissive_count() { return _emissiveCount;};
+
 private:
 
 	bool bUseCpuHostVisibleBuffer = false;
 
 	int32_t sunIndex = -1;
+
+	size_t _emissiveCount = 0;
 
 	VulkanEngine* _engine = nullptr;
 

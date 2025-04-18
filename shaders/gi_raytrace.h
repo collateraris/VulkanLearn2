@@ -11,7 +11,7 @@ struct SGlobalGIParams
 	uint  numRays;
 	uint mode;
 	uint enableAccumulation;
-	uint pad2;
+	uint emissiveCount;
 	uint pad3;
 };
 
