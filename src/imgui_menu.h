@@ -177,6 +177,7 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, T& gi
     static bool bRestirGI = false;
     static bool bRestirDI_SpacialReuse = false;
     static bool bRestirGI_SpacialReuse = false;
+    static bool bEnableAccumulation = false;
     static uint32_t RESTIR_GI = 1u << 1;
     static uint32_t RESTIR_DI_SpacialReuse = 1u << 2;
     static uint32_t RESTIR_GI_SpacialReuse = 1u << 3;
@@ -187,7 +188,8 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, T& gi
     static int numRays = 0;
     bChangedValue |= ImGui::InputInt("Indirect numRays", &numRays);
     bChangedValue |= ImGui::InputFloat("shadow Mult", &giParams.shadowMult);
-
+    bChangedValue |= ImGui::Checkbox("EnableAccumulation", &bEnableAccumulation);
+    giParams.enableAccumulation = bEnableAccumulation;
     bChangedValue |= ImGui::Checkbox("ReSTIR DI SpacialReuse ON", &bRestirDI_SpacialReuse);
     if (bRestirDI_SpacialReuse)
     {
@@ -269,16 +271,10 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, T& gi
 
     if (bChangedValue)
     {
-
         bChangedValue = false;
         if (bResetAccumulation)
             giGP.reset_accumulation();
-        giParams.enableAccumulation = 0;
         giParams.prevProjView = prevCameraMatrix;
-    }
-    else
-    {
-        giParams.enableAccumulation = 1;
     }
   
     giGP.copy_global_uniform_data(giParams, current_frame_index);

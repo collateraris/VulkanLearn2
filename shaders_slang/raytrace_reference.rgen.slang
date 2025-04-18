@@ -206,10 +206,10 @@ void main()
 		//if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
 		//if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
 
-		radiance += throughput * material.emissive * 10 + material.baseColor/M_PI;
+		radiance += throughput * material.emissive;// * 10 + material.baseColor/M_PI;
 		//radiance = geometryNormal;
 		//radiance += float3(material.baseColor.x, material.baseColor.x, material.baseColor.x);
-		break;
+		//break;
 
 		// Evaluate direct light (next event estimation), start by sampling one light 
 		SLight light;
@@ -227,6 +227,29 @@ void main()
 			{
 				// If light is not in shadow, evaluate BRDF and accumulate its contribution into radiance
 				radiance += throughput * evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * lightWeight);
+			}
+		}
+
+		//naive sample emissive triangle
+		{
+			for (uint i = 0; i < 10; i++)
+			{
+				float3 emissiveLightDir = getCosHemisphereSample(rngState, geometryNormal);
+				IndirectGbufferRayPayload payloadEmissive = shootRay(payload.position_objectID.xyz, emissiveLightDir);
+				if (payloadEmissive.hasEmissive())
+				{
+					float3 lightVector = payloadEmissive.position_objectID.xyz - payload.position_objectID.xyz;
+					float  lightDistance = length(lightVector);
+					float3 L = normalize(lightVector);
+					// Cem Yuksel's improved attenuation avoiding singularity at distance=0
+					// Source: http://www.cemyuksel.com/research/pointlightattenuation/
+					const float radius = 0.5f; //< We hardcode radius at 0.5, but this should be a light parameter
+					const float radiusSquared = radius * radius;
+					const float distanceSquared = lightDistance * lightDistance;
+					const float attenuation = 2.0f / (distanceSquared + radiusSquared + lightDistance * sqrt(distanceSquared + radiusSquared));
+					float3 emissiveIntensity = payloadEmissive.emission_roughness.xyz * attenuation * 10000;
+					radiance += throughput * evalCombinedBRDF(shadingNormal, L, V, material) * emissiveIntensity;
+				}
 			}
 		}
 
@@ -272,10 +295,10 @@ void main()
 	}
 
 	// Temporal accumulation
-	//float3 previousColor = accumulationBuffer[LaunchIndex].rgb;
-	//float3 accumulatedColor = radiance;
-	//accumulatedColor = previousColor + radiance;
-	//accumulationBuffer[LaunchIndex] = float4(accumulatedColor, 1.0f);	
+	float3 previousColor = accumulationBuffer[LaunchIndex].rgb;
+	float3 accumulatedColor = radiance;
+	if (giParams.enableAccumulation) accumulatedColor = previousColor + radiance;
+	accumulationBuffer[LaunchIndex] = float4(accumulatedColor, 1.0f);	
 
 	ptOutput[LaunchIndex] = float4(radiance, 1.);
 };

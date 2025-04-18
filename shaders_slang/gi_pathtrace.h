@@ -34,6 +34,11 @@ struct IndirectGbufferRayPayload
     {
         return (position_objectID.w > 1e-3);
     }
+
+	bool hasEmissive()
+	{
+		return (dot(emission_roughness.xyz, emission_roughness.xyz));
+	}
 };
 
 // Helpers for octahedron encoding of normals
@@ -197,6 +202,33 @@ float rand(inout RngStateType rngState) {
 // -------------------------------------------------------------------------
 //    Utilities
 // -------------------------------------------------------------------------
+
+// Utility function to get a vector perpendicular to an input vector 
+//    (from "Efficient Construction of Perpendicular Vectors Without Branching")
+float3 getPerpendicularVector(float3 u)
+{
+	float3 a = abs(u);
+	uint xm = ((a.x - a.y)<0 && (a.x - a.z)<0) ? 1 : 0;
+	uint ym = (a.y - a.z)<0 ? (1 ^ xm) : 0;
+	uint zm = 1 ^ (xm | ym);
+	return cross(u, float3(xm, ym, zm));
+}
+
+// Get a cosine-weighted random vector centered around a specified normal direction.
+float3 getCosHemisphereSample(inout RngStateType randSeed, float3 hitNorm)
+{
+	// Get 2 random numbers to select our sample with
+	float2 randVal = float2(rand(randSeed), rand(randSeed));
+
+	// Cosine weighted hemisphere sample from RNG
+	float3 bitangent = getPerpendicularVector(hitNorm);
+	float3 tangent = cross(bitangent, hitNorm);
+	float r = sqrt(randVal.x);
+	float phi = 2.0f * 3.14159265f * randVal.y;
+
+	// Get our cosine-weighted hemisphere lobe sample direction
+	return tangent * (r * cos(phi).x) + bitangent * (r * sin(phi)) + hitNorm.xyz * sqrt(1 - randVal.x);
+}
 
 // Clever offset_ray function from Ray Tracing Gems chapter 6
 // Offsets the ray origin from current position p, along normal n (which must be geometric normal)
