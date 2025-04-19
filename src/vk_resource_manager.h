@@ -8,6 +8,7 @@ class VulkanEngine;
 struct RenderObject;
 struct IndirectBatch;
 struct Scene;
+struct EmissiveInfo;
 
 struct MaterialDesc
 {
@@ -52,6 +53,10 @@ public:
 	std::vector<std::unique_ptr<Mesh>> meshList;
 	std::vector<std::unique_ptr<MaterialDesc>> matDescList; 
 	std::vector<Texture*> textureList;
+
+	std::vector<EmissiveInfo> emissiveTriangles;
+	AllocatedBuffer emissiveTrianglesBuffer;
+
 
 	//default array of renderable objects
 	std::vector<RenderObject> renderables;

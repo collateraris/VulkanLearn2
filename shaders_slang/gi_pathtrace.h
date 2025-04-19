@@ -19,8 +19,15 @@ struct SGlobalGIParams
 	uint  numRays;
 	uint mode;
 	uint enableAccumulation;
-	uint pad2;
+	uint emissiveTrianglesCount;
 	uint pad3;
+};
+
+struct EmissiveInfo
+{
+	float4 pos0_;
+	float4 pos1_;
+	float4 pos2_;
 };
 
 struct IndirectGbufferRayPayload
@@ -198,6 +205,27 @@ float rand(inout RngStateType rngState) {
 
 #endif
 
+// Any point inside the triangle with vertices V0, V1, and V2 can be expressed as
+//        P = b0 * V0 + b1 * V1 + b2 * V2
+// where b0 + b1 + b2 = 1. Therefore, only b1 and b2 need to be sampled.
+float2 UniformSampleTriangle(float2 u)
+{
+	// Ref: Eric Heitz. A Low-Distortion Map Between Triangle and Square. 2019.
+	float b1, b2;
+	
+	if (u.y > u.x)
+	{
+		b1 = u.x * 0.5f;
+		b2 = u.y - b1;
+	}
+	else
+	{
+		b2 = u.y * 0.5f;
+		b1 = u.x - b2;
+	}
+
+	return float2(b1, b2);
+}
 
 // -------------------------------------------------------------------------
 //    Utilities

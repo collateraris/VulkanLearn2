@@ -57,6 +57,13 @@ struct RenderObject {
 	int matDescIndex;
 };
 
+struct EmissiveInfo
+{
+	glm::vec4 pos0_ = glm::vec4(1);
+	glm::vec4 pos1_ = glm::vec4(1);
+	glm::vec4 pos2_ = glm::vec4(1);
+};
+
 struct IndirectBatch {
 	Mesh* mesh;
 	int matDescIndex;

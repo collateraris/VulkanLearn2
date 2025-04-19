@@ -190,6 +190,7 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, T& gi
     bChangedValue |= ImGui::InputFloat("shadow Mult", &giParams.shadowMult);
     bChangedValue |= ImGui::Checkbox("EnableAccumulation", &bEnableAccumulation);
     giParams.enableAccumulation = bEnableAccumulation;
+    giParams.emissiveTrianglesCount = lightManager.get_emissive_count();
     bChangedValue |= ImGui::Checkbox("ReSTIR DI SpacialReuse ON", &bRestirDI_SpacialReuse);
     if (bRestirDI_SpacialReuse)
     {

@@ -13,6 +13,9 @@ RaytracingAccelerationStructure topLevelAS	: register(t2);
 [[vk::binding(6, 0)]]
 StructuredBuffer<SLight> lightsBuffer  : register(t6);
 
+[[vk::binding(11, 0)]]
+StructuredBuffer<EmissiveInfo> emissiveTriangles   : register(t12);
+
 [[vk::binding(0, 1)]]
 cbuffer MyContantBuffer : register(b0)
 {
@@ -161,6 +164,13 @@ float getBrdfProbability(MaterialProperties material, float3 V, float3 shadingNo
 	return clamp(p, 0.1f, 0.9f);
 };
 
+uint sampleEmissiveUniform(inout RngStateType rngState)
+{
+	uint count = giParams.emissiveTrianglesCount - 1;
+	uint randomEmissiveIndex = min(count - 1, uint(rand(rngState) * count));
+	return randomEmissiveIndex + 1;
+}
+
 
 [shader("raygeneration")]
 void main() 
@@ -231,23 +241,29 @@ void main()
 		}
 
 		//naive sample emissive triangle
+		if (giParams.emissiveTrianglesCount > 1)
 		{
 			for (uint i = 0; i < 10; i++)
 			{
-				float3 emissiveLightDir = getCosHemisphereSample(rngState, geometryNormal);
+				uint emissiveIndx = sampleEmissiveUniform(rngState);
+				EmissiveInfo emTri = emissiveTriangles[emissiveIndx];
+				float2 uv = float2(rand(rngState), rand(rngState));
+				float2 bary = UniformSampleTriangle(uv);
+				float3 emissivePos = (1.0f - bary.x - bary.y) * emTri.pos0_.xyz + bary.x * emTri.pos1_.xyz + bary.y * emTri.pos2_.xyz;
+
+				float3 emissiveLightDir = emissivePos - payload.position_objectID.xyz;
 				IndirectGbufferRayPayload payloadEmissive = shootRay(payload.position_objectID.xyz, emissiveLightDir);
 				if (payloadEmissive.hasEmissive())
 				{
 					float3 lightVector = payloadEmissive.position_objectID.xyz - payload.position_objectID.xyz;
 					float  lightDistance = length(lightVector);
 					float3 L = normalize(lightVector);
-					// Cem Yuksel's improved attenuation avoiding singularity at distance=0
 					// Source: http://www.cemyuksel.com/research/pointlightattenuation/
 					const float radius = 0.5f; //< We hardcode radius at 0.5, but this should be a light parameter
 					const float radiusSquared = radius * radius;
 					const float distanceSquared = lightDistance * lightDistance;
 					const float attenuation = 2.0f / (distanceSquared + radiusSquared + lightDistance * sqrt(distanceSquared + radiusSquared));
-					float3 emissiveIntensity = payloadEmissive.emission_roughness.xyz * attenuation * 10000;
+					float3 emissiveIntensity = payloadEmissive.emission_roughness.xyz * 10;
 					radiance += throughput * evalCombinedBRDF(shadingNormal, L, V, material) * emissiveIntensity;
 				}
 			}
