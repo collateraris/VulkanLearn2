@@ -230,34 +230,6 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 				resManager.renderables.push_back(map);
 	resManager.indirectBatchRO = compact_draws(resManager.renderables.data(), resManager.renderables.size());
 
-	//candidate for emissive triangles
-	resManager.emissiveTriangles.push_back(EmissiveInfo{});
-	for (RenderObject& object : resManager.renderables)
-	{
-		if (resManager.matDescList[object.matDescIndex]->emissionTextureIndex >= 0)
-		{
-			size_t numIndx = resManager.meshList[object.meshIndex]->_indices.size();
-			for (size_t i = 0; i < numIndx; i += 3)
-			{
-				Mesh* mesh = resManager.meshList[object.meshIndex].get();
-				uint32_t indx0 = mesh->_indices[i];
-				uint32_t indx1 = mesh->_indices[i + 1];
-				uint32_t indx2 = mesh->_indices[i + 2];
-				glm::vec3 vpos0 = glm::vec3(mesh->_vertices[indx0].positionXYZ_normalX);
-				glm::vec3 vpos1 = glm::vec3(mesh->_vertices[indx1].positionXYZ_normalX);
-				glm::vec3 vpos2 = glm::vec3(mesh->_vertices[indx2].positionXYZ_normalX);
-				EmissiveInfo info;
-				info.pos0_ = object.transformMatrix * glm::vec4(vpos0, 1.);
-				info.pos1_ = object.transformMatrix * glm::vec4(vpos1, 1.);
-				info.pos2_ = object.transformMatrix * glm::vec4(vpos1, 1.);
-
-				resManager.emissiveTriangles.push_back(info);
-			}
-		}
-	}
-	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(resManager.emissiveTriangles.size() * sizeof(EmissiveInfo));
-	resManager.emissiveTrianglesBuffer = _engine->create_buffer_n_copy_data(bufferSize, resManager.emissiveTriangles.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-
 	//create global object buffer
 
 	std::vector<GlobalObjectData> objectSSBO;
@@ -279,7 +251,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 		});
 	}
 
-	bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(objectSSBO.size() * sizeof(GlobalObjectData));
+	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(objectSSBO.size() * sizeof(GlobalObjectData));
 	resManager.globalObjectBuffer = _engine->create_buffer_n_copy_data(bufferSize, objectSSBO.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 }
 
@@ -389,7 +361,6 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	const uint32_t irradianceMapBinding = 8;
 	const uint32_t prefilteredMapBinding = 9;
 	const uint32_t brdfLUTBinding = 10;
-	const uint32_t emissiveTriangleBinding = 11;
 
 	const auto& meshList = resManager.meshList;
 	const auto& textureList = resManager.textureList;
@@ -414,21 +385,21 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		VkDescriptorBufferInfo& vertexBufferInfo = vertexBufferInfoList[meshArrayIndex];
 		vertexBufferInfo.buffer = mesh->_vertexBufferRT._buffer;
 		vertexBufferInfo.offset = 0;
-		vertexBufferInfo.range = mesh->_vertexBufferRT._size;
+		vertexBufferInfo.range = VK_WHOLE_SIZE;
 
 		VkDescriptorBufferInfo& meshletBufferInfo = meshletBufferInfoList[meshArrayIndex];
 		meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;
 		meshletBufferInfo.offset = 0;
-		meshletBufferInfo.range = mesh->_meshletsBuffer._size;
+		meshletBufferInfo.range = VK_WHOLE_SIZE;
 
 		VkDescriptorBufferInfo& meshletdataBufferInfo = meshletdataBufferInfoList[meshArrayIndex];
 		meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
 		meshletdataBufferInfo.offset = 0;
-		meshletdataBufferInfo.range = mesh->_meshletdataBuffer._size;
+		meshletdataBufferInfo.range = VK_WHOLE_SIZE;
 		VkDescriptorBufferInfo& indexBufferInfo = indexBufferInfoList[meshArrayIndex];
 		indexBufferInfo.buffer = mesh->_indicesBuffer._buffer;
 		indexBufferInfo.offset = 0;
-		indexBufferInfo.range = mesh->_indicesBuffer._size;
+		indexBufferInfo.range = VK_WHOLE_SIZE;
 	}
 
 	//BIND SAMPLERS
@@ -449,21 +420,15 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	VkWriteDescriptorSetAccelerationStructureKHR descASInfo{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
 	descASInfo.accelerationStructureCount = 1;
 	descASInfo.pAccelerationStructures = &tlas;
-
 	VkDescriptorBufferInfo objectBufferInfo;
 	objectBufferInfo.buffer = resManager.globalObjectBuffer._buffer;
 	objectBufferInfo.offset = 0;
-	objectBufferInfo.range = resManager.globalObjectBuffer._size;
-
-	VkDescriptorBufferInfo emissiveBufferInfo;
-	emissiveBufferInfo.buffer = resManager.emissiveTrianglesBuffer._buffer;
-	emissiveBufferInfo.offset = 0;
-	emissiveBufferInfo.range = resManager.emissiveTrianglesBuffer._size;
+	objectBufferInfo.range = VK_WHOLE_SIZE;
 
 	VkDescriptorBufferInfo lightsInfo;
 	lightsInfo.buffer = _engine->_lightManager.get_light_buffer()._buffer;
 	lightsInfo.offset = 0;
-	lightsInfo.range = _engine->_lightManager.get_light_buffer()._size;
+	lightsInfo.range = VK_WHOLE_SIZE;
 
 	VkSampler& sampler = _engine->get_engine_sampler(ESamplerType::NEAREST_REPEAT)->sampler;
 
@@ -500,6 +465,5 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		.bind_image(prefilteredMapBinding, &prefilteredMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(brdfLUTBinding, &brdflutMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(blockySamplerBinding, &blockySamplerInfo, VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
-		.bind_buffer(emissiveTriangleBinding, &emissiveBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene);
 }
