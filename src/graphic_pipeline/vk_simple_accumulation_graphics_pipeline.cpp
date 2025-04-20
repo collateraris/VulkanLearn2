@@ -123,18 +123,21 @@ Texture& VulkanSimpleAccumulationGraphicsPipeline::get_tex(ETextureResourceNames
 	return *_engine->get_engine_texture(name);
 }
 
-void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index, ERenderMode mode/* = ERenderMode::ReSTIR_GI*/)
 {
 	if (_counter.accumCount == 0)
 	{
 			VkClearValue clear_value = { 0., 0., 0., 1. };
 
 			cmd->clear_image(_lastFrameTexture, clear_value);
-			cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_DI_PREV_RESERVOIRS), clear_value);
-			cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_GI_PREV_RESERVOIRS), clear_value);
-			cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_INDIRECT_LO_PREV), clear_value);
-			cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_PREV), clear_value);
-			cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_PREV), clear_value);
+			if (mode == ERenderMode::ReSTIR_GI)
+			{
+				cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_DI_PREV_RESERVOIRS), clear_value);
+				cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_GI_PREV_RESERVOIRS), clear_value);
+				cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_INDIRECT_LO_PREV), clear_value);
+				cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_PREV), clear_value);
+				cmd->clear_image(get_tex(ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_PREV), clear_value);
+			}
 	}
 
 

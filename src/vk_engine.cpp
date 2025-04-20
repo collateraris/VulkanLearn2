@@ -108,7 +108,7 @@ void VulkanEngine::init()
 	{
 		_lightManager.generate_uniform_grid(_resManager.maxCube, _resManager.minCube, config.lightConfig.numUniformPointLightPerAxis);
 	}
-	if (config.lightConfig.bUseSun || config.lightConfig.bUseUniformGeneratePointLight)
+	if (config.lightConfig.bUseSun || config.lightConfig.bUseUniformGeneratePointLight || (_lightManager.get_lights().size() > 0))
 	{
 		_lightManager.create_cpu_host_visible_light_buffer();
 	}
@@ -142,7 +142,8 @@ void VulkanEngine::init()
 	if (get_mode() == ERenderMode::Pathtracer)
 	{
 		_ptReference.init(this);
-		_gBufShadingGraphicsPipeline.init(this, _ptReference.get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT));
+		_accumulationGP.init(this, _ptReference.get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT));
+		_gBufShadingGraphicsPipeline.init(this, _accumulationGP.get_output());
 	}
 
 	_camera = {};
@@ -255,6 +256,11 @@ void VulkanEngine::draw()
 				_giRtGraphicsPipeline.try_reset_accumulation(_camera);
 			}
 
+			if (get_mode() == ERenderMode::Pathtracer)
+			{
+				_accumulationGP.try_reset_accumulation(_camera);
+			}
+
 		}
 
 		//compute_pass(cmd); 
@@ -274,6 +280,7 @@ void VulkanEngine::draw()
 		_ptReference.barrier_for_writing(&get_current_frame()._mainCommandBuffer);
 		_ptReference.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 		_ptReference.barrier_for_reading(&get_current_frame()._mainCommandBuffer);
+		_accumulationGP.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index(), ERenderMode::Pathtracer);
 	}	
 	if (get_mode() == ERenderMode::ReSTIR_GI)
 	{
@@ -380,12 +387,12 @@ void VulkanEngine::draw()
 
 	uint64_t queryResults[2];
 #if VULKAN_DEBUG_ON 
-	VK_CHECK(vkGetQueryPoolResults(_device, get_current_frame().queryPool, 0, 2, sizeof(queryResults), queryResults, sizeof(queryResults[0]), VK_QUERY_RESULT_64_BIT));
+	//VK_CHECK(vkGetQueryPoolResults(_device, get_current_frame().queryPool, 0, 2, sizeof(queryResults), queryResults, sizeof(queryResults[0]), VK_QUERY_RESULT_64_BIT));
 
-	double frameGpuBegin = double(queryResults[0]) * _physDevProp.limits.timestampPeriod * 1e-6;
-	double frameGpuEnd = double(queryResults[1]) * _physDevProp.limits.timestampPeriod * 1e-6;
+	//double frameGpuBegin = double(queryResults[0]) * _physDevProp.limits.timestampPeriod * 1e-6;
+	//double frameGpuEnd = double(queryResults[1]) * _physDevProp.limits.timestampPeriod * 1e-6;
 
-	_stats.frameGpuAvg = _stats.frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
+	_stats.frameGpuAvg = 0;// _stats.frameGpuAvg * 0.95 + (frameGpuEnd - frameGpuBegin) * 0.05;
 #endif	
 	//increase the number of frames drawn
 	_frameNumber++;
@@ -531,6 +538,9 @@ void VulkanEngine::init_vulkan()
 		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
 		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, // Required by ray tracing pipeline
+#if VULKAN_DEBUG_ON		
+		VK_NV_RAY_TRACING_VALIDATION_EXTENSION_NAME,
+#endif		
 	};
 
 	vkb::PhysicalDevice physicalDevice = selector
@@ -613,7 +623,9 @@ void VulkanEngine::init_vulkan()
 		.add_pNext(&rt_features)
 		.add_pNext(&ray_query_features)
 		.add_pNext(&synchronized2_features)
+	#if VULKAN_DEBUG_ON	
 		.add_pNext(&rtValidationFeatures)
+	#endif	
 		.build().value();
 
 	// Get the VkDevice handle used in the rest of a Vulkan application
@@ -731,6 +743,7 @@ void VulkanEngine::init_swapchain()
 		.make_img_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, depthImageExtent)
 		.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 		.make_view_info(_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
+		.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; })
 		.create_texture();
 }
 

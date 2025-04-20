@@ -84,19 +84,21 @@ void ResourceManager::load_meshes(VulkanEngine* _engine, const std::vector<std::
 			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(indicesArray.size() * sizeof(glm::ivec4));
 			mesh->_indicesBuffer = _engine->create_buffer_n_copy_data(bufferSize, indicesArray.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		}
-	mesh->buildMeshlets();
+		{
+			mesh->buildMeshlets();
 
-	{
-		size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_meshlets.size() * sizeof(Meshlet));
+			{
+				size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_meshlets.size() * sizeof(Meshlet));
 
-		mesh->_meshletsBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->_meshlets.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-	}
+				mesh->_meshletsBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->_meshlets.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+			}
 
-	{
-		size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->meshletdata.size() * sizeof(uint32_t));
+			{
+				size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->meshletdata.size() * sizeof(uint32_t));
 
-		mesh->_meshletdataBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->meshletdata.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-	}
+				mesh->_meshletdataBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->meshletdata.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+			}
+		}
 	}
 }
 

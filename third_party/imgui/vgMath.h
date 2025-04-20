@@ -27,7 +27,7 @@
     #endif
 
     #define VGM_NAMESPACE glm
-
+    #define GLM_ENABLE_EXPERIMENTAL
     #include <glm/glm.hpp>
     #include <glm/gtx/vector_angle.hpp>
     #include <glm/gtx/exterior_product.hpp>

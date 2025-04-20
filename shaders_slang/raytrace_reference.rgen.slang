@@ -126,7 +126,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 			if (type == EMISSION_LIGHT)
 			{
 				IndirectGbufferRayPayload payloadEmissive = shootRay(hitPosition, lightVector, FLT_MAX);
-				candidate.color_type.xyz = payloadEmissive.emission_roughness.xyz * 10;
+				candidate.color_type.xyz = payloadEmissive.emission_roughness.xyz * 1000;
 			}
 			float candidatePdfG = luminance(getLightIntensityAtPoint(candidate, length(lightVector)));
 			const float candidateRISWeight = candidatePdfG * candidateWeight; 

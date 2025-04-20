@@ -21,7 +21,7 @@ class VulkanSimpleAccumulationGraphicsPipeline
 
 public:
 	void init(VulkanEngine* engine, const Texture& currentTex);
-	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
+	void draw(VulkanCommandBuffer* cmd, int current_frame_index, ERenderMode mode = ERenderMode::ReSTIR_GI);
 	void try_reset_accumulation(PlayerCamera& camera);
 	void reset_accumulation();
 

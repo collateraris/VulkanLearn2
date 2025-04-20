@@ -12,7 +12,7 @@
 #endif
 #define VBUFFER_ON 0
 #define GBUFFER_ON 0
-#define VULKAN_DEBUG_ON 1
+#define VULKAN_DEBUG_ON 0
 #define STREAMLINE_ON 0
 
 #include <volk.h>
@@ -287,6 +287,7 @@ enum class EBufferResourceNames : uint32_t
 
 };
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
