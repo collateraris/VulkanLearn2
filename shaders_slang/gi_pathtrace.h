@@ -2,7 +2,7 @@
 #define M_PI     3.14159265358979323846
 #define FLT_MAX 3.402823466e+38F
 // Number of candidates used for resampling of analytical lights
-#define RIS_CANDIDATES_LIGHTS 8
+#define RIS_CANDIDATES_LIGHTS 4
 // Switches between two RNGs
 #define USE_PCG 1
 
@@ -79,12 +79,15 @@ struct ShadowHitInfo
 
 #define DIRECTIONAL_LIGHT      1
 #define POINT_LIGHT   2
+#define EMISSION_LIGHT   3
 
 struct SLight
 {
 	float4 position;
 	float4 direction;
 	float4 color_type;
+	float4 position1;
+	float4 position2;
 };
 
 struct SVertex {
@@ -251,17 +254,46 @@ float3 offsetRay(const float3 p, const float3 n)
 		abs(p.z) < origin ? p.z + float_scale * n.z : p_i.z);
 }
 
+// Any point inside the triangle with vertices V0, V1, and V2 can be expressed as
+//        P = b0 * V0 + b1 * V1 + b2 * V2
+// where b0 + b1 + b2 = 1. Therefore, only b1 and b2 need to be sampled.
+float2 UniformSampleTriangle(float2 u)
+{
+	// Ref: Eric Heitz. A Low-Distortion Map Between Triangle and Square. 2019.
+	float b1, b2;
+	
+	if (u.y > u.x)
+	{
+		b1 = u.x * 0.5f;
+		b2 = u.y - b1;
+	}
+	else
+	{
+		b2 = u.y * 0.5f;
+		b1 = u.x - b2;
+	}
+
+	return float2(b1, b2);
+};
 
 // -------------------------------------------------------------------------
 //    Light Functions
 // -------------------------------------------------------------------------
 
 // Decodes light vector and distance from Light structure based on the light type
-void getLightData(SLight light, float3 hitPosition, out float3 lightVector, out float lightDistance) {
-	if (abs(light.color_type.w - POINT_LIGHT) < 1e-6) {
+void getLightData(inout RngStateType rngState, SLight light, float3 hitPosition, out float3 lightVector, out float lightDistance) {
+	uint type = uint(light.color_type.w);
+	if (type == EMISSION_LIGHT)
+	{
+		float2 uv = float2(rand(rngState), rand(rngState));
+		float2 bary = UniformSampleTriangle(uv);
+		float3 emissivePos = (1.0f - bary.x - bary.y) * light.position.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
+		lightVector = emissivePos - hitPosition;
+		lightDistance = length(lightVector);
+	} else if (type == POINT_LIGHT) {
 		lightVector = light.position.xyz - hitPosition;
 		lightDistance = length(lightVector);
-	} else if (abs(light.color_type.w - DIRECTIONAL_LIGHT) < 1e-6) {
+	} else if (type == DIRECTIONAL_LIGHT) {
 		lightVector = -light.direction.xyz; 
 		lightDistance = FLT_MAX;
 	} else {
@@ -272,7 +304,8 @@ void getLightData(SLight light, float3 hitPosition, out float3 lightVector, out 
 
 // Returns intensity of given light at specified distance
 float3 getLightIntensityAtPoint(SLight light, float distance) {
-	if (abs(light.color_type.w - POINT_LIGHT) < 1e-6) {
+	uint type = uint(light.color_type.w);
+	if (type == EMISSION_LIGHT || type == POINT_LIGHT) {
 		// Cem Yuksel's improved attenuation avoiding singularity at distance=0
 		// Source: http://www.cemyuksel.com/research/pointlightattenuation/
 		const float radius = 0.5f; //< We hardcode radius at 0.5, but this should be a light parameter
@@ -282,9 +315,9 @@ float3 getLightIntensityAtPoint(SLight light, float distance) {
 
 		return light.color_type.xyz * attenuation;
 
-	} else if (abs(light.color_type.w - DIRECTIONAL_LIGHT) < 1e-6) {
+	} else if (type == DIRECTIONAL_LIGHT) {
 		return light.color_type.xyz;
 	} else {
-		return float3(1.0f, 0.0f, 1.0f);
+		return float3(0.0f, 0.0f, 0.0f);
 	}
 };

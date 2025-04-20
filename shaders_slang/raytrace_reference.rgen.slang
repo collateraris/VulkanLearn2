@@ -26,14 +26,14 @@ RWTexture2D<float4> ptOutput : register(u0);
 RWTexture2D<float4> accumulationBuffer	: register(u1);
 
 
-IndirectGbufferRayPayload shootRay(float3 orig, float3 dir)
+IndirectGbufferRayPayload shootRay(float3 orig, float3 dir, float max)
 {
 	IndirectGbufferRayPayload payload;
 	RayDesc ray;
 	ray.Origin = orig;
 	ray.Direction = dir;
 	ray.TMin = 0.f;
-	ray.TMax = FLT_MAX;
+	ray.TMax = max;
 
 	TraceRay(
 		topLevelAS,
@@ -118,15 +118,22 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 
 			float3	lightVector;
 			float lightDistance;
-			getLightData(candidate, hitPosition, lightVector, lightDistance);
+			getLightData(rngState, candidate, hitPosition, lightVector, lightDistance);
 
 			float3 L = normalize(lightVector);
 
+			uint type = uint(candidate.color_type.w);
+			if (type == EMISSION_LIGHT)
+			{
+				IndirectGbufferRayPayload payloadEmissive = shootRay(hitPosition, lightVector, FLT_MAX);
+				candidate.color_type.xyz = payloadEmissive.emission_roughness.xyz * 10;
+			}
 			float candidatePdfG = luminance(getLightIntensityAtPoint(candidate, length(lightVector)));
-			const float candidateRISWeight = candidatePdfG * candidateWeight;
+			const float candidateRISWeight = candidatePdfG * candidateWeight; 
 
 			totalWeights += candidateRISWeight;
-			if (rand(rngState) < (candidateRISWeight / totalWeights)) {
+			if (rand(rngState) < (candidateRISWeight / totalWeights)) 
+			{
 				selectedSample = candidate;
 				samplePdfG = candidatePdfG;
 			}
@@ -187,7 +194,7 @@ void main()
 
 	for (int bounce = 0; bounce <= giParams.numRays; bounce++) 
 	{
-		IndirectGbufferRayPayload payload = shootRay(rayOri, rayDir);
+		IndirectGbufferRayPayload payload = shootRay(rayOri, rayDir, FLT_MAX);
 
 		if (!payload.hasHit())
 		{
@@ -213,43 +220,19 @@ void main()
 
 		// Evaluate direct light (next event estimation), start by sampling one light 
 		SLight light;
-		float lightWeight;
+		float lightWeight = -1;
 		if (sampleLightRIS(rngState, payload.position_objectID.xyz, geometryNormal, light, lightWeight)) {
 
 			// Prepare data needed to evaluate the light
 			float3 lightVector;
 			float lightDistance;
-			getLightData(light, payload.position_objectID.xyz, lightVector, lightDistance);
+			getLightData(rngState, light, payload.position_objectID.xyz, lightVector, lightDistance);
 			float3 L = normalize(lightVector);
 
-			// Cast shadow ray towards the selected light
 			if (castShadowRay(payload.position_objectID.xyz, geometryNormal, L, lightDistance))
 			{
 				// If light is not in shadow, evaluate BRDF and accumulate its contribution into radiance
 				radiance += throughput * evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * lightWeight);
-			}
-		}
-
-		//naive sample emissive triangle
-		{
-			for (uint i = 0; i < 10; i++)
-			{
-				float3 emissiveLightDir = getCosHemisphereSample(rngState, geometryNormal);
-				IndirectGbufferRayPayload payloadEmissive = shootRay(payload.position_objectID.xyz, emissiveLightDir);
-				if (payloadEmissive.hasEmissive())
-				{
-					float3 lightVector = payloadEmissive.position_objectID.xyz - payload.position_objectID.xyz;
-					float  lightDistance = length(lightVector);
-					float3 L = normalize(lightVector);
-					// Cem Yuksel's improved attenuation avoiding singularity at distance=0
-					// Source: http://www.cemyuksel.com/research/pointlightattenuation/
-					const float radius = 0.5f; //< We hardcode radius at 0.5, but this should be a light parameter
-					const float radiusSquared = radius * radius;
-					const float distanceSquared = lightDistance * lightDistance;
-					const float attenuation = 2.0f / (distanceSquared + radiusSquared + lightDistance * sqrt(distanceSquared + radiusSquared));
-					float3 emissiveIntensity = payloadEmissive.emission_roughness.xyz * attenuation * 10000;
-					radiance += throughput * evalCombinedBRDF(shadingNormal, L, V, material) * emissiveIntensity;
-				}
 			}
 		}
 

@@ -73,6 +73,18 @@ void VulkanLightManager::add_sun_light(glm::vec3&& direction, glm::vec3&& color)
 		});
 }
 
+void VulkanLightManager::add_emission_light(glm::vec4& position, glm::vec4& position1, glm::vec4& position2)
+{
+	_lightsOnScene.push_back({
+					.position = position,
+					.direction = glm::vec4(1),
+					.color_type = glm::vec4(glm::vec3(1., 1., 1.), static_cast<uint32_t>(ELightType::Emission)),
+					.position1 = position1,
+					.position2 = position2,
+		});
+}
+
+
 void VulkanLightManager::update_sun_light(std::function<void(glm::vec3& direction, glm::vec3& color)>&& func)
 {
 	auto& sunInfo = _lightsOnScene[sunIndex];
@@ -128,6 +140,8 @@ void VulkanLightManager::update_light_buffer()
 			lightSSBO[i].direction = object.direction;
 			lightSSBO[i].position = object.position;
 			lightSSBO[i].color_type = object.color_type;
+			lightSSBO[i].position1 = object.position1;
+			lightSSBO[i].position2 = object.position2;
 		}
 		});
 }

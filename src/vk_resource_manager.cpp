@@ -1,5 +1,6 @@
 #include <vk_resource_manager.h>
 #include <vk_initializers.h>
+#include <vk_light_manager.h>
 
 #include <vk_engine.h>
 
@@ -229,6 +230,30 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 			for (const auto& map : mapVector)
 				resManager.renderables.push_back(map);
 	resManager.indirectBatchRO = compact_draws(resManager.renderables.data(), resManager.renderables.size());
+
+	//candidate for emissive triangles
+	for (RenderObject& object : resManager.renderables)
+	{
+		if (resManager.matDescList[object.matDescIndex]->emissionTextureIndex >= 0)
+		{
+			size_t numIndx = resManager.meshList[object.meshIndex]->_indices.size();
+			for (size_t i = 0; i < numIndx; i += 3)
+			{
+				Mesh* mesh = resManager.meshList[object.meshIndex].get();
+				uint32_t indx0 = mesh->_indices[i];
+				uint32_t indx1 = mesh->_indices[i + 1];
+				uint32_t indx2 = mesh->_indices[i + 2];
+				glm::vec3 vpos0 = glm::vec3(mesh->_vertices[indx0].positionXYZ_normalX);
+				glm::vec3 vpos1 = glm::vec3(mesh->_vertices[indx1].positionXYZ_normalX);
+				glm::vec3 vpos2 = glm::vec3(mesh->_vertices[indx2].positionXYZ_normalX);
+				glm::vec4 pos0 = object.transformMatrix * glm::vec4(vpos0, 1.);
+				glm::vec4 pos1 = object.transformMatrix * glm::vec4(vpos1, 1.);
+				glm::vec4 pos2 = object.transformMatrix * glm::vec4(vpos2, 1.);
+
+				_engine->_lightManager.add_emission_light(pos0, pos1, pos2);
+			}
+		}
+	}
 
 	//create global object buffer
 

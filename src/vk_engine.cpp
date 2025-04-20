@@ -599,6 +599,11 @@ void VulkanEngine::init_vulkan()
 	synchronized2_features.pNext = nullptr;
 	synchronized2_features.synchronization2 = true;
 
+	VkPhysicalDeviceRayTracingValidationFeaturesNV rtValidationFeatures = {};
+	rtValidationFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV;
+	rtValidationFeatures.pNext = nullptr;
+	rtValidationFeatures.rayTracingValidation = true;
+
 	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features)
 		.add_pNext(&featuresMesh)
 		.add_pNext(&buffer_device_address_features)
@@ -608,6 +613,7 @@ void VulkanEngine::init_vulkan()
 		.add_pNext(&rt_features)
 		.add_pNext(&ray_query_features)
 		.add_pNext(&synchronized2_features)
+		.add_pNext(&rtValidationFeatures)
 		.build().value();
 
 	// Get the VkDevice handle used in the rest of a Vulkan application
