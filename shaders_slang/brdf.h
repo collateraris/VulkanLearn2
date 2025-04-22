@@ -28,8 +28,8 @@ This work is published from: Germany. */
 #define FROSTBITE 4
 
 // BRDF types
-#define DIFFUSE_TYPE 1
-#define SPECULAR_TYPE 2
+#define DIFFUSE_TYPE 4
+#define SPECULAR_TYPE 1
 
 // PIs
 #ifndef PI
@@ -66,10 +66,10 @@ This work is published from: Germany. */
 #endif
 
 #ifndef DIFFUSE_BRDF
-#define DIFFUSE_BRDF LAMBERTIAN
+//#define DIFFUSE_BRDF LAMBERTIAN
 //#define DIFFUSE_BRDF OREN_NAYAR
 //#define DIFFUSE_BRDF DISNEY
-//#define DIFFUSE_BRDF FROSTBITE
+#define DIFFUSE_BRDF FROSTBITE
 //#define DIFFUSE_BRDF NONE
 #endif
 

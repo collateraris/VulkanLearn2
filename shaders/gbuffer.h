@@ -26,6 +26,7 @@ struct SMeshlet
 struct SObjectData
 {
 	mat4 model;
+	mat4 modelIT;//for normal
 	uint meshIndex;
 	uint meshletCount;
 	uint diffuseTexIndex;

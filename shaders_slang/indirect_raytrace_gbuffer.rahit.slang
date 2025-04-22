@@ -45,6 +45,6 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
     if (shadeData.opacityTexIndex > 0)
         opacity = texSet[shadeData.opacityTexIndex].Sample(linearSampler, texCoord).r;
 
-    if (opacity < 0.5)
+    if (opacity < 1.)
         IgnoreHit();
 }

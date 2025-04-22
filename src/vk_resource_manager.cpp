@@ -266,6 +266,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 		const RenderObject& object = resManager.renderables[i];
 		objectSSBO.push_back({
 			.model = object.transformMatrix,
+			.modelIT = glm::transpose(glm::inverse(object.transformMatrix)),
 			.meshIndex = static_cast<uint32_t>(object.meshIndex),
 			.meshletCount = static_cast<uint32_t>(object.mesh->_meshlets.size()),
 			.diffuseTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->diffuseTextureIndex,

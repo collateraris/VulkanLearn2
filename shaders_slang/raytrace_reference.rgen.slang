@@ -125,7 +125,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 			uint type = uint(candidate.color_type.w);
 			if (type == EMISSION_LIGHT)
 			{
-				IndirectGbufferRayPayload payloadEmissive = shootRay(hitPosition, lightVector, FLT_MAX);
+				IndirectGbufferRayPayload payloadEmissive = shootRay(hitPosition, lightVector, lightDistance);
 				candidate.color_type.xyz = payloadEmissive.emission_roughness.xyz;
 			}
 			float candidatePdfG = luminance(getLightIntensityAtPoint(candidate, length(lightVector)));
@@ -182,7 +182,7 @@ void main()
     float4 target    = mul(giParams.projInverse , float4(d.x, d.y, 1, 1));
     float4 direction = mul(giParams.viewInverse , float4(normalize(target.xyz), 0));
 
-	float3 rayDir = direction.xyz;
+	float3 rayDir = normalize(direction.xyz);
 	float3 rayOri = origin.xyz;
 
 	// Initialize random numbers generator
@@ -213,8 +213,25 @@ void main()
 		if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
 		if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
 
+        // Neighborhood around surface point (approximated by tangent plane from geometry normal) is visible, 
+        // yet camera would be behind the tangent plane formed by bumped normal -- this can cause black spots 
+        // as brdf evaluates to 0 in these regions. To mitigate the issue, rotate the bumped normal towards
+        // wo until their dot product becomes greater than zero:
+        //
+        // 1. Project bumped normal onto plane formed by normal vector wo
+        // 2. Slightly rotate the projection towards wo so that their dot product becomes greater than zero
+#if 1
+        if(dot(V, geometryNormal) > 0 && dot(V, shadingNormal) < 0)
+        {
+            V = normalize(V);
+            shadingNormal = shadingNormal - dot(shadingNormal, V) * V;
+            shadingNormal = 1e-4f * V + shadingNormal;
+            shadingNormal = normalize(shadingNormal);
+        }
+#endif	
 		radiance += throughput * material.emissive;// * 10 + material.baseColor/M_PI;
-		//radiance = geometryNormal;
+		//radiance = shadingNormal;
+		//radiance = float3(material.metalness, material.metalness, material.metalness);
 		//radiance += float3(material.baseColor.x, material.baseColor.x, material.baseColor.x);
 		//break;
 

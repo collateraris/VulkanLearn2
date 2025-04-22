@@ -45,7 +45,7 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
   float3 v2_pos = float3(v2.positionXYZ_normalX.x, v2.positionXYZ_normalX.y, v2.positionXYZ_normalX.z); 
 
   float4x4 modelT = transpose(shadeData.model);
-  float4x4 model = shadeData.model;
+  float4x4 modelIT = transpose(shadeData.modelIT);
   float3 triangleVertices[3];
 
   triangleVertices[0] = mul(float4(v0_pos, 1.), modelT).xyz;
@@ -67,7 +67,7 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
   float3 v2_nrm = float3(v2.positionXYZ_normalX.w, v2.normalYZ_texCoordUV.x, v2.normalYZ_texCoordUV.y); 
 
   const float3 nrm      = v0_nrm * barycentrics.x + v1_nrm * barycentrics.y + v2_nrm * barycentrics.z;
-  float3 worldNormal = normalize(mul(float4(nrm, 0.0f), modelT).xyz);  // Transforming the normal to world space
+  float3 worldNormal = normalize(mul(float4(nrm, 0.0f), modelIT).xyz);  // Transforming the normal to world space
 
   float3 v0_tan = float3(v0.tangentXYZ_.x, v0.tangentXYZ_.y, v0.tangentXYZ_.z);
   float3 v1_tan = float3(v1.tangentXYZ_.x, v1.tangentXYZ_.y, v1.tangentXYZ_.z);
@@ -75,12 +75,11 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
 
   const float3 tan      = v0_tan * barycentrics.x + v1_tan * barycentrics.y + v2_tan * barycentrics.z;
   float3 worldTangent = normalize(mul(float4(tan, 0.0f), modelT).xyz);  // Transforming the normal to world space
+  // Graham-Schmidt orthogonalization
   worldTangent = normalize(worldTangent - dot(worldTangent, worldNormal) * worldNormal);
   float3 worldBitangent = normalize(cross(worldNormal, worldTangent));
   float3x3 TBN = float3x3(worldTangent, worldBitangent, worldNormal);
 
-
-  
   indirectRpl.albedo_metalness.xyz = texSet[shadeData.diffuseTexIndex].Sample(linearSampler, texCoord).rgb;
   //indirectRpl.albedo_metalness.xyz = float3(indirectRpl.albedo_metalness.x * shadeData.baseColorFactor.x, indirectRpl.albedo_metalness.y * shadeData.baseColorFactor.y,indirectRpl.albedo_metalness.z * shadeData.baseColorFactor.z);
 
@@ -97,12 +96,19 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
       indirectRpl.emission_roughness.w = texSet[shadeData.roughnessTexIndex].Sample(linearSampler, texCoord).g;
       
   float3 shadingNormal = worldNormal;
-  if (shadeData.normalTexIndex > 0 && 0)
+  // avoid normal mapping if tangent = (0, 0, 0), which results in NaN
+  if (shadeData.normalTexIndex > 0 && abs(dot(worldTangent, worldTangent)) > 1e-6)
   {
-      float3 normal = texSet[shadeData.normalTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
-      normal = normalize(normal * 2.0 - 1.0);   
-      //shadingNormal = normalize(mul(float4(normal, 1.f), model).xyz);
-      shadingNormal = normalize(mul(normal, TBN).xyz);
+      float2 normal = texSet[shadeData.normalTexIndex].SampleLevel(linearSampler, texCoord, 0).rg;
+      float3 bumpNormal = float3(mad(2.0f, normal, -1.f), 0.f);
+      bumpNormal.z = sqrt(1.f - dot(bumpNormal, bumpNormal));
+      // Invalid bump, normalize() leads to NaN
+      if (dot(bumpNormal, bumpNormal) > 1e-6f)
+      {
+          bumpNormal = normalize(bumpNormal);
+          shadingNormal = normalize(mul(bumpNormal, TBN).xyz);
+      }
+            
   } 
     indirectRpl.normal_ = encodeNormals(geometryNormal, shadingNormal);
 	indirectRpl.position_objectID = float4(worldPos, float(InstanceID()));

@@ -108,6 +108,7 @@ struct SMeshlet
 struct SObjectData
 {
 	float4x4 model;
+	float4x4 modelIT; // for normal
 	uint meshIndex;
 	uint meshletCount;
 	uint diffuseTexIndex;

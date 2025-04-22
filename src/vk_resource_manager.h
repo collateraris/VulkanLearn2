@@ -30,6 +30,7 @@ struct MaterialDesc
 struct alignas(16) GlobalObjectData
 {
 	glm::mat4 model;
+	glm::mat4 modelIT;//inverse transpose for normal mapping
 	uint32_t meshIndex;
 	uint32_t meshletCount;
 	uint32_t diffuseTexIndex;
