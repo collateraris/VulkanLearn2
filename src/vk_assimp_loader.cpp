@@ -36,8 +36,9 @@ void AsimpLoader::processScene(const SceneConfig& config, Scene& newScene, Resou
 		aiProcess_RemoveRedundantMaterials |
 		aiProcess_FindDegenerates |
 		aiProcess_FindInvalidData |
-		aiProcess_GenUVCoords;
-		aiProcess_Triangulate;
+		aiProcess_GenUVCoords |
+		aiProcess_Triangulate |
+		aiProcess_CalcTangentSpace;
 
 	printf("Loading scene from '%s'...\n", config.fileName.c_str());
 
@@ -122,10 +123,12 @@ void collectAIMesh(const aiMesh* amesh, const SceneConfig& config, ResourceManag
 		const aiVector3D v = amesh->mVertices[i];
 		const aiVector3D n = amesh->mNormals[i];
 		const aiVector3D t = hasTexCoords ? amesh->mTextureCoords[0][i] : aiVector3D();
+		const aiVector3D tan = amesh->mTangents[i];
 
 		Vertex meshData;
 		meshData.positionXYZ_normalX = glm::vec4(v.x * config.scaleFactor, v.y * config.scaleFactor, v.z * config.scaleFactor, n.x);
 		meshData.normalYZ_texCoordUV = glm::vec4(n.y, n.z, t.x, 1. - t.y);
+		meshData.tangentXYZ_ = glm::vec4(tan.x, tan.y, tan.z, 1.);
 
 		resManager.maxCube.x = std::max(resManager.maxCube.x, meshData.positionXYZ_normalX.x);
 		resManager.maxCube.y = std::max(resManager.maxCube.y, meshData.positionXYZ_normalX.y);
@@ -240,4 +243,6 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 	float opacity = 1;
 	amat->Get(AI_MATKEY_OPACITY, opacity);
 	newMatDesc->baseColorFactor.a = opacity;
+
+	
 }

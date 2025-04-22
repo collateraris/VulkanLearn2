@@ -94,6 +94,7 @@ struct SVertex {
 
 	float4 positionXYZ_normalX;
 	float4 normalYZ_texCoordUV;
+	float4 tangentXYZ_;
 };
 
 struct SMeshlet

@@ -15,6 +15,7 @@ struct Vertex {
 
 	glm::vec4 positionXYZ_normalX;
 	glm::vec4 normalYZ_texCoordUV;
+	glm::vec4 tangentXYZ_;
 
 	static VertexInputDescription get_vertex_description();
 };

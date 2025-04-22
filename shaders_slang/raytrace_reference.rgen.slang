@@ -126,7 +126,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 			if (type == EMISSION_LIGHT)
 			{
 				IndirectGbufferRayPayload payloadEmissive = shootRay(hitPosition, lightVector, FLT_MAX);
-				candidate.color_type.xyz = payloadEmissive.emission_roughness.xyz * 1000;
+				candidate.color_type.xyz = payloadEmissive.emission_roughness.xyz;
 			}
 			float candidatePdfG = luminance(getLightIntensityAtPoint(candidate, length(lightVector)));
 			const float candidateRISWeight = candidatePdfG * candidateWeight; 
@@ -210,8 +210,8 @@ void main()
 		decodeNormals(payload.normal_, geometryNormal, shadingNormal);
 
 		float3 V = -rayDir;
-		//if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
-		//if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
+		if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
+		if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
 
 		radiance += throughput * material.emissive;// * 10 + material.baseColor/M_PI;
 		//radiance = geometryNormal;

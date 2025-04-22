@@ -31,6 +31,7 @@ struct SVertex {
 
 	vec4 positionXYZ_normalX;
 	vec4 normalYZ_texCoordUV;
+	vec4 tangentXYZ_;
 };
 
 struct SMeshlet
