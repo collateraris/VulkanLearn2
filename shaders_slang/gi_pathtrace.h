@@ -2,7 +2,7 @@
 #define M_PI     3.14159265358979323846
 #define FLT_MAX 3.402823466e+38F
 // Number of candidates used for resampling of analytical lights
-#define RIS_CANDIDATES_LIGHTS 4
+#define RIS_CANDIDATES_LIGHTS 16
 // Switches between two RNGs
 #define USE_PCG 1
 
@@ -88,6 +88,8 @@ struct SLight
 	float4 color_type;
 	float4 position1;
 	float4 position2;
+	float4 uv0_uv1;
+	float4 uv2_objectId_;
 };
 
 struct SVertex {
@@ -283,14 +285,11 @@ float2 UniformSampleTriangle(float2 u)
 // -------------------------------------------------------------------------
 
 // Decodes light vector and distance from Light structure based on the light type
-void getLightData(inout RngStateType rngState, SLight light, float3 hitPosition, out float3 lightVector, out float lightDistance) {
+void getLightData(SLight light, float3 hitPosition, out float3 lightVector, out float lightDistance) {
 	uint type = uint(light.color_type.w);
 	if (type == EMISSION_LIGHT)
 	{
-		float2 uv = float2(rand(rngState), rand(rngState));
-		float2 bary = UniformSampleTriangle(uv);
-		float3 emissivePos = (1.0f - bary.x - bary.y) * light.position.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
-		lightVector = emissivePos - hitPosition;
+		lightVector = light.position.xyz - hitPosition;
 		lightDistance = length(lightVector);
 	} else if (type == POINT_LIGHT) {
 		lightVector = light.position.xyz - hitPosition;

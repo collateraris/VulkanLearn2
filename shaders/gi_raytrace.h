@@ -25,6 +25,10 @@ struct SLight
 	vec4 position;
 	vec4 direction;
 	vec4 color_type;
+	vec4 position1;
+	vec4 position2;
+	vec4 uv0_uv1;
+	vec4 uv2_objectId_;
 };
 
 struct SVertex {

@@ -23,7 +23,10 @@ public:
 		glm::vec4 color_type = glm::vec4(1);
 		glm::vec4 position1 = glm::vec4(1);
 		glm::vec4 position2 = glm::vec4(1);
+		glm::vec4 uv0_uv1 = glm::vec4(1);
+		glm::vec4 uv2_objectId_ = glm::vec4(1);
 	};
+
 
 	void init(VulkanEngine* engine);
 	void load_config(std::string&& path);
@@ -34,7 +37,7 @@ public:
 
 	bool is_sun_active() const;
 	void add_sun_light(glm::vec3&& direction, glm::vec3&& color);
-	void add_emission_light(glm::vec4& position, glm::vec4& position1, glm::vec4& position2);
+	void add_emission_light(glm::vec4& position, glm::vec4& position1, glm::vec4& position2, glm::vec2& uv0, glm::vec2& uv1, glm::vec2& uv2, uint32_t objectId);
 	void update_sun_light(std::function<void(glm::vec3& direction, glm::vec3& color)>&& func);
 	void generate_uniform_grid(glm::vec3 maxCube, glm::vec3 minCube, uint32_t lightNumber);
 

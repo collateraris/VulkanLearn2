@@ -234,8 +234,10 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 	resManager.indirectBatchRO = compact_draws(resManager.renderables.data(), resManager.renderables.size());
 
 	//candidate for emissive triangles
+	uint32_t objectId = -1;
 	for (RenderObject& object : resManager.renderables)
 	{
+		objectId++;
 		if (resManager.matDescList[object.matDescIndex]->emissionTextureIndex >= 0)
 		{
 			size_t numIndx = resManager.meshList[object.meshIndex]->_indices.size();
@@ -251,8 +253,11 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 				glm::vec4 pos0 = object.transformMatrix * glm::vec4(vpos0, 1.);
 				glm::vec4 pos1 = object.transformMatrix * glm::vec4(vpos1, 1.);
 				glm::vec4 pos2 = object.transformMatrix * glm::vec4(vpos2, 1.);
+				glm::vec2 uv0 = glm::vec2(mesh->_vertices[indx0].normalYZ_texCoordUV.z, mesh->_vertices[indx0].normalYZ_texCoordUV.w);
+				glm::vec2 uv1 = glm::vec2(mesh->_vertices[indx1].normalYZ_texCoordUV.z, mesh->_vertices[indx1].normalYZ_texCoordUV.w);
+				glm::vec2 uv2 = glm::vec2(mesh->_vertices[indx2].normalYZ_texCoordUV.z, mesh->_vertices[indx2].normalYZ_texCoordUV.w);
 
-				_engine->_lightManager.add_emission_light(pos0, pos1, pos2);
+				_engine->_lightManager.add_emission_light(pos0, pos1, pos2, uv0, uv1, uv2, objectId);
 			}
 		}
 	}

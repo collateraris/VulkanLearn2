@@ -9,7 +9,7 @@ struct BuiltInTriangleIntersectionAttributes
 StructuredBuffer<SVertex> vertices[]			: register(t0);
 
 [[vk::binding(1, 0)]]
-Texture2D<float4> texSet[] : register(t0);
+Texture2D<float4> texSet[] : register(t1);
 [[vk::binding(8, 0)]]
 SamplerState      linearSampler : register(s8);
 
@@ -80,20 +80,20 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
   float3 worldBitangent = normalize(cross(worldNormal, worldTangent));
   float3x3 TBN = float3x3(worldTangent, worldBitangent, worldNormal);
 
-  indirectRpl.albedo_metalness.xyz = texSet[shadeData.diffuseTexIndex].Sample(linearSampler, texCoord).rgb;
+  indirectRpl.albedo_metalness.xyz = texSet[shadeData.diffuseTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
   //indirectRpl.albedo_metalness.xyz = float3(indirectRpl.albedo_metalness.x * shadeData.baseColorFactor.x, indirectRpl.albedo_metalness.y * shadeData.baseColorFactor.y,indirectRpl.albedo_metalness.z * shadeData.baseColorFactor.z);
 
   indirectRpl.emission_roughness.xyz = float3(0., 0., 0);
   if (shadeData.emissionTexIndex > 0)
-      indirectRpl.emission_roughness.xyz = texSet[shadeData.emissionTexIndex].Sample(linearSampler, texCoord).rgb;  
+      indirectRpl.emission_roughness.xyz = texSet[shadeData.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;  
 
   indirectRpl.albedo_metalness.w = 0.;
   if (shadeData.metalnessTexIndex > 0)
-      indirectRpl.albedo_metalness.w = texSet[shadeData.metalnessTexIndex].Sample(linearSampler, texCoord).b; 
+      indirectRpl.albedo_metalness.w = texSet[shadeData.metalnessTexIndex].SampleLevel(linearSampler, texCoord, 0).b; 
 
   indirectRpl.emission_roughness.w = 1.;
   if (shadeData.roughnessTexIndex > 0)
-      indirectRpl.emission_roughness.w = texSet[shadeData.roughnessTexIndex].Sample(linearSampler, texCoord).g;
+      indirectRpl.emission_roughness.w = texSet[shadeData.roughnessTexIndex].SampleLevel(linearSampler, texCoord, 0).g;
       
   float3 shadingNormal = worldNormal;
   // avoid normal mapping if tangent = (0, 0, 0), which results in NaN

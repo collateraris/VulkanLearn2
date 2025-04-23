@@ -7,8 +7,17 @@
 // Defines after how many bounces will be the Russian Roulette applied
 #define MIN_BOUNCES 3
 
+[[vk::binding(1, 0)]]
+Texture2D<float4> texSet[] : register(t1);
+
+[[vk::binding(8, 0)]]
+SamplerState      linearSampler : register(s8);
+
 [[vk::binding(2, 0)]]
 RaytracingAccelerationStructure topLevelAS	: register(t2);
+
+[[vk::binding(3, 0)]]
+StructuredBuffer<SObjectData> objectBuffer  : register(t3);
 
 [[vk::binding(6, 0)]]
 StructuredBuffer<SLight> lightsBuffer  : register(t6);
@@ -116,18 +125,21 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 		SLight candidate;
 		if (sampleLightUniform(rngState, hitPosition, surfaceNormal, candidate, candidateWeight)) {
 
-			float3	lightVector;
-			float lightDistance;
-			getLightData(rngState, candidate, hitPosition, lightVector, lightDistance);
-
-			float3 L = normalize(lightVector);
-
 			uint type = uint(candidate.color_type.w);
 			if (type == EMISSION_LIGHT)
 			{
-				IndirectGbufferRayPayload payloadEmissive = shootRay(hitPosition, lightVector, lightDistance);
-				candidate.color_type.xyz = payloadEmissive.emission_roughness.xyz;
+				float2 uv = float2(rand(rngState), rand(rngState));
+				float2 bary = UniformSampleTriangle(uv);
+				candidate.position.xyz = (1.0f - bary.x - bary.y) * candidate.position.xyz + bary.x * candidate.position1.xyz + bary.y * candidate.position2.xyz;
+				float2 texCoord = (1.0f - bary.x - bary.y) * candidate.uv0_uv1.xy + bary.x * candidate.uv0_uv1.zw + bary.y * candidate.uv2_objectId_.xy;
+				SObjectData shadeData = objectBuffer[uint(candidate.uv2_objectId_.z)];
+				candidate.color_type.xyz = texSet[shadeData.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;  
 			}
+			float3	lightVector;
+			float lightDistance;
+			getLightData(candidate, hitPosition, lightVector, lightDistance);
+
+			float3 L = normalize(lightVector);
 			float candidatePdfG = luminance(getLightIntensityAtPoint(candidate, length(lightVector)));
 			const float candidateRISWeight = candidatePdfG * candidateWeight; 
 
@@ -243,7 +255,7 @@ void main()
 			// Prepare data needed to evaluate the light
 			float3 lightVector;
 			float lightDistance;
-			getLightData(rngState, light, payload.position_objectID.xyz, lightVector, lightDistance);
+			getLightData(light, payload.position_objectID.xyz, lightVector, lightDistance);
 			float3 L = normalize(lightVector);
 
 			if (castShadowRay(payload.position_objectID.xyz, geometryNormal, L, lightDistance))

@@ -73,7 +73,7 @@ void VulkanLightManager::add_sun_light(glm::vec3&& direction, glm::vec3&& color)
 		});
 }
 
-void VulkanLightManager::add_emission_light(glm::vec4& position, glm::vec4& position1, glm::vec4& position2)
+void VulkanLightManager::add_emission_light(glm::vec4& position, glm::vec4& position1, glm::vec4& position2, glm::vec2& uv0, glm::vec2& uv1, glm::vec2& uv2, uint32_t objectId)
 {
 	_lightsOnScene.push_back({
 					.position = position,
@@ -81,6 +81,8 @@ void VulkanLightManager::add_emission_light(glm::vec4& position, glm::vec4& posi
 					.color_type = glm::vec4(glm::vec3(1., 1., 1.), static_cast<uint32_t>(ELightType::Emission)),
 					.position1 = position1,
 					.position2 = position2,
+					.uv0_uv1 = glm::vec4(uv0.x, uv0.y, uv1.x, uv1.y),
+					.uv2_objectId_ = glm::vec4(uv2.x, uv2.y, objectId, 1.f)
 		});
 }
 
@@ -142,6 +144,8 @@ void VulkanLightManager::update_light_buffer()
 			lightSSBO[i].color_type = object.color_type;
 			lightSSBO[i].position1 = object.position1;
 			lightSSBO[i].position2 = object.position2;
+			lightSSBO[i].uv0_uv1 = object.uv0_uv1;
+			lightSSBO[i].uv2_objectId_ = object.uv2_objectId_;
 		}
 		});
 }
