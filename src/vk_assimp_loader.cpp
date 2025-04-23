@@ -237,12 +237,39 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 	ProcessMeshLoadMaterialTextures(amat, aiTextureType_DIFFUSE_ROUGHNESS, lastDirectory, newMatDesc, resManager);
 
 	aiColor4D color(0.f, 0.f, 0.f, 0.f);
-	amat->Get(AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_BASE_COLOR_FACTOR, color);
-	newMatDesc->baseColorFactor = glm::vec4(color.r, color.g, color.b, color.a);
+	if (amat->Get(AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_BASE_COLOR_FACTOR, color) == aiReturn_SUCCESS)
+	{
+		newMatDesc->baseColorFactor = glm::vec4(color.r, color.g, color.b, color.a);
+	}
 
 	float opacity = 1;
-	amat->Get(AI_MATKEY_OPACITY, opacity);
-	newMatDesc->baseColorFactor.a = opacity;
+	if (amat->Get(AI_MATKEY_OPACITY, opacity) == aiReturn_SUCCESS)
+	{
+		newMatDesc->baseColorFactor.a = opacity;
+	}
 
-	
+	aiColor3D emissiveFactor(0., 0., 0.);  
+	if (amat->Get(AI_MATKEY_COLOR_EMISSIVE, emissiveFactor) == aiReturn_SUCCESS)
+	{
+		newMatDesc->emissiveFactorMult_emissiveStrength = glm::vec4(emissiveFactor.r, emissiveFactor.g, emissiveFactor.b, 1);
+	}
+
+	float emissiveStrenght(0.f);
+	if (amat->Get(AI_MATKEY_EMISSIVE_INTENSITY, emissiveStrenght) == aiReturn_SUCCESS)
+	{
+		newMatDesc->emissiveFactorMult_emissiveStrength *= emissiveStrenght;
+	}
+
+	float metallicFactor(0.f);
+	if (amat->Get(AI_MATKEY_METALLIC_FACTOR, metallicFactor) == aiReturn_SUCCESS)
+	{
+		newMatDesc->metallicFactor_roughnessFactor.x *= metallicFactor;
+	}
+
+	float roughnessFactor(0.);
+	if (amat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughnessFactor) == aiReturn_SUCCESS)
+	{
+		newMatDesc->metallicFactor_roughnessFactor.y *= roughnessFactor;
+	}
+
 }

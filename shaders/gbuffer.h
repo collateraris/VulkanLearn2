@@ -36,4 +36,6 @@ struct SObjectData
 	int emissionTexIndex;
 	int opacityTexIndex;
 	vec4 baseColorFactor;
+	vec4 emissiveFactorMult_emissiveStrength;
+	vec4 metallicFactor_roughnessFactor;
 };

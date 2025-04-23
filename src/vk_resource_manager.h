@@ -25,6 +25,8 @@ struct MaterialDesc
 	std::string opacityTexture = {};
 	int32_t opacityTextureIndex = -1;
 	glm::vec4 baseColorFactor = glm::vec4(1., 1., 1., 1.);
+	glm::vec4 emissiveFactorMult_emissiveStrength = glm::vec4(1., 1., 1., 1.);
+	glm::vec4 metallicFactor_roughnessFactor = glm::vec4(1., 1., 1., 1.);
 };
 
 struct alignas(16) GlobalObjectData
@@ -40,6 +42,8 @@ struct alignas(16) GlobalObjectData
 	int32_t emissionTexIndex;
 	int32_t opacityTexIndex;
 	glm::vec4 baseColorFactor;
+	glm::vec4 emissiveFactorMult_emissiveStrength;
+	glm::vec4 metallicFactor_roughnessFactor;
 };
 
 class ResourceManager

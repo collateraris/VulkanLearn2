@@ -133,7 +133,8 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 				candidate.position.xyz = (1.0f - bary.x - bary.y) * candidate.position.xyz + bary.x * candidate.position1.xyz + bary.y * candidate.position2.xyz;
 				float2 texCoord = (1.0f - bary.x - bary.y) * candidate.uv0_uv1.xy + bary.x * candidate.uv0_uv1.zw + bary.y * candidate.uv2_objectId_.xy;
 				SObjectData shadeData = objectBuffer[uint(candidate.uv2_objectId_.z)];
-				candidate.color_type.xyz = texSet[shadeData.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;  
+				candidate.color_type.xyz = texSet[shadeData.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
+				candidate.color_type.xyz = float3(candidate.color_type.x * shadeData.emissiveFactorMult_emissiveStrength.x, candidate.color_type.y * shadeData.emissiveFactorMult_emissiveStrength.y, candidate.color_type.z * shadeData.emissiveFactorMult_emissiveStrength.z);
 			}
 			float3	lightVector;
 			float lightDistance;

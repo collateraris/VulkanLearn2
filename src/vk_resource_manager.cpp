@@ -281,6 +281,8 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 			.emissionTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->emissionTextureIndex,
 			.opacityTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->opacityTextureIndex,
 			.baseColorFactor = _engine->_resManager.matDescList[object.matDescIndex]->baseColorFactor,
+			.emissiveFactorMult_emissiveStrength = _engine->_resManager.matDescList[object.matDescIndex]->emissiveFactorMult_emissiveStrength,
+			.metallicFactor_roughnessFactor = _engine->_resManager.matDescList[object.matDescIndex]->metallicFactor_roughnessFactor,
 		});
 	}
 

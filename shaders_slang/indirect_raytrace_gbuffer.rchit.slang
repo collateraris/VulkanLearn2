@@ -85,15 +85,20 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
 
   indirectRpl.emission_roughness.xyz = float3(0., 0., 0);
   if (shadeData.emissionTexIndex > 0)
-      indirectRpl.emission_roughness.xyz = texSet[shadeData.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;  
+  {
+      indirectRpl.emission_roughness.xyz = texSet[shadeData.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb; 
+      indirectRpl.emission_roughness.xyz = float3(indirectRpl.emission_roughness.x * shadeData.emissiveFactorMult_emissiveStrength.x, indirectRpl.emission_roughness.y * shadeData.emissiveFactorMult_emissiveStrength.y, indirectRpl.emission_roughness.z * shadeData.emissiveFactorMult_emissiveStrength.z);
+  } 
 
   indirectRpl.albedo_metalness.w = 0.;
   if (shadeData.metalnessTexIndex > 0)
       indirectRpl.albedo_metalness.w = texSet[shadeData.metalnessTexIndex].SampleLevel(linearSampler, texCoord, 0).b; 
+  indirectRpl.albedo_metalness.w *= shadeData.metallicFactor_roughnessFactor.x;
 
   indirectRpl.emission_roughness.w = 1.;
   if (shadeData.roughnessTexIndex > 0)
       indirectRpl.emission_roughness.w = texSet[shadeData.roughnessTexIndex].SampleLevel(linearSampler, texCoord, 0).g;
+  indirectRpl.emission_roughness.w *= shadeData.metallicFactor_roughnessFactor.y;
       
   float3 shadingNormal = worldNormal;
   // avoid normal mapping if tangent = (0, 0, 0), which results in NaN
