@@ -36,8 +36,8 @@ ERenderMode vk_utils::Config::GetRenderMode()
 
         if (!name.compare("PATHTRACER"))
             mode = ERenderMode::Pathtracer;
-        else if (!name.compare("RESTIR_GI"))
-            mode = ERenderMode::ReSTIR_GI;
+        else if (!name.compare("RESTIR"))
+            mode = ERenderMode::ReSTIR;
 
     }
     return mode;
