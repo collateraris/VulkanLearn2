@@ -111,7 +111,7 @@ bool sampleLightUniform(inout RngStateType rngState, float3 hitPosition, float3 
 };
 
 // Samples a random light from the pool of all lights using RIS (Resampled Importance Sampling)
-bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surfaceNormal, out SLight selectedSample, out float lightSampleWeight) {
+bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surfaceNormal, out SLight selectedSample, out float lightSampleWeight, MaterialProperties material, float3 shadingNormal, float3 V) {
 	
 	if (giParams.lightsCount == 0) return false;
 
@@ -141,7 +141,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 			getLightData(candidate, hitPosition, lightVector, lightDistance);
 
 			float3 L = normalize(lightVector);
-			float candidatePdfG = luminance(getLightIntensityAtPoint(candidate, length(lightVector)));
+			float candidatePdfG = luminance(evalCombinedBRDF(shadingNormal, L, V, material) * getLightIntensityAtPoint(candidate, length(lightVector)));
 			const float candidateRISWeight = candidatePdfG * candidateWeight; 
 
 			totalWeights += candidateRISWeight;
@@ -251,7 +251,7 @@ void main()
 		// Evaluate direct light (next event estimation), start by sampling one light 
 		SLight light;
 		float lightWeight = -1;
-		if (sampleLightRIS(rngState, payload.position_objectID.xyz, geometryNormal, light, lightWeight)) {
+		if (sampleLightRIS(rngState, payload.position_objectID.xyz, geometryNormal, light, lightWeight, material, shadingNormal, V)) {
 
 			// Prepare data needed to evaluate the light
 			float3 lightVector;
