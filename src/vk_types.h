@@ -392,3 +392,26 @@ inline void for_each_bit(uint32_t value, const T& func)
 		value &= ~(1u << bit);
 	}
 }
+
+struct alignas(16) SGlobalRQParams
+{
+	glm::mat4 view;
+	glm::mat4 proj;
+};
+
+struct alignas(16) GlobalGIParams
+{
+	glm::mat4 projView;
+	glm::mat4 viewInverse;
+	glm::mat4 projInverse;
+	glm::mat4 prevProjView;
+	glm::vec4 camPos;
+	uint32_t  frameCount;
+	float shadowMult;
+	uint32_t lightsCount;
+	uint32_t  numRays;
+	uint32_t mode = 0;
+	uint32_t enableAccumulation = 0;
+	uint32_t pad2 = 0;
+	uint32_t pad3 = 0;
+};

@@ -113,7 +113,7 @@ void VulkanEngine::init()
 		_lightManager.create_cpu_host_visible_light_buffer();
 	}
 	
-	_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
+	//_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
 	ResourceManager::init_rt_scene(this, _resManager);
 	ResourceManager::init_global_bindless_descriptor(this, _resManager);
 
@@ -126,7 +126,6 @@ void VulkanEngine::init()
 
 	if (get_mode() == ERenderMode::ReSTIR)
 	{
-		_visBufGenerateGraphicsPipeline.init(this);
 		_giRtGraphicsPipeline.init_textures(this);
 		_giRtGraphicsPipeline.init(this);
 		_gBufShadingGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output());
@@ -250,9 +249,6 @@ void VulkanEngine::draw()
 #endif
 			if (get_mode() == ERenderMode::ReSTIR)
 			{
-				VulkanVbufferGraphicsPipeline::SGlobalCamera globalCameraData;
-				globalCameraData.viewProj = projection * view;
-				_visBufGenerateGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
 				_giRtGraphicsPipeline.try_reset_accumulation(_camera);
 			}
 
@@ -284,7 +280,6 @@ void VulkanEngine::draw()
 	}	
 	if (get_mode() == ERenderMode::ReSTIR)
 	{
-		_visBufGenerateGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 		_giRtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 	}
 		{
@@ -538,7 +533,7 @@ void VulkanEngine::init_vulkan()
 		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
 		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, // Required by ray tracing pipeline
-#if VULKAN_DEBUG_ON		
+#if VULKAN_RAYTRACE_DEBUG_ON		
 		VK_NV_RAY_TRACING_VALIDATION_EXTENSION_NAME,
 #endif		
 	};
@@ -623,7 +618,7 @@ void VulkanEngine::init_vulkan()
 		.add_pNext(&rt_features)
 		.add_pNext(&ray_query_features)
 		.add_pNext(&synchronized2_features)
-	#if VULKAN_DEBUG_ON	
+	#if VULKAN_RAYTRACE_DEBUG_ON	
 		.add_pNext(&rtValidationFeatures)
 	#endif	
 		.build().value();

@@ -20,18 +20,29 @@ public:
 	void init(VulkanEngine* engine);
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
-private:
-
 	Texture& get_tex(ETextureResourceNames name) const;
 
+	void barrier_for_reading(VulkanCommandBuffer* cmd);
+	void barrier_for_writing(VulkanCommandBuffer* cmd);
+
+private:
+
 	void init_description_set_global_buffer();
+
+	void init_tex();
 
 	VulkanEngine* _engine = nullptr;
 
 	VkExtent3D _imageExtent;
-	VkFormat      _colorFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
+	VkFormat      _colorFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
+
+	bool bResetAccumulation = false;
 
 	AllocatedBuffer                 _rtSBTBuffer;
+
+	std::array<AllocatedBuffer, 2> _globalUniformsBuffer;
+	VkDescriptorSetLayout          _globalDescSetLayout;
+	std::array<VkDescriptorSet, 2>  _globalDescSet;
 
 	VkStridedDeviceAddressRegionKHR _rgenRegion{};
 	VkStridedDeviceAddressRegionKHR _missRegion{};
