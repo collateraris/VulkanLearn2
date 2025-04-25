@@ -10,14 +10,17 @@ StructuredBuffer<SVertex> vertices[]			: register(t0);
 
 [[vk::binding(1, 0)]]
 Texture2D<float4> texSet[] : register(t1);
-[[vk::binding(8, 0)]]
-SamplerState      linearSampler : register(s8);
+[[vk::binding(6, 0)]]
+SamplerState      linearSampler : register(s6);
 
 [[vk::binding(3, 0)]]
 StructuredBuffer<SObjectData> objectBuffer  : register(t3);
 
+[[vk::binding(5, 0)]]
+StructuredBuffer<int> indices[]   : register(t5);
+
 [[vk::binding(7, 0)]]
-StructuredBuffer<int4> indices[]   : register(t7);
+StructuredBuffer<SMaterialData> matBuffer  : register(t7);
 
 
 [shader("closesthit")]
@@ -25,11 +28,15 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
 {
   SObjectData shadeData = objectBuffer[InstanceID()];
 
-  uint4 index = indices[shadeData.meshIndex][PrimitiveIndex()];
-  
-  SVertex v0 = vertices[shadeData.meshIndex][index.x];
-  SVertex v1 = vertices[shadeData.meshIndex][index.y];
-  SVertex v2 = vertices[shadeData.meshIndex][index.z];
+  SMaterialData mat = matBuffer[shadeData.materialIndex];
+
+    int index0 = indices[shadeData.meshIndex][PrimitiveIndex() * 3];
+    int index1 = indices[shadeData.meshIndex][PrimitiveIndex() * 3 + 1];
+    int index2 = indices[shadeData.meshIndex][PrimitiveIndex() * 3 + 2];
+
+    SVertex v0 = vertices[shadeData.meshIndex][index0];
+    SVertex v1 = vertices[shadeData.meshIndex][index1];
+    SVertex v2 = vertices[shadeData.meshIndex][index2];
 
   const float3 barycentrics = float3(1.0 - attrib.baryCoord.x - attrib.baryCoord.y, attrib.baryCoord.x, attrib.baryCoord.y);
 
@@ -80,31 +87,30 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
   float3 worldBitangent = normalize(cross(worldNormal, worldTangent));
   float3x3 TBN = float3x3(worldTangent, worldBitangent, worldNormal);
 
-  indirectRpl.albedo_metalness.xyz = texSet[shadeData.diffuseTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
-  //indirectRpl.albedo_metalness.xyz = float3(indirectRpl.albedo_metalness.x * shadeData.baseColorFactor.x, indirectRpl.albedo_metalness.y * shadeData.baseColorFactor.y,indirectRpl.albedo_metalness.z * shadeData.baseColorFactor.z);
+  indirectRpl.albedo_metalness.xyz = texSet[mat.diffuseTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
 
   indirectRpl.emission_roughness.xyz = float3(0., 0., 0);
-  if (shadeData.emissionTexIndex > 0)
+  if (mat.emissionTexIndex > 0)
   {
-      indirectRpl.emission_roughness.xyz = texSet[shadeData.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb; 
-      indirectRpl.emission_roughness.xyz = float3(indirectRpl.emission_roughness.x * shadeData.emissiveFactorMult_emissiveStrength.x, indirectRpl.emission_roughness.y * shadeData.emissiveFactorMult_emissiveStrength.y, indirectRpl.emission_roughness.z * shadeData.emissiveFactorMult_emissiveStrength.z);
+      indirectRpl.emission_roughness.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb; 
+      indirectRpl.emission_roughness.xyz = float3(indirectRpl.emission_roughness.x * mat.emissiveFactorMult_emissiveStrength.x, indirectRpl.emission_roughness.y * mat.emissiveFactorMult_emissiveStrength.y, indirectRpl.emission_roughness.z * mat.emissiveFactorMult_emissiveStrength.z);
   } 
 
   indirectRpl.albedo_metalness.w = 0.;
-  if (shadeData.metalnessTexIndex > 0)
-      indirectRpl.albedo_metalness.w = texSet[shadeData.metalnessTexIndex].SampleLevel(linearSampler, texCoord, 0).b; 
-  indirectRpl.albedo_metalness.w *= shadeData.metallicFactor_roughnessFactor.x;
+  if (mat.metalnessTexIndex > 0)
+      indirectRpl.albedo_metalness.w = texSet[mat.metalnessTexIndex].SampleLevel(linearSampler, texCoord, 0).b; 
+  indirectRpl.albedo_metalness.w *= mat.metallicFactor_roughnessFactor.x;
 
   indirectRpl.emission_roughness.w = 1.;
-  if (shadeData.roughnessTexIndex > 0)
-      indirectRpl.emission_roughness.w = texSet[shadeData.roughnessTexIndex].SampleLevel(linearSampler, texCoord, 0).g;
-  indirectRpl.emission_roughness.w *= shadeData.metallicFactor_roughnessFactor.y;
+  if (mat.roughnessTexIndex > 0)
+      indirectRpl.emission_roughness.w = texSet[mat.roughnessTexIndex].SampleLevel(linearSampler, texCoord, 0).g;
+  indirectRpl.emission_roughness.w *= mat.metallicFactor_roughnessFactor.y;
       
   float3 shadingNormal = worldNormal;
   // avoid normal mapping if tangent = (0, 0, 0), which results in NaN
-  if (shadeData.normalTexIndex > 0 && abs(dot(worldTangent, worldTangent)) > 1e-6)
+  if (mat.normalTexIndex > 0 && abs(dot(worldTangent, worldTangent)) > 1e-6)
   {
-      float2 normal = texSet[shadeData.normalTexIndex].SampleLevel(linearSampler, texCoord, 0).rg;
+      float2 normal = texSet[mat.normalTexIndex].SampleLevel(linearSampler, texCoord, 0).rg;
       float3 bumpNormal = float3(mad(2.0f, normal, -1.f), 0.f);
       bumpNormal.z = sqrt(1.f - dot(bumpNormal, bumpNormal));
       // Invalid bump, normalize() leads to NaN

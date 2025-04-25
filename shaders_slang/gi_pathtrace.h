@@ -113,16 +113,24 @@ struct SObjectData
 	float4x4 modelIT; // for normal
 	uint meshIndex;
 	uint meshletCount;
+	uint materialIndex;
+	uint pad1;
+};
+
+struct SMaterialData
+{
 	uint diffuseTexIndex;
 	int normalTexIndex;
 	int metalnessTexIndex;
 	int roughnessTexIndex;
 	int emissionTexIndex;
 	int opacityTexIndex;
+	int pad0;
+	int pad1;
 	float4 baseColorFactor;
 	float4 emissiveFactorMult_emissiveStrength;
 	float4 metallicFactor_roughnessFactor;
-};
+}
 
 // -------------------------------------------------------------------------
 //    Random

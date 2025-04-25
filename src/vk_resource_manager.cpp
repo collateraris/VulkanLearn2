@@ -72,6 +72,7 @@ void ResourceManager::load_meshes(VulkanEngine* _engine, const std::vector<std::
 			size_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(mesh->_indices.size() * sizeof(uint32_t));
 			mesh->_indicesBufferRT = _engine->create_buffer_n_copy_data(bufferSize, mesh->_indices.data(), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | rayTracingFlags);
 		}
+#if 0 
 		{
 			std::vector<glm::ivec4> indicesArray;
 			uint32_t triangleCount = mesh->_indices.size() / 3;
@@ -99,6 +100,7 @@ void ResourceManager::load_meshes(VulkanEngine* _engine, const std::vector<std::
 				mesh->_meshletdataBuffer = _engine->create_buffer_n_copy_data(bufferSize, mesh->meshletdata.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 			}
 		}
+#endif // 
 	}
 }
 
@@ -257,7 +259,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 				glm::vec2 uv1 = glm::vec2(mesh->_vertices[indx1].normalYZ_texCoordUV.z, mesh->_vertices[indx1].normalYZ_texCoordUV.w);
 				glm::vec2 uv2 = glm::vec2(mesh->_vertices[indx2].normalYZ_texCoordUV.z, mesh->_vertices[indx2].normalYZ_texCoordUV.w);
 
-				_engine->_lightManager.add_emission_light(pos0, pos1, pos2, uv0, uv1, uv2, objectId);
+				_engine->_lightManager.add_emission_light(pos0, pos1, pos2, uv0, uv1, uv2, object.matDescIndex);
 			}
 		}
 	}
@@ -274,20 +276,32 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 			.modelIT = glm::transpose(glm::inverse(object.transformMatrix)),
 			.meshIndex = static_cast<uint32_t>(object.meshIndex),
 			.meshletCount = static_cast<uint32_t>(object.mesh->_meshlets.size()),
-			.diffuseTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->diffuseTextureIndex,
-			.normalTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->normalTextureIndex,
-			.metalnessTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->metalnessTextureIndex,
-			.roughnessTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->roughnessTextureIndex,
-			.emissionTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->emissionTextureIndex,
-			.opacityTexIndex = _engine->_resManager.matDescList[object.matDescIndex]->opacityTextureIndex,
-			.baseColorFactor = _engine->_resManager.matDescList[object.matDescIndex]->baseColorFactor,
-			.emissiveFactorMult_emissiveStrength = _engine->_resManager.matDescList[object.matDescIndex]->emissiveFactorMult_emissiveStrength,
-			.metallicFactor_roughnessFactor = _engine->_resManager.matDescList[object.matDescIndex]->metallicFactor_roughnessFactor,
+			.materialIndex = static_cast<uint32_t>(object.matDescIndex),
 		});
 	}
 
 	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(objectSSBO.size() * sizeof(GlobalObjectData));
 	resManager.globalObjectBuffer = _engine->create_buffer_n_copy_data(bufferSize, objectSSBO.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+	std::vector<GlobalMaterialData> matSSBO;
+	matSSBO.reserve(_engine->_resManager.matDescList.size());
+	for (auto& mat: _engine->_resManager.matDescList)
+	{
+		matSSBO.push_back({
+			.diffuseTexIndex = mat->diffuseTextureIndex,
+			.normalTexIndex = mat->normalTextureIndex,
+			.metalnessTexIndex = mat->metalnessTextureIndex,
+			.roughnessTexIndex = mat->roughnessTextureIndex,
+			.emissionTexIndex = mat->emissionTextureIndex,
+			.opacityTexIndex = mat->opacityTextureIndex,
+			.baseColorFactor = mat->baseColorFactor,
+			.emissiveFactorMult_emissiveStrength = mat->emissiveFactorMult_emissiveStrength,
+			.metallicFactor_roughnessFactor = mat->metallicFactor_roughnessFactor,
+		});
+	};
+
+	bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(matSSBO.size() * sizeof(GlobalMaterialData));
+	resManager.globalMaterialBuffer = _engine->create_buffer_n_copy_data(bufferSize, matSSBO.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 }
 
 void ResourceManager::init_rt_scene(VulkanEngine* _engine, ResourceManager& resManager)
@@ -387,15 +401,16 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	const uint32_t textureBinding = 1;
 	const uint32_t tlasBinding = 2;
 	const uint32_t globalObjectBinding = 3;
-	const uint32_t meshletsBinding = 4;
-	const uint32_t meshletsDataBinding = 5;
-	const uint32_t lightBufferBinding = 6;
-	const uint32_t indicesBinding = 7;
-	const uint32_t blockySamplerBinding = 8;
+	//const uint32_t meshletsBinding = 4;
+	//const uint32_t meshletsDataBinding = 5;
+	const uint32_t lightBufferBinding = 4;
+	const uint32_t indicesBinding = 5;
+	const uint32_t blockySamplerBinding = 6;
+	const uint32_t materialBinding = 7;
 
-	const uint32_t irradianceMapBinding = 8;
-	const uint32_t prefilteredMapBinding = 9;
-	const uint32_t brdfLUTBinding = 10;
+	//const uint32_t irradianceMapBinding = 8;
+	//const uint32_t prefilteredMapBinding = 9;
+	//const uint32_t brdfLUTBinding = 10;
 
 	const auto& meshList = resManager.meshList;
 	const auto& textureList = resManager.textureList;
@@ -404,11 +419,11 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	std::vector<VkDescriptorBufferInfo> vertexBufferInfoList{};
 	vertexBufferInfoList.resize(meshList.size());
 
-	std::vector<VkDescriptorBufferInfo> meshletBufferInfoList{};
-	meshletBufferInfoList.resize(meshList.size());
+	//std::vector<VkDescriptorBufferInfo> meshletBufferInfoList{};
+	//meshletBufferInfoList.resize(meshList.size());
 
-	std::vector<VkDescriptorBufferInfo> meshletdataBufferInfoList{};
-	meshletdataBufferInfoList.resize(meshList.size());
+	//std::vector<VkDescriptorBufferInfo> meshletdataBufferInfoList{};
+	//meshletdataBufferInfoList.resize(meshList.size());
 
 	std::vector<VkDescriptorBufferInfo> indexBufferInfoList{};
 	indexBufferInfoList.resize(meshList.size());
@@ -421,7 +436,7 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		vertexBufferInfo.buffer = mesh->_vertexBufferRT._buffer;
 		vertexBufferInfo.offset = 0;
 		vertexBufferInfo.range = VK_WHOLE_SIZE;
-
+#if 0
 		VkDescriptorBufferInfo& meshletBufferInfo = meshletBufferInfoList[meshArrayIndex];
 		meshletBufferInfo.buffer = mesh->_meshletsBuffer._buffer;
 		meshletBufferInfo.offset = 0;
@@ -431,8 +446,9 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		meshletdataBufferInfo.buffer = mesh->_meshletdataBuffer._buffer;
 		meshletdataBufferInfo.offset = 0;
 		meshletdataBufferInfo.range = VK_WHOLE_SIZE;
+#endif
 		VkDescriptorBufferInfo& indexBufferInfo = indexBufferInfoList[meshArrayIndex];
-		indexBufferInfo.buffer = mesh->_indicesBuffer._buffer;
+		indexBufferInfo.buffer = mesh->_indicesBufferRT._buffer;
 		indexBufferInfo.offset = 0;
 		indexBufferInfo.range = VK_WHOLE_SIZE;
 	}
@@ -460,11 +476,16 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	objectBufferInfo.offset = 0;
 	objectBufferInfo.range = VK_WHOLE_SIZE;
 
+	VkDescriptorBufferInfo matBufferInfo;
+	matBufferInfo.buffer = resManager.globalMaterialBuffer._buffer;
+	matBufferInfo.offset = 0;
+	matBufferInfo.range = VK_WHOLE_SIZE;
+
 	VkDescriptorBufferInfo lightsInfo;
 	lightsInfo.buffer = _engine->_lightManager.get_light_buffer()._buffer;
 	lightsInfo.offset = 0;
 	lightsInfo.range = VK_WHOLE_SIZE;
-
+#if 0
 	VkSampler& sampler = _engine->get_engine_sampler(ESamplerType::NEAREST_REPEAT)->sampler;
 
 	VkDescriptorImageInfo irradMapImageBufferInfo;
@@ -481,7 +502,7 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	brdflutMapImageBufferInfo.sampler = sampler;
 	brdflutMapImageBufferInfo.imageView = _engine->get_engine_texture(ETextureResourceNames::IBL_BRDFLUT)->imageView;
 	brdflutMapImageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
+#endif
 	VkDescriptorImageInfo blockySamplerInfo;
 	blockySamplerInfo.sampler = blockySampler;
 	blockySamplerInfo.imageView = nullptr;
@@ -492,13 +513,14 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, imageInfoList.size())
 		.bind_rt_as(tlasBinding, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
 		.bind_buffer(globalObjectBinding, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
-		.bind_buffer(meshletsBinding, meshletBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MESH_BIT_NV, meshletBufferInfoList.size())
-		.bind_buffer(meshletsDataBinding, meshletdataBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MESH_BIT_NV, meshletdataBufferInfoList.size())
+		//.bind_buffer(meshletsBinding, meshletBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MESH_BIT_NV, meshletBufferInfoList.size())
+		//.bind_buffer(meshletsDataBinding, meshletdataBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MESH_BIT_NV, meshletdataBufferInfoList.size())
 		.bind_buffer(lightBufferBinding, &lightsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_buffer(indicesBinding, indexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, indexBufferInfoList.size())
-		.bind_image(irradianceMapBinding, &irradMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(prefilteredMapBinding, &prefilteredMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(brdfLUTBinding, &brdflutMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		//.bind_image(irradianceMapBinding, &irradMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		//.bind_image(prefilteredMapBinding, &prefilteredMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		//.bind_image(brdfLUTBinding, &brdflutMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(blockySamplerBinding, &blockySamplerInfo, VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
+		.bind_buffer(materialBinding, &matBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
 		.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene);
 }

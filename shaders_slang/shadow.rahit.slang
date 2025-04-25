@@ -16,19 +16,26 @@ SamplerState      linearSampler : register(s8);
 [[vk::binding(3, 0)]]
 StructuredBuffer<SObjectData> objectBuffer  : register(t3);
 
+[[vk::binding(5, 0)]]
+StructuredBuffer<int> indices[]   : register(t5);
+
 [[vk::binding(7, 0)]]
-StructuredBuffer<int4> indices[]   : register(t7);
+StructuredBuffer<SMaterialData> matBuffer  : register(t7);
 
 [shader("anyhit")]
 void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersectionAttributes attrib)
 {
     SObjectData shadeData = objectBuffer[InstanceID()];
 
-    uint4 index = indices[shadeData.meshIndex][PrimitiveIndex()];
+    SMaterialData mat = matBuffer[shadeData.materialIndex];
+
+    int index0 = indices[shadeData.meshIndex][PrimitiveIndex() * 3];
+    int index1 = indices[shadeData.meshIndex][PrimitiveIndex() * 3 + 1];
+    int index2 = indices[shadeData.meshIndex][PrimitiveIndex() * 3 + 2];
     
-    SVertex v0 = vertices[shadeData.meshIndex][index.x];
-    SVertex v1 = vertices[shadeData.meshIndex][index.y];
-    SVertex v2 = vertices[shadeData.meshIndex][index.z];
+    SVertex v0 = vertices[shadeData.meshIndex][index0];
+    SVertex v1 = vertices[shadeData.meshIndex][index1];
+    SVertex v2 = vertices[shadeData.meshIndex][index2];
 
     const float3 barycentrics = float3(1.0 - attrib.baryCoord.x - attrib.baryCoord.y, attrib.baryCoord.x, attrib.baryCoord.y);
 
@@ -38,11 +45,11 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
 
     float2 texCoord = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
 
-    float opacity = texSet[shadeData.diffuseTexIndex].Sample(linearSampler, texCoord).a;
-    opacity *= shadeData.baseColorFactor.w;
+    float opacity = texSet[mat.diffuseTexIndex].Sample(linearSampler, texCoord).a;
+    opacity *= mat.baseColorFactor.w;
 
-    if (shadeData.opacityTexIndex > 0)
-        opacity = texSet[shadeData.opacityTexIndex].Sample(linearSampler, texCoord).r;
+    if (mat.opacityTexIndex > 0)
+        opacity = texSet[mat.opacityTexIndex].Sample(linearSampler, texCoord).r;
 
     if (opacity < 1.)
         IgnoreHit();

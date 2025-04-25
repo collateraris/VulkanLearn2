@@ -12,7 +12,11 @@
 #endif
 #define VBUFFER_ON 0
 #define GBUFFER_ON 0
+#define VULKAN_DEBUG_ON 0
+#define VULKAN_RAYTRACE_DEBUG_ON 0
+#if VULKAN_RAYTRACE_DEBUG_ON == 1
 #define VULKAN_DEBUG_ON 1
+#endif
 #define STREAMLINE_ON 0
 
 #include <volk.h>

@@ -16,11 +16,11 @@ SamplerState      linearSampler : register(s8);
 [[vk::binding(2, 0)]]
 RaytracingAccelerationStructure topLevelAS	: register(t2);
 
-[[vk::binding(3, 0)]]
-StructuredBuffer<SObjectData> objectBuffer  : register(t3);
+[[vk::binding(4, 0)]]
+StructuredBuffer<SLight> lightsBuffer  : register(t4);
 
-[[vk::binding(6, 0)]]
-StructuredBuffer<SLight> lightsBuffer  : register(t6);
+[[vk::binding(7, 0)]]
+StructuredBuffer<SMaterialData> matBuffer  : register(t7);
 
 [[vk::binding(0, 1)]]
 cbuffer MyContantBuffer : register(b0)
@@ -132,9 +132,9 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 				float2 bary = UniformSampleTriangle(uv);
 				candidate.position.xyz = (1.0f - bary.x - bary.y) * candidate.position.xyz + bary.x * candidate.position1.xyz + bary.y * candidate.position2.xyz;
 				float2 texCoord = (1.0f - bary.x - bary.y) * candidate.uv0_uv1.xy + bary.x * candidate.uv0_uv1.zw + bary.y * candidate.uv2_objectId_.xy;
-				SObjectData shadeData = objectBuffer[uint(candidate.uv2_objectId_.z)];
-				candidate.color_type.xyz = texSet[shadeData.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
-				candidate.color_type.xyz = float3(candidate.color_type.x * shadeData.emissiveFactorMult_emissiveStrength.x, candidate.color_type.y * shadeData.emissiveFactorMult_emissiveStrength.y, candidate.color_type.z * shadeData.emissiveFactorMult_emissiveStrength.z);
+				SMaterialData mat = matBuffer[uint(candidate.uv2_objectId_.z)];
+				candidate.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
+				candidate.color_type.xyz = float3(candidate.color_type.x * mat.emissiveFactorMult_emissiveStrength.x, candidate.color_type.y * mat.emissiveFactorMult_emissiveStrength.y, candidate.color_type.z * mat.emissiveFactorMult_emissiveStrength.z);
 			}
 			float3	lightVector;
 			float lightDistance;

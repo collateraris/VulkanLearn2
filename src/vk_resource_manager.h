@@ -29,18 +29,26 @@ struct MaterialDesc
 	glm::vec4 metallicFactor_roughnessFactor = glm::vec4(1., 1., 1., 1.);
 };
 
-struct alignas(16) GlobalObjectData
+struct GlobalObjectData
 {
 	glm::mat4 model;
 	glm::mat4 modelIT;//inverse transpose for normal mapping
 	uint32_t meshIndex;
 	uint32_t meshletCount;
+	uint32_t materialIndex;
+	uint32_t pad1;
+};
+
+struct GlobalMaterialData
+{
 	uint32_t diffuseTexIndex;
 	int32_t normalTexIndex;
 	int32_t metalnessTexIndex;
 	int32_t roughnessTexIndex;
 	int32_t emissionTexIndex;
 	int32_t opacityTexIndex;
+	int32_t pad0;
+	int32_t pad1;	
 	glm::vec4 baseColorFactor;
 	glm::vec4 emissiveFactorMult_emissiveStrength;
 	glm::vec4 metallicFactor_roughnessFactor;
@@ -62,6 +70,7 @@ public:
 	std::vector<RenderObject> renderables;
 	std::vector<IndirectBatch> indirectBatchRO;
 	AllocatedBuffer globalObjectBuffer;
+	AllocatedBuffer globalMaterialBuffer;
 	VulkanRaytracerBuilder _rtBuilder;
 	glm::vec3 maxCube = { std::numeric_limits<float>::min(), std::numeric_limits<float>::min(), std::numeric_limits<float>::min()};
 	glm::vec3 minCube = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
