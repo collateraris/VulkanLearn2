@@ -479,7 +479,7 @@ void VulkanEngine::init_vulkan()
 	vkb::InstanceBuilder builder;
 	//make the Vulkan instance, with basic debug features
 	auto inst_ret = builder.set_app_name("My Vulkan pet project")
-		.require_api_version(1, 3, 0)
+		.require_api_version(1, 4, 3)
 #if VULKAN_DEBUG_ON
 		.request_validation_layers(true)
 		.enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
@@ -599,10 +599,10 @@ void VulkanEngine::init_vulkan()
 	ray_query_features.rayQuery = true;
 	ray_query_features.pNext = nullptr;
 
-	VkPhysicalDeviceSynchronization2Features synchronized2_features = {};
-	synchronized2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
-	synchronized2_features.pNext = nullptr;
-	synchronized2_features.synchronization2 = true;
+	//VkPhysicalDeviceSynchronization2Features synchronized2_features = {};
+	//synchronized2_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
+	//synchronized2_features.pNext = nullptr;
+	//synchronized2_features.synchronization2 = true;
 
 	VkPhysicalDeviceRayTracingValidationFeaturesNV rtValidationFeatures = {};
 	rtValidationFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV;
@@ -617,7 +617,7 @@ void VulkanEngine::init_vulkan()
 		.add_pNext(&acceleration_structure_features)
 		.add_pNext(&rt_features)
 		.add_pNext(&ray_query_features)
-		.add_pNext(&synchronized2_features)
+		//.add_pNext(&synchronized2_features)
 	#if VULKAN_RAYTRACE_DEBUG_ON	
 		.add_pNext(&rtValidationFeatures)
 	#endif	
@@ -738,7 +738,7 @@ void VulkanEngine::init_swapchain()
 		.make_img_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, depthImageExtent)
 		.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 		.make_view_info(_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
-		.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; })
+		.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; })
 		.create_texture();
 }
 

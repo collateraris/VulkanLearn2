@@ -454,7 +454,10 @@ vkutil::DescriptorManagerBuilder& vkutil::DescriptorManagerBuilder::bind_image(u
 		case VK_SHADER_STAGE_MISS_BIT_KHR:
 		case VK_SHADER_STAGE_INTERSECTION_BIT_KHR:
 			resBarInfo.nextPipStage = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
-		break;
+			break;
+		case VK_SHADER_STAGE_COMPUTE_BIT:
+			resBarInfo.nextPipStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+			break;
 	default:
 		assert(false);
 		break;

@@ -54,6 +54,14 @@ struct GlobalMaterialData
 	glm::vec4 metallicFactor_roughnessFactor;
 };
 
+struct Reservoir
+{
+	float weightSum = 0;
+	int32_t lightSampler = -1;
+	uint32_t samplesNumber = 0;
+	uint32_t finalWeight = 0;
+};
+
 class ResourceManager
 {
 public:
@@ -71,6 +79,9 @@ public:
 	std::vector<IndirectBatch> indirectBatchRO;
 	AllocatedBuffer globalObjectBuffer;
 	AllocatedBuffer globalMaterialBuffer;
+	AllocatedBuffer globalReservoirDIInitBuffer;
+	AllocatedBuffer globalReservoirDITemporalBuffer[2];
+	AllocatedBuffer globalReservoirDISpacialBuffer;
 	VulkanRaytracerBuilder _rtBuilder;
 	glm::vec3 maxCube = { std::numeric_limits<float>::min(), std::numeric_limits<float>::min(), std::numeric_limits<float>::min()};
 	glm::vec3 minCube = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};

@@ -41,11 +41,14 @@ void VkLogger::debug_log(std::string&& log)
 
 VkBool32 vk_logger_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*)
 {
-	auto ms = to_string_message_severity(messageSeverity);
-	auto mt = to_string_message_type(messageType);
-	std::string log = std::format("[{}: {}\n{}\n", ms, mt, pCallbackData->pMessage);
-	PLOG_DEBUG << log.c_str();
-	printf(log.c_str());
+	if (VkDebugUtilsMessageSeverityFlagBitsEXT::VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT == messageSeverity)
+	{
+		auto ms = to_string_message_severity(messageSeverity);
+		auto mt = to_string_message_type(messageType);
+		std::string log = std::format("[{}: {}\n{}\n", ms, mt, pCallbackData->pMessage);
+		PLOG_DEBUG << log.c_str();
+		printf(log.c_str());
+	}
 
 	return VK_FALSE;
 }

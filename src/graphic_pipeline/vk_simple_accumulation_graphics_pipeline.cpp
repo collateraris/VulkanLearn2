@@ -309,7 +309,7 @@ void VulkanSimpleAccumulationGraphicsPipeline::init_description_set(const Textur
 		VkDescriptorBufferInfo globalUniformsInfo;
 		globalUniformsInfo.buffer = _perFrameCount[i]._buffer;
 		globalUniformsInfo.offset = 0;
-		globalUniformsInfo.range = _perFrameCount[i]._size;
+		globalUniformsInfo.range = VK_WHOLE_SIZE;
 
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)

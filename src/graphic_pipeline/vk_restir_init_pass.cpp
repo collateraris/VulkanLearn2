@@ -125,7 +125,7 @@ void VulkanReSTIRInitPass::barrier_for_reading(VulkanCommandBuffer* cmd)
 			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT).image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
 		};
 
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
 	}
 
 	{
@@ -137,7 +137,7 @@ void VulkanReSTIRInitPass::barrier_for_reading(VulkanCommandBuffer* cmd)
 			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID).image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
 		};
 
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
 	}
 }
 
@@ -149,7 +149,7 @@ void VulkanReSTIRInitPass::barrier_for_writing(VulkanCommandBuffer* cmd)
 			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT).image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
 		};
 
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
 	}
 	{
 		std::array<VkImageMemoryBarrier, 4> barriers =
@@ -160,7 +160,7 @@ void VulkanReSTIRInitPass::barrier_for_writing(VulkanCommandBuffer* cmd)
 			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID).image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
 		};
 
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
 	}
 }
 
@@ -182,10 +182,20 @@ void VulkanReSTIRInitPass::init_tex()
 		texBuilder.init(_engine);
 		texBuilder.start()
 			.make_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; })
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
 			.create_engine_texture(ETextureResourceNames::PT_REFERENCE_OUTPUT);
+
+		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
+
+			Texture& prevTex = *_engine->_resManager.get_engine_texture(ETextureResourceNames::PT_REFERENCE_OUTPUT);
+			VkClearValue clear_value = { 0., 0., 0., 0. };
+			cmd.clear_image(prevTex, clear_value);
+
+			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+
+			});
 	}
 
 	{
@@ -193,10 +203,20 @@ void VulkanReSTIRInitPass::init_tex()
 		texBuilder.init(_engine);
 		texBuilder.start()
 			.make_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; })
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
 			.create_engine_texture(ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS);
+
+		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
+
+			Texture& prevTex = *_engine->_resManager.get_engine_texture(ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS);
+			VkClearValue clear_value = { 0., 0., 0., 0. };
+			cmd.clear_image(prevTex, clear_value);
+
+			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+
+			});
 	}
 
 	{
@@ -204,10 +224,20 @@ void VulkanReSTIRInitPass::init_tex()
 		texBuilder.init(_engine);
 		texBuilder.start()
 			.make_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; })
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
 			.create_engine_texture(ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS);
+
+		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
+
+			Texture& prevTex = *_engine->_resManager.get_engine_texture(ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS);
+			VkClearValue clear_value = { 0., 0., 0., 0. };
+			cmd.clear_image(prevTex, clear_value);
+
+			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+
+			});
 	}
 
 	{
@@ -215,10 +245,20 @@ void VulkanReSTIRInitPass::init_tex()
 		texBuilder.init(_engine);
 		texBuilder.start()
 			.make_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; })
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
 			.create_engine_texture(ETextureResourceNames::PT_GBUFFER_NORMAL);
+
+		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
+
+			Texture& prevTex = *_engine->_resManager.get_engine_texture(ETextureResourceNames::PT_GBUFFER_NORMAL);
+			VkClearValue clear_value = { 0., 0., 0., 0. };
+			cmd.clear_image(prevTex, clear_value);
+
+			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+
+			});
 	}
 
 	{
@@ -226,25 +266,25 @@ void VulkanReSTIRInitPass::init_tex()
 		texBuilder.init(_engine);
 		texBuilder.start()
 			.make_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; })
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
 			.create_engine_texture(ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID);
+
+		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
+
+			Texture& prevTex = *_engine->_resManager.get_engine_texture(ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID);
+			VkClearValue clear_value = { 0., 0., 0., 0. };
+			cmd.clear_image(prevTex, clear_value);
+
+			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+
+			});
 	}
 }
 
 void VulkanReSTIRInitPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
-	{
-		VkClearValue clear_value = { 0., 0., 0., 0. };
-		cmd->clear_image(get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT), clear_value);
-		cmd->clear_image(get_tex(ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS), clear_value);
-		cmd->clear_image(get_tex(ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS), clear_value);
-		cmd->clear_image(get_tex(ETextureResourceNames::PT_GBUFFER_NORMAL), clear_value);
-		cmd->clear_image(get_tex(ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID), clear_value);
-	}
-
-
 	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
 		[&](VkCommandBuffer cmd) {
 			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_Init));

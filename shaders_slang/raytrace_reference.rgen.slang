@@ -10,8 +10,8 @@
 [[vk::binding(1, 0)]]
 Texture2D<float4> texSet[] : register(t1);
 
-[[vk::binding(8, 0)]]
-SamplerState      linearSampler : register(s8);
+[[vk::binding(6, 0)]]
+SamplerState      linearSampler : register(s6);
 
 [[vk::binding(2, 0)]]
 RaytracingAccelerationStructure topLevelAS	: register(t2);

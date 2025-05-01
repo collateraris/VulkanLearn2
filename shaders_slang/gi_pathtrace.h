@@ -19,8 +19,8 @@ struct SGlobalGIParams
 	uint  numRays;
 	uint mode;
 	uint enableAccumulation;
-	uint pad2;
-	uint pad3;
+	uint widthScreen;
+	uint heightScreen;
 };
 
 struct IndirectGbufferRayPayload
@@ -130,7 +130,7 @@ struct SMaterialData
 	float4 baseColorFactor;
 	float4 emissiveFactorMult_emissiveStrength;
 	float4 metallicFactor_roughnessFactor;
-}
+};
 
 // -------------------------------------------------------------------------
 //    Random
@@ -215,6 +215,27 @@ float rand(inout RngStateType rngState) {
 
 #endif
 
+// Reservoir reminder:
+// .x: weight sum
+// .y: chosen light for the pixel
+// .z: the number of samples seen for this current light
+// .w: the final adjusted weight for the current pixel following the formula in algorithm 3 (r.W) 
+struct SReservoir
+{
+	float weightSum;
+	int lightSampler;
+	uint samplesNumber;
+	float finalWeight;
+
+	[mutating]
+	void updateReservoir(inout RngStateType randSeed, uint lightToSample, float weight) {
+		weightSum = weightSum + weight; // r.w_sum
+		samplesNumber = samplesNumber + 1; // r.M
+		if (rand(randSeed) < weight / (weightSum + 1e-6)) {
+			lightSampler = lightToSample; // r.y
+		}
+	};
+};
 
 // -------------------------------------------------------------------------
 //    Utilities

@@ -20,6 +20,9 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine)
 		1
 	};
 
+	_tileNumberWidth = _engine->_windowExtent.width / _tileSize + 1;
+	_tileNumberHeight = _engine->_windowExtent.height / _tileSize + 1;
+
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
@@ -37,122 +40,60 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init(VulkanEngine* engine)
 
 	{
 		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::ReSTIR_UpdateReservoir_PlusShade,
-			[&](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
-				ShaderEffect defaultEffect;
-				uint32_t rayGenIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("reSTIR_updateReservoir_PlusShade.rgen.spv")), VK_SHADER_STAGE_RAYGEN_BIT_NV);
-				uint32_t rayIndirectMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
-				uint32_t rayMissIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("ao_raytrace.rmiss.spv")), VK_SHADER_STAGE_MISS_BIT_NV);
-				uint32_t rayIndirectClosestHitIndex = defaultEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_path("indirect_raytrace.rchit.spv")), VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV);
+			[=](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
+				ShaderEffect computeEffect;
+				computeEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("restirShade.comp.slang.spv")), VK_SHADER_STAGE_COMPUTE_BIT);
+				computeEffect.reflect_layout(engine->_device, nullptr, 0);
 
-				defaultEffect.reflect_layout(engine->_device, nullptr, 0);
-
-				RTPipelineBuilder pipelineBuilder;
-
-				pipelineBuilder.setShaders(&defaultEffect);
+				ComputePipelineBuilder computePipelineBuilder;
+				computePipelineBuilder.setShaders(&computeEffect);
 
 				VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
 				std::vector<VkDescriptorSetLayout> setLayout = { _engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->setLayout,
-																 _engine->get_engine_descriptor(EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0)->setLayout,
-																 _rpDescrMan.get_layout()};
+																	_engine->get_engine_descriptor(EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0)->setLayout,
+																	_rpDescrMan.get_layout() };
 				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
 				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
 
-				vkCreatePipelineLayout(_engine->_device, &mesh_pipeline_layout_info, nullptr, &pipelineBuilder._pipelineLayout);
+				vkCreatePipelineLayout(_engine->_device, &mesh_pipeline_layout_info, nullptr, &computePipelineBuilder._pipelineLayout);
+				//hook the push constants layout
+				pipelineLayout = computePipelineBuilder._pipelineLayout;
 
-				// The ray tracing process can shoot rays from the camera, and a shadow ray can be shot from the
-				// hit points of the camera rays, hence a recursion level of 2. This number should be kept as low
-				// as possible for performance reasons. Even recursive ray tracing should be flattened into a loop
-				// in the ray generation to avoid deep recursion.
-				pipelineBuilder._rayPipelineInfo.maxPipelineRayRecursionDepth = 2;  // Ray depth
-
-				// Shader groups
-				std::vector<VkRayTracingShaderGroupCreateInfoKHR> rtShaderGroups;
-				VkRayTracingShaderGroupCreateInfoKHR group{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
-				group.anyHitShader = VK_SHADER_UNUSED_KHR;
-				group.closestHitShader = VK_SHADER_UNUSED_KHR;
-				group.generalShader = VK_SHADER_UNUSED_KHR;
-				group.intersectionShader = VK_SHADER_UNUSED_KHR;
-
-				// Raygen
-				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-				group.generalShader = rayGenIndex;
-				rtShaderGroups.push_back(group);
-
-				// Miss
-				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-				group.generalShader = rayIndirectMissIndex;
-				rtShaderGroups.push_back(group);
-
-				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-				group.generalShader = rayMissIndex;
-				rtShaderGroups.push_back(group);
-
-				// closest hit shader
-				group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-				group.generalShader = VK_SHADER_UNUSED_KHR;
-				group.closestHitShader = rayIndirectClosestHitIndex;
-				rtShaderGroups.push_back(group);
-
-				pipelineBuilder._rayPipelineInfo.groupCount = static_cast<uint32_t>(rtShaderGroups.size());
-				pipelineBuilder._rayPipelineInfo.pGroups = rtShaderGroups.data();
-
-				pipelineLayout = pipelineBuilder._pipelineLayout;
-
-				pipeline = pipelineBuilder.build_rt_pipeline(engine->_device);
+				pipeline = computePipelineBuilder.build_compute_pipeline(engine->_device);
 			});
 	}
-
-	_rtSBTBuffer = VulkanRaytracerBuilder::create_SBTBuffer(engine, 2, 1, EPipelineType::ReSTIR_UpdateReservoir_PlusShade,
-		_rgenRegion,
-		_missRegion,
-		_hitRegion,
-		_callRegion);
 }
 
 void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffer()
 {
 	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-		.bind_image(0, ETextureResourceNames::ReSTIR_DI_SPACIAL_RESERVOIRS, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(1, ETextureResourceNames::ReSTIR_DI_PREV_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(2, _outputTex, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-
-		.bind_image(3, ETextureResourceNames::ReSTIR_GI_SPACIAL_RESERVOIRS, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(4, ETextureResourceNames::ReSTIR_INDIRECT_LO_SPACIAL, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(5, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_SPACIAL, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(6, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_SPACIAL, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-
-		.bind_image(7, ETextureResourceNames::ReSTIR_GI_PREV_RESERVOIRS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(8, ETextureResourceNames::ReSTIR_INDIRECT_LO_PREV, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(9, ETextureResourceNames::ReSTIR_GI_SAMPLES_POSITION_PREV, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(10, ETextureResourceNames::ReSTIR_GI_SAMPLES_NORMAL_PREV, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-
-		.bind_image(11, ETextureResourceNames::RAYTRACE_REFLECTION, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-
+		.bind_image(0, ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
+		.bind_image(1, ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
+		.bind_image(2, ETextureResourceNames::PT_GBUFFER_NORMAL, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
+		.bind_image(3, ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
+		.bind_image(4, ETextureResourceNames::PT_REFERENCE_OUTPUT, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
+		.bind_image(5, _outputTex, EResOp::WRITE, VK_SHADER_STAGE_COMPUTE_BIT)
 		.create_desciptor_manager();
 }
 
 void VulkanReSTIRUpdateReservoirPlusShadePass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
-	VkClearValue clear_value = { 0., 0., 0., 0. };
-	cmd->clear_image(_outputTex, clear_value);
+	cmd->dispatch(_tileNumberWidth, _tileNumberHeight, 1, [&](VkCommandBuffer cmd)
+	{
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_UpdateReservoir_PlusShade));
 
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_UpdateReservoir_PlusShade), 0,
+			1, &_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set, 0, nullptr);
 
-	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
-		[&](VkCommandBuffer cmd) {
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_UpdateReservoir_PlusShade));
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_UpdateReservoir_PlusShade), 0,
-				1, &_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set, 0, nullptr);
+		EDescriptorResourceNames currentGlobalUniformsDesc = current_frame_index % 2 == 0
+			? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
+			: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
 
-			EDescriptorResourceNames currentGlobalUniformsDesc = current_frame_index % 2 == 0
-				? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
-				: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
+		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_UpdateReservoir_PlusShade), 1,
+			1, &_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set, 0, nullptr);
 
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_UpdateReservoir_PlusShade), 1,
-				1, &_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set, 0, nullptr);
-
-			_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_UpdateReservoir_PlusShade), 2);
-		});
+		_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_UpdateReservoir_PlusShade), 2);
+	});
 }
 
 const Texture& VulkanReSTIRUpdateReservoirPlusShadePass::get_output() const
@@ -165,7 +106,7 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::barrier_for_frag_read(VulkanComma
 	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 }
 
-void VulkanReSTIRUpdateReservoirPlusShadePass::barrier_for_raytrace_write(VulkanCommandBuffer* cmd)
+void VulkanReSTIRUpdateReservoirPlusShadePass::barrier_for_compute_write(VulkanCommandBuffer* cmd)
 {
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 }

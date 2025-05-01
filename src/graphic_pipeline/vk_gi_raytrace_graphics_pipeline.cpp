@@ -306,11 +306,11 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 	_restirInitGP = std::make_unique<VulkanReSTIRInitPass>();
 	_restirInitGP->init(engine);
 
-	//_restirTemporalGP = std::make_unique<VulkanReSTIRTemporalPass>();
-	//_restirTemporalGP->init(engine);
+	_restirTemporalGP = std::make_unique<VulkanReSTIRTemporalPass>();
+	_restirTemporalGP->init(engine);
 
-	//_restirSpacialGP = std::make_unique<VulkanReSTIRSpaceReusePass>();
-	//_restirSpacialGP->init(engine);
+	_restirSpacialGP = std::make_unique<VulkanReSTIRSpaceReusePass>();
+	_restirSpacialGP->init(engine);
 
 	//_restir_GI_TemporalGP = std::make_unique<VulkanReSTIR_GI_TemporalPass>();
 	//_restir_GI_TemporalGP->init(engine);
@@ -318,11 +318,11 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 	//_restir_GI_SpacialGP = std::make_unique<VulkanReSTIR_GI_SpaceReusePass>();
 	//_restir_GI_SpacialGP->init(engine);
 
-	//_restirUpdateShadeGP = std::make_unique<VulkanReSTIRUpdateReservoirPlusShadePass>();
-	//_restirUpdateShadeGP->init(engine);
+	_restirUpdateShadeGP = std::make_unique<VulkanReSTIRUpdateReservoirPlusShadePass>();
+	_restirUpdateShadeGP->init(engine);
 
 	_accumulationGP = std::make_unique<VulkanSimpleAccumulationGraphicsPipeline>();
-	_accumulationGP->init(engine, _restirInitGP->get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT));
+	_accumulationGP->init(engine, _restirUpdateShadeGP->get_output());
 
 	//_raytraceReflection = std::make_unique<VulkanRaytrace_ReflectionPass>();
 	//_raytraceReflection->init(engine);
@@ -347,7 +347,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors()
 			EDescriptorResourceNames currentDesciptor = i == 0 ? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0 : EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
 
 			vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-				.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV)
+				.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_COMPUTE_BIT)
 				.build(_engine, currentDesciptor);
 		}
 	}
@@ -363,6 +363,8 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_global_buffers()
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams& globalData, int current_frame_index)
 {
+	globalData.widthScreen = _imageExtent.width;
+	globalData.heightScreen = _imageExtent.height;
 	_engine->map_buffer(_engine->_allocator, _globalUniformsBuffer[current_frame_index]._allocation, [&](void*& data) {
 		memcpy(data, &globalData, sizeof(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams));
 		});
@@ -373,18 +375,67 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::copy_global_uniform_data(VulkanG
 void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
 	_restirInitGP->barrier_for_writing(cmd);
+	{
+		std::array<VkBufferMemoryBarrier, 1> barriers =
+		{
+			vkinit::buffer_barrier(_engine->_resManager.globalReservoirDIInitBuffer._buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
+	}
 	_restirInitGP->draw(cmd, current_frame_index);
-	//_restirTemporalGP->draw(cmd, current_frame_index);
-	//_restirSpacialGP->draw(cmd, current_frame_index);
+	_restirInitGP->barrier_for_reading(cmd);
+	{
+		uint32_t curTemporalIndx = (current_frame_index + 1) % 2;
+		uint32_t prevTemporalIndx = current_frame_index % 2;
+		{
+			std::array<VkBufferMemoryBarrier, 2> barriers =
+			{
+				vkinit::buffer_barrier(_engine->_resManager.globalReservoirDIInitBuffer._buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT),
+				vkinit::buffer_barrier(_engine->_resManager.globalReservoirDITemporalBuffer[prevTemporalIndx]._buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_READ_BIT),
+			};
+
+			vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
+		}
+
+		{
+			std::array<VkBufferMemoryBarrier, 1> barriers =
+			{
+				vkinit::buffer_barrier(_engine->_resManager.globalReservoirDITemporalBuffer[curTemporalIndx]._buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT),
+			};
+
+			vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
+		}
+	}
+	_restirTemporalGP->draw(cmd, current_frame_index);
+	{
+		uint32_t curTemporalIndx = (current_frame_index + 1) % 2;
+		std::array<VkBufferMemoryBarrier, 2> barriers =
+		{
+			vkinit::buffer_barrier(_engine->_resManager.globalReservoirDISpacialBuffer._buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT),
+			vkinit::buffer_barrier(_engine->_resManager.globalReservoirDITemporalBuffer[curTemporalIndx]._buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
+	}
+	_restirSpacialGP->draw(cmd, current_frame_index);
+	{
+		std::array<VkBufferMemoryBarrier, 1> barriers =
+		{
+			vkinit::buffer_barrier(_engine->_resManager.globalReservoirDISpacialBuffer._buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
+	}
 	//_restir_GI_TemporalGP->draw(cmd, current_frame_index);
 	//_restir_GI_SpacialGP->draw(cmd, current_frame_index);
 
 	//_raytraceReflection->draw(cmd, current_frame_index);
 
-	//_restirUpdateShadeGP->draw(cmd, current_frame_index);
+	_restirUpdateShadeGP->barrier_for_compute_write(cmd);
+	_restirUpdateShadeGP->draw(cmd, current_frame_index);
 
-	//_restirUpdateShadeGP->barrier_for_frag_read(cmd);
-	_restirInitGP->barrier_for_reading(cmd);
+	_restirUpdateShadeGP->barrier_for_frag_read(cmd);
 	_accumulationGP->draw(cmd, current_frame_index);
 
 	//_denoiserPass->draw(cmd, current_frame_index);

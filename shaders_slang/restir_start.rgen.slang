@@ -10,8 +10,8 @@
 [[vk::binding(1, 0)]]
 Texture2D<float4> texSet[] : register(t1);
 
-[[vk::binding(8, 0)]]
-SamplerState      linearSampler : register(s8);
+[[vk::binding(6, 0)]]
+SamplerState      linearSampler : register(s6);
 
 [[vk::binding(2, 0)]]
 RaytracingAccelerationStructure topLevelAS	: register(t2);
@@ -21,6 +21,9 @@ StructuredBuffer<SLight> lightsBuffer  : register(t4);
 
 [[vk::binding(7, 0)]]
 StructuredBuffer<SMaterialData> matBuffer  : register(t7);
+
+[[vk::binding(8, 0)]]
+RWStructuredBuffer<SReservoir> reservoirInitBuffer  : register(t8);
 
 [[vk::binding(0, 1)]]
 cbuffer MyContantBuffer : register(b0)
@@ -106,7 +109,7 @@ MaterialProperties loadMaterialProperties(IndirectGbufferRayPayload payload)
 }
 
 // Samples a random light from the pool of all lights using simplest uniform distirbution
-bool sampleLightUniform(inout RngStateType rngState, float3 hitPosition, float3 surfaceNormal, out SLight light, out float lightSampleWeight) {
+bool sampleLightUniform(inout RngStateType rngState, float3 hitPosition, float3 surfaceNormal, out SLight light, out float lightSampleWeight, out uint selectLightIndex) {
 
 	if (giParams.lightsCount == 0) return false;
 
@@ -116,23 +119,27 @@ bool sampleLightUniform(inout RngStateType rngState, float3 hitPosition, float3 
 	// PDF of uniform distribution is (1/light count). Reciprocal of that PDF (simply a light count) is a weight of this sample
 	lightSampleWeight = float(giParams.lightsCount);
 
+	selectLightIndex = randomLightIndex;
+
 	return true;
 };
 
 // Samples a random light from the pool of all lights using RIS (Resampled Importance Sampling)
-bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surfaceNormal, out SLight selectedSample, out float lightSampleWeight, MaterialProperties material, float3 shadingNormal, float3 V) {
+bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surfaceNormal, out SLight selectedSample, out float lightSampleWeight, MaterialProperties material, float3 shadingNormal, float3 V, out SReservoir reservoir) {
 	
 	if (giParams.lightsCount == 0) return false;
 
 	selectedSample = (SLight) 0;
 	float totalWeights = 0.0f;
 	float samplePdfG = 0.0f;
+	uint candidateLightIndex = -1;
+	uint selectLightIndex = -1;
 
 	for (int i = 0; i < RIS_CANDIDATES_LIGHTS; i++) {
 
 		float candidateWeight;
 		SLight candidate;
-		if (sampleLightUniform(rngState, hitPosition, surfaceNormal, candidate, candidateWeight)) {
+		if (sampleLightUniform(rngState, hitPosition, surfaceNormal, candidate, candidateWeight, candidateLightIndex)) {
 
 			uint type = uint(candidate.color_type.w);
 			if (type == EMISSION_LIGHT)
@@ -158,6 +165,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 			{
 				selectedSample = candidate;
 				samplePdfG = candidatePdfG;
+				selectLightIndex = candidateLightIndex;
 			}
 		}
 	}
@@ -166,6 +174,10 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 		return false;
 	} else {
 		lightSampleWeight = (totalWeights / float(RIS_CANDIDATES_LIGHTS)) / samplePdfG;
+		reservoir.weightSum = totalWeights;
+		reservoir.lightSampler = selectLightIndex;
+		reservoir.samplesNumber = RIS_CANDIDATES_LIGHTS;
+		reservoir.finalWeight = lightSampleWeight;
 		return true;
 	}
 };
@@ -219,6 +231,8 @@ void main()
 	float4 normalOutput = float4(0., 0., 0., 0.);
 	float4 wposObjectIdOutput = float4(0., 0., 0., -1);
 
+	SReservoir DI_RISreservoir = SReservoir(0.f, -1, 0.f, 0.f);
+
 	for (int bounce = 0; bounce <= giParams.numRays; bounce++) 
 	{
 		IndirectGbufferRayPayload payload = shootRay(rayOri, rayDir, FLT_MAX);
@@ -231,14 +245,6 @@ void main()
 
 		// Load material properties at the hit point
 		MaterialProperties material = loadMaterialProperties(payload);
-
-		if (bounce == 0)
-		{
-			albedoMetalnessOutput = float4(material.baseColor, material.metalness);
-			emissionRoughnessOutput = float4(material.emissive, material.roughness);
-			normalOutput = payload.normal_;
-			wposObjectIdOutput = payload.position_objectID;
-		}
 
 		float3 geometryNormal;
 		float3 shadingNormal;
@@ -273,19 +279,34 @@ void main()
 		// Evaluate direct light (next event estimation), start by sampling one light 
 		SLight light;
 		float lightWeight = -1;
-		if (sampleLightRIS(rngState, payload.position_objectID.xyz, geometryNormal, light, lightWeight, material, shadingNormal, V)) {
+		SReservoir candidateReservoir = SReservoir(0.f, -1, 0.f, 0.f);
+		if (sampleLightRIS(rngState, payload.position_objectID.xyz, geometryNormal, light, lightWeight, material, shadingNormal, V, candidateReservoir)) {
 
 			// Prepare data needed to evaluate the light
 			float3 lightVector;
 			float lightDistance;
 			getLightData(light, payload.position_objectID.xyz, lightVector, lightDistance);
 			float3 L = normalize(lightVector);
-
+			
+			// If light is not in shadow, evaluate BRDF and accumulate its contribution into radiance
 			if (castShadowRay(payload.position_objectID.xyz, geometryNormal, L, lightDistance))
 			{
-				// If light is not in shadow, evaluate BRDF and accumulate its contribution into radiance
 				radiance += throughput * evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * lightWeight);
 			}
+			else
+			{
+				candidateReservoir.finalWeight = 0;
+			}
+		}
+
+		if (bounce == 0)
+		{
+			albedoMetalnessOutput = float4(material.baseColor, material.metalness);
+			emissionRoughnessOutput = float4(material.emissive, material.roughness);
+			normalOutput = payload.normal_;
+			wposObjectIdOutput = payload.position_objectID;
+			DI_RISreservoir = candidateReservoir;
+			//radiance = 0; // store only indirect illum
 		}
 
 		// Russian Roulette
@@ -335,4 +356,6 @@ void main()
 	ptEmissionRoughnessOutput[LaunchIndex] = emissionRoughnessOutput;
 	ptNormalOutput[LaunchIndex] = normalOutput;
 	ptWposObjectIdOutput[LaunchIndex] = wposObjectIdOutput;
+	
+	//reservoirInitBuffer[LaunchIndex.y * (LaunchDimensions.x + 1) + LaunchIndex.x] = DI_RISreservoir;
 };

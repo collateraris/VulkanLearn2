@@ -30,13 +30,9 @@ private:
 
 	VkExtent3D _imageExtent;
 	VkFormat      _colorFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
-
-	AllocatedBuffer                 _rtSBTBuffer;
-
-	VkStridedDeviceAddressRegionKHR _rgenRegion{};
-	VkStridedDeviceAddressRegionKHR _missRegion{};
-	VkStridedDeviceAddressRegionKHR _hitRegion{};
-	VkStridedDeviceAddressRegionKHR _callRegion{};
+	const uint32_t _tileSize = 16;
+	uint32_t _tileNumberWidth;
+	uint32_t _tileNumberHeight;
 
 	vkutil::DescriptorManager _rpDescrMan; // render pass descriptor manager
 };

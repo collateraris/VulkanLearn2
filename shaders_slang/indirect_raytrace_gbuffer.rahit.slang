@@ -10,8 +10,8 @@ StructuredBuffer<SVertex> vertices[]			: register(t0);
 
 [[vk::binding(1, 0)]]
 Texture2D<float4> texSet[] : register(t0);
-[[vk::binding(8, 0)]]
-SamplerState      linearSampler : register(s8);
+[[vk::binding(6, 0)]]
+SamplerState      linearSampler : register(s6);
 
 [[vk::binding(3, 0)]]
 StructuredBuffer<SObjectData> objectBuffer  : register(t3);

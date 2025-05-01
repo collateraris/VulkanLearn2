@@ -28,13 +28,9 @@ private:
 	VulkanEngine* _engine = nullptr;
 
 	VkExtent3D _imageExtent;
-
-	AllocatedBuffer                 _rtSBTBuffer;
-
-	VkStridedDeviceAddressRegionKHR _rgenRegion{};
-	VkStridedDeviceAddressRegionKHR _missRegion{};
-	VkStridedDeviceAddressRegionKHR _hitRegion{};
-	VkStridedDeviceAddressRegionKHR _callRegion{};
+	const uint32_t _tileSize = 16;
+	uint32_t _tileNumberWidth;
+	uint32_t _tileNumberHeight;
 
 	vkutil::DescriptorManager _rpDescrMan; // render pass descriptor manager
 };
