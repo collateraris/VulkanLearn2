@@ -134,6 +134,8 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 	float samplePdfG = 0.0f;
 	uint candidateLightIndex = -1;
 	uint selectLightIndex = -1;
+	float2 candidateBary;
+	float2 selectBary;
 
 	for (int i = 0; i < RIS_CANDIDATES_LIGHTS; i++) {
 
@@ -146,6 +148,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 			{
 				float2 uv = float2(rand(rngState), rand(rngState));
 				float2 bary = UniformSampleTriangle(uv);
+				candidateBary = bary;
 				candidate.position.xyz = (1.0f - bary.x - bary.y) * candidate.position.xyz + bary.x * candidate.position1.xyz + bary.y * candidate.position2.xyz;
 				float2 texCoord = (1.0f - bary.x - bary.y) * candidate.uv0_uv1.xy + bary.x * candidate.uv0_uv1.zw + bary.y * candidate.uv2_objectId_.xy;
 				SMaterialData mat = matBuffer[uint(candidate.uv2_objectId_.z)];
@@ -166,6 +169,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 				selectedSample = candidate;
 				samplePdfG = candidatePdfG;
 				selectLightIndex = candidateLightIndex;
+				selectBary = candidateBary;
 			}
 		}
 	}
@@ -178,6 +182,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 		reservoir.lightSampler = selectLightIndex;
 		reservoir.samplesNumber = RIS_CANDIDATES_LIGHTS;
 		reservoir.finalWeight = lightSampleWeight;
+		reservoir.bary__.xy = selectBary;
 		return true;
 	}
 };
@@ -231,7 +236,7 @@ void main()
 	float4 normalOutput = float4(0., 0., 0., 0.);
 	float4 wposObjectIdOutput = float4(0., 0., 0., -1);
 
-	SReservoir DI_RISreservoir = SReservoir(0.f, -1, 0.f, 0.f);
+	SReservoir DI_RISreservoir = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
 
 	for (int bounce = 0; bounce <= giParams.numRays; bounce++) 
 	{
@@ -279,7 +284,7 @@ void main()
 		// Evaluate direct light (next event estimation), start by sampling one light 
 		SLight light;
 		float lightWeight = -1;
-		SReservoir candidateReservoir = SReservoir(0.f, -1, 0.f, 0.f);
+		SReservoir candidateReservoir = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
 		if (sampleLightRIS(rngState, payload.position_objectID.xyz, geometryNormal, light, lightWeight, material, shadingNormal, V, candidateReservoir)) {
 
 			// Prepare data needed to evaluate the light
@@ -306,7 +311,7 @@ void main()
 			normalOutput = payload.normal_;
 			wposObjectIdOutput = payload.position_objectID;
 			DI_RISreservoir = candidateReservoir;
-			//radiance = 0; // store only indirect illum
+			radiance = 0; // store only indirect illum
 		}
 
 		// Russian Roulette
@@ -357,5 +362,5 @@ void main()
 	ptNormalOutput[LaunchIndex] = normalOutput;
 	ptWposObjectIdOutput[LaunchIndex] = wposObjectIdOutput;
 	
-	//reservoirInitBuffer[LaunchIndex.y * (LaunchDimensions.x + 1) + LaunchIndex.x] = DI_RISreservoir;
+	reservoirInitBuffer[LaunchIndex.y * (LaunchDimensions.x + 1) + LaunchIndex.x] = DI_RISreservoir;
 };

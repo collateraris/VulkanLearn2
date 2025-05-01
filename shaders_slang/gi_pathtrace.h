@@ -226,13 +226,15 @@ struct SReservoir
 	int lightSampler;
 	uint samplesNumber;
 	float finalWeight;
+	float4 bary__;
 
 	[mutating]
-	void updateReservoir(inout RngStateType randSeed, uint lightToSample, float weight) {
+	void updateReservoir(inout RngStateType randSeed, SReservoir res, float weight) {
 		weightSum = weightSum + weight; // r.w_sum
 		samplesNumber = samplesNumber + 1; // r.M
 		if (rand(randSeed) < weight / (weightSum + 1e-6)) {
-			lightSampler = lightToSample; // r.y
+			lightSampler = res.lightSampler; // r.y
+			bary__ = res.bary__;
 		}
 	};
 };

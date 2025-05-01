@@ -60,6 +60,7 @@ struct Reservoir
 	int32_t lightSampler = -1;
 	uint32_t samplesNumber = 0;
 	uint32_t finalWeight = 0;
+	vec4 bary__;
 };
 
 class ResourceManager
