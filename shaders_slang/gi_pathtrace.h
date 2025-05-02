@@ -23,6 +23,14 @@ struct SGlobalGIParams
 	uint heightScreen;
 };
 
+struct STemporalReservoirInfo
+{
+	uint currTempIndx;
+	uint prevTempIndx;
+	uint pad0;
+	uint pad1;
+};
+
 struct IndirectGbufferRayPayload
 {
 	float4 albedo_metalness;

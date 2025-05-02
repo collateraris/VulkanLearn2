@@ -59,8 +59,9 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint reservoirIndx = dispatchThreadId.y * (giParams.widthScreen + 1) + dispatchThreadId.x;
 
     SReservoir reservoirSpacial = reservoirSpacialBuffer[reservoirIndx];
-    //SReservoir reservoirSpacial = reservoirInitBuffer[reservoirIndx];
     //uint curTemporalIndx = (giParams.frameCount + 1) % 2;
+    //reservoirTemporalBuffer[curTemporalIndx][reservoirIndx] = reservoirSpacial;
+    //SReservoir reservoirSpacial = reservoirInitBuffer[reservoirIndx];
     //SReservoir reservoirSpacial = reservoirTemporalBuffer[curTemporalIndx][reservoirIndx];
 
     if (wposObjectId.w < 0.f || reservoirSpacial.lightSampler < 0)

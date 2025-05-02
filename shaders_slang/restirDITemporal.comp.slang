@@ -110,7 +110,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 	RngStateType rngState = initRNG(LaunchIndex, LaunchDimensions, giParams.frameCount);
 
     SReservoir temporalReservoir = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
-    temporalReservoir.updateReservoir(rngState, reservoirInit, target_pdf);
+    temporalReservoir.updateReservoir(rngState, reservoirInit, target_pdf * reservoirInit.finalWeight * reservoirInit.samplesNumber);
 
     SReservoir prevTemporalReservoir = reservoirTemporalBuffer[prevTemporalIndx][reservoirIndx];
     if (prevTemporalReservoir.lightSampler > -1)
@@ -123,7 +123,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         target_pdf = 0;
     };
 
-    temporalReservoir.updateReservoir(rngState, prevTemporalReservoir, target_pdf);
+    temporalReservoir.updateReservoir(rngState, prevTemporalReservoir, target_pdf * prevTemporalReservoir.finalWeight * prevTemporalReservoir.samplesNumber);
 
     temporalReservoir.samplesNumber = reservoirInit.samplesNumber + prevTemporalReservoir.samplesNumber;
     if (temporalReservoir.lightSampler > -1)
