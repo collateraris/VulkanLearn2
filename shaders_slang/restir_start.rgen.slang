@@ -311,7 +311,7 @@ void main()
 			normalOutput = payload.normal_;
 			wposObjectIdOutput = payload.position_objectID;
 			DI_RISreservoir = candidateReservoir;
-			radiance = 0; // store only indirect illum
+			radiance += throughput * material.emissive; // store only indirect illum
 		}
 
 		// Russian Roulette

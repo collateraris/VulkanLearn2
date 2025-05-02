@@ -25,5 +25,5 @@ void main()
     if (perFrame.initLastFrame == 0)
 	    outFragColor = curColor;
     else
-        outFragColor = (perFrame.accumCount * prevColor + curColor) / (perFrame.accumCount + 1);
+        outFragColor = curColor;//(perFrame.accumCount * prevColor + curColor) / (perFrame.accumCount + 1);
 }

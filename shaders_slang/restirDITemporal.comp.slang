@@ -110,20 +110,20 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 	RngStateType rngState = initRNG(LaunchIndex, LaunchDimensions, giParams.frameCount);
 
     SReservoir temporalReservoir = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
-    temporalReservoir.updateReservoir(rngState, reservoirInit, target_pdf * reservoirInit.samplesNumber);
+    temporalReservoir.updateReservoir(rngState, reservoirInit, target_pdf);
 
     SReservoir prevTemporalReservoir = reservoirTemporalBuffer[prevTemporalIndx][reservoirIndx];
     if (prevTemporalReservoir.lightSampler > -1)
     {
         light = lightsBuffer[prevTemporalReservoir.lightSampler];
-        target_pdf = luminance(evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * prevTemporalReservoir.finalWeight));
+        target_pdf = luminance(evalCombinedBRDF(shadingNormal, L, V, material) * getLightIntensityAtPoint(light, lightDistance));
     }
     else
     {
         target_pdf = 0;
     };
 
-    temporalReservoir.updateReservoir(rngState, prevTemporalReservoir, target_pdf * prevTemporalReservoir.samplesNumber);
+    temporalReservoir.updateReservoir(rngState, prevTemporalReservoir, target_pdf);
 
     temporalReservoir.samplesNumber = reservoirInit.samplesNumber + prevTemporalReservoir.samplesNumber;
     if (temporalReservoir.lightSampler > -1)

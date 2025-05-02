@@ -108,7 +108,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 	RngStateType rngState = initRNG(LaunchIndex, LaunchDimensions, giParams.frameCount);
 
     SReservoir reservoirNew = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
-    reservoirNew.updateReservoir(rngState, reservoirTemporal, target_pdf * reservoirTemporal.samplesNumber);
+    reservoirNew.updateReservoir(rngState, reservoirTemporal, target_pdf);
 
     uint lightSamplesCount = reservoirTemporal.samplesNumber;
 
@@ -187,7 +187,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
         target_pdf = luminance(evalCombinedBRDF(shadingNormal1, L, V1, material1) * getLightIntensityAtPoint(light, lightDistance) );
 
-        reservoirNew.updateReservoir(rngState, neighborReservoir, target_pdf * neighborReservoir.samplesNumber);
+        reservoirNew.updateReservoir(rngState, neighborReservoir, target_pdf);
 
         lightSamplesCount += neighborReservoir.samplesNumber;
     };
@@ -217,6 +217,6 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         reservoirNew.finalWeight = 0;
     }
 
-    //reservoirSpacialBuffer[reservoirIndx] = reservoirNew;
-    reservoirSpacialBuffer[reservoirIndx] = reservoirTemporal;
+    reservoirSpacialBuffer[reservoirIndx] = reservoirNew;
+    //reservoirSpacialBuffer[reservoirIndx] = reservoirTemporal;
 }
