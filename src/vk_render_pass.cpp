@@ -95,7 +95,7 @@ void VulkanRenderPass::init(VulkanEngine* engine, const RenderPassInfo& info)
 			if (attachment.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
 				attachment.initialLayout = image.createInfo.initialLayout;
 			else
-				attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 			attachment.finalLayout = image.createInfo.initialLayout;
 		}

@@ -479,7 +479,7 @@ vkutil::DescriptorManagerBuilder& vkutil::DescriptorManagerBuilder::bind_image(u
 		resBarInfo.nextAccessFlag = VK_ACCESS_SHADER_READ_BIT;
 		break;
 	case EResOp::READ_STORAGE:
-		resBarInfo.nextImageLayout = imageInfo->imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		resBarInfo.nextImageLayout = imageInfo->imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 		type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 		resBarInfo.nextAccessFlag = VK_ACCESS_SHADER_READ_BIT;
 		break;

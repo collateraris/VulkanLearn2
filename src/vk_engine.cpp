@@ -83,15 +83,28 @@ void VulkanEngine::init()
 
 	init_commands();
 
+	init_sync_structures();
+
+	immediate_submit([&](VkCommandBuffer cmd) {
+		std::array<VkImageMemoryBarrier, 2> offscreenBarriers =
+		{
+			vkinit::image_barrier(_depthTex.image._image, 0, VK_ACCESS_TRANSFER_WRITE_BIT,  VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT),
+			vkinit::image_barrier(_swapchainTextures[0].image._image, 0, VK_ACCESS_TRANSFER_WRITE_BIT,  VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, offscreenBarriers.size(), offscreenBarriers.data());
+
+		});
+
 	init_default_renderpass();
 
 	init_framebuffers();
 
-	init_sync_structures();
 
 	init_descriptors();
 
 	init_imgui();
+
 
 	ResourceManager::load_images(this, _resManager.textureCache);
 
@@ -738,7 +751,7 @@ void VulkanEngine::init_swapchain()
 		.make_img_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, depthImageExtent)
 		.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 		.make_view_info(_depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
-		.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; })
+		.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 		.create_texture();
 }
 

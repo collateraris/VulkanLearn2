@@ -374,7 +374,6 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::copy_global_uniform_data(VulkanG
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
-	_restirInitGP->barrier_for_writing(cmd);
 	{
 		std::array<VkBufferMemoryBarrier, 1> barriers =
 		{
@@ -384,7 +383,6 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, i
 		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
 	}
 	_restirInitGP->draw(cmd, current_frame_index);
-	_restirInitGP->barrier_for_reading(cmd);
 	{
 		uint32_t curTemporalIndx = (current_frame_index + 1) % 2;
 		uint32_t prevTemporalIndx = current_frame_index % 2;

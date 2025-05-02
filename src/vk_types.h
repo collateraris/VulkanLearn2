@@ -415,3 +415,11 @@ struct alignas(16) GlobalGIParams
 	uint32_t pad2 = 0;
 	uint32_t pad3 = 0;
 };
+
+struct STemporalReservoirInfo
+{
+	uint32_t currTempIndx;
+	uint32_t prevTempIndx;
+	uint32_t pad0;
+	uint32_t pad1;
+};

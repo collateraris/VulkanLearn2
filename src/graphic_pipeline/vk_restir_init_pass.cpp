@@ -117,52 +117,6 @@ Texture& VulkanReSTIRInitPass::get_tex(ETextureResourceNames name) const
 	return *_engine->get_engine_texture(name);
 }
 
-void VulkanReSTIRInitPass::barrier_for_reading(VulkanCommandBuffer* cmd)
-{
-	{
-		std::array<VkImageMemoryBarrier, 1> barriers =
-		{
-			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT).image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-		};
-
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
-	}
-
-	{
-		std::array<VkImageMemoryBarrier, 4> barriers =
-		{
-			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS).image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS).image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_GBUFFER_NORMAL).image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID).image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-		};
-
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
-	}
-}
-
-void VulkanReSTIRInitPass::barrier_for_writing(VulkanCommandBuffer* cmd)
-{
-	{
-		std::array<VkImageMemoryBarrier, 1> barriers =
-		{
-			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT).image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
-		};
-
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
-	}
-	{
-		std::array<VkImageMemoryBarrier, 4> barriers =
-		{
-			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS).image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
-			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS).image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
-			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_GBUFFER_NORMAL).image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
-			vkinit::image_barrier(get_tex(ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID).image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
-		};
-
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
-	}
-}
 
 void VulkanReSTIRInitPass::init_description_set_global_buffer()
 {

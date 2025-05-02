@@ -22,9 +22,6 @@ public:
 
 	Texture& get_tex(ETextureResourceNames name) const;
 
-	void barrier_for_reading(VulkanCommandBuffer* cmd);
-	void barrier_for_writing(VulkanCommandBuffer* cmd);
-
 private:
 
 	void init_description_set_global_buffer();
