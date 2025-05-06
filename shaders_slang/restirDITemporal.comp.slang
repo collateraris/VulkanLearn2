@@ -116,6 +116,18 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (prevTemporalReservoir.lightSampler > -1)
     {
         light = lightsBuffer[prevTemporalReservoir.lightSampler];
+        type = uint(light.color_type.w);
+        if (type == EMISSION_LIGHT)
+        {
+            float2 bary = prevTemporalReservoir.bary__.xy;
+            light.position.xyz = (1.0f - bary.x - bary.y) * light.position.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
+            float2 texCoord = (1.0f - bary.x - bary.y) * light.uv0_uv1.xy + bary.x * light.uv0_uv1.zw + bary.y * light.uv2_objectId_.xy;
+            SMaterialData mat = matBuffer[uint(light.uv2_objectId_.z)];
+            light.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
+            light.color_type.xyz = float3(light.color_type.x * mat.emissiveFactorMult_emissiveStrength.x, light.color_type.y * mat.emissiveFactorMult_emissiveStrength.y, light.color_type.z * mat.emissiveFactorMult_emissiveStrength.z);
+        }
+        getLightData(light, wposObjectId.xyz, lightVector, lightDistance);
+        L = normalize(lightVector);
         target_pdf = luminance(evalCombinedBRDF(shadingNormal, L, V, material) * getLightIntensityAtPoint(light, lightDistance));
     }
     else
@@ -123,12 +135,26 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         target_pdf = 0;
     };
 
+    prevTemporalReservoir.samplesNumber = min(reservoirInit.samplesNumber, prevTemporalReservoir.samplesNumber);
+
     temporalReservoir.updateReservoir(rngState, prevTemporalReservoir, target_pdf * prevTemporalReservoir.finalWeight * prevTemporalReservoir.samplesNumber);
 
     temporalReservoir.samplesNumber = reservoirInit.samplesNumber + prevTemporalReservoir.samplesNumber;
     if (temporalReservoir.lightSampler > -1)
     {
         light = lightsBuffer[temporalReservoir.lightSampler];
+        type = uint(light.color_type.w);
+        if (type == EMISSION_LIGHT)
+        {
+            float2 bary = temporalReservoir.bary__.xy;
+            light.position.xyz = (1.0f - bary.x - bary.y) * light.position.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
+            float2 texCoord = (1.0f - bary.x - bary.y) * light.uv0_uv1.xy + bary.x * light.uv0_uv1.zw + bary.y * light.uv2_objectId_.xy;
+            SMaterialData mat = matBuffer[uint(light.uv2_objectId_.z)];
+            light.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
+            light.color_type.xyz = float3(light.color_type.x * mat.emissiveFactorMult_emissiveStrength.x, light.color_type.y * mat.emissiveFactorMult_emissiveStrength.y, light.color_type.z * mat.emissiveFactorMult_emissiveStrength.z);
+        }
+        getLightData(light, wposObjectId.xyz, lightVector, lightDistance);
+        L = normalize(lightVector);
         target_pdf = luminance(evalCombinedBRDF(shadingNormal, L, V, material) * getLightIntensityAtPoint(light, lightDistance));
     }
     else
