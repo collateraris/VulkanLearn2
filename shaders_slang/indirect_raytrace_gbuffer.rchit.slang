@@ -108,7 +108,7 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
       
   float3 shadingNormal = worldNormal;
   // avoid normal mapping if tangent = (0, 0, 0), which results in NaN
-  if (mat.normalTexIndex > 0 && abs(dot(worldTangent, worldTangent)) > 1e-6)
+  if (mat.normalTexIndex > 0 && abs(dot(worldTangent, worldTangent)) > 1e-6 && 0)
   {
       float2 normal = texSet[mat.normalTexIndex].SampleLevel(linearSampler, texCoord, 0).rg;
       float3 bumpNormal = float3(mad(2.0f, normal, -1.f), 0.f);

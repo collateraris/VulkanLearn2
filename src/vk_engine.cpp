@@ -552,7 +552,7 @@ void VulkanEngine::init_vulkan()
 	};
 
 	vkb::PhysicalDevice physicalDevice = selector
-		.set_minimum_version(1, 3)
+		.set_minimum_version(1, 4)
 		.set_surface(_surface)
 		.add_required_extensions(extensions)
 		.set_required_features(required_features)
@@ -648,28 +648,9 @@ void VulkanEngine::init_vulkan()
 	
 	//initialize the memory allocator
 
-	VmaVulkanFunctions vulkanFunctions;
-	vulkanFunctions.vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties;
-	vulkanFunctions.vkGetPhysicalDeviceMemoryProperties = vkGetPhysicalDeviceMemoryProperties;
-	vulkanFunctions.vkAllocateMemory = vkAllocateMemory;
-	vulkanFunctions.vkFreeMemory = vkFreeMemory;
-	vulkanFunctions.vkMapMemory = vkMapMemory;
-	vulkanFunctions.vkUnmapMemory = vkUnmapMemory;
-	vulkanFunctions.vkFlushMappedMemoryRanges = vkFlushMappedMemoryRanges;
-	vulkanFunctions.vkInvalidateMappedMemoryRanges = vkInvalidateMappedMemoryRanges;
-	vulkanFunctions.vkBindBufferMemory = vkBindBufferMemory;
-	vulkanFunctions.vkBindImageMemory = vkBindImageMemory;
-	vulkanFunctions.vkGetBufferMemoryRequirements = vkGetBufferMemoryRequirements;
-	vulkanFunctions.vkGetImageMemoryRequirements = vkGetImageMemoryRequirements;
-	vulkanFunctions.vkCreateBuffer = vkCreateBuffer;
-	vulkanFunctions.vkDestroyBuffer = vkDestroyBuffer;
-	vulkanFunctions.vkCreateImage = vkCreateImage;
-	vulkanFunctions.vkDestroyImage = vkDestroyImage;
-	vulkanFunctions.vkCmdCopyBuffer = vkCmdCopyBuffer;
-	vulkanFunctions.vkGetBufferMemoryRequirements2KHR = vkGetBufferMemoryRequirements2KHR;
-	vulkanFunctions.vkGetImageMemoryRequirements2KHR = vkGetImageMemoryRequirements2KHR;
-	vulkanFunctions.vkGetDeviceBufferMemoryRequirements = vkGetDeviceBufferMemoryRequirements;
-	vulkanFunctions.vkGetDeviceImageMemoryRequirements = vkGetDeviceImageMemoryRequirements;
+	VmaVulkanFunctions vulkanFunctions = {};
+	vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+	vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
 
 
 	VmaAllocatorCreateInfo allocatorInfo = {};
@@ -677,7 +658,7 @@ void VulkanEngine::init_vulkan()
 	allocatorInfo.device = _device;
 	allocatorInfo.instance = _instance;
 	allocatorInfo.pVulkanFunctions = &vulkanFunctions;
-	allocatorInfo.vulkanApiVersion = VK_MAKE_VERSION(1, 3, 0);
+	allocatorInfo.vulkanApiVersion = VK_MAKE_VERSION(1, 4, 3);
 	allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 	vmaCreateAllocator(&allocatorInfo, &_allocator);
 

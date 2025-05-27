@@ -7,6 +7,11 @@
 class VulkanEngine;
 class VulkanCommandBuffer;
 
+namespace tf
+{
+	class Taskflow;
+};
+
 namespace vk_rgraph {
 
 	class VulkanRenderGraph;

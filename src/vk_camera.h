@@ -4,6 +4,7 @@
 
 #include <SDL_events.h>
 #include <glm/glm.hpp>
+#include <random>
 
 
 struct PlayerCamera {
