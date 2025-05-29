@@ -25,6 +25,9 @@ StructuredBuffer<SMaterialData> matBuffer  : register(t7);
 [[vk::binding(8, 0)]]
 RWStructuredBuffer<SReservoir> reservoirInitBuffer  : register(t8);
 
+[[vk::binding(11, 0)]]
+RWStructuredBuffer<SReservoirPT> reservoirPTInitBuffer  : register(t11);
+
 [[vk::binding(0, 1)]]
 cbuffer MyContantBuffer : register(b0)
 {
@@ -238,6 +241,8 @@ void main()
 
 	SReservoir DI_RISreservoir = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
 
+	SReservoirPT PT_Reservoir = SReservoirPT(uint4(0, 0, 0, 0), float4(0., 0., 0., 0.), 0., 0, 1., 0.);
+
 	for (int bounce = 0; bounce <= giParams.numRays; bounce++) 
 	{
 		IndirectGbufferRayPayload payload = shootRay(rayOri, rayDir, FLT_MAX);
@@ -311,7 +316,8 @@ void main()
 			normalOutput = payload.normal_;
 			wposObjectIdOutput = payload.position_objectID;
 			DI_RISreservoir = candidateReservoir;
-			radiance += throughput * material.emissive; // store only indirect illum
+			radiance = throughput * material.emissive; // store only indirect illum
+			PT_Reservoir.randomSeed = rngState;
 		}
 
 		// Russian Roulette
@@ -363,4 +369,9 @@ void main()
 	ptWposObjectIdOutput[LaunchIndex] = wposObjectIdOutput;
 	
 	reservoirInitBuffer[LaunchIndex.y * (LaunchDimensions.x + 1) + LaunchIndex.x] = DI_RISreservoir;
+
+	PT_Reservoir.radiance = float4(radiance, 1.);
+	PT_Reservoir.samplesNumber = 1;
+
+	reservoirPTInitBuffer[LaunchIndex.y * (LaunchDimensions.x + 1) + LaunchIndex.x] = PT_Reservoir;
 };

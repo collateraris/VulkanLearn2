@@ -311,6 +311,14 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 	resManager.globalReservoirDITemporalBuffer[1] = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	resManager.globalReservoirDISpacialBuffer = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
+	std::vector<ReservoirPT> reservoirArr1(_engine->_windowExtent.width * _engine->_windowExtent.height);
+	bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(reservoirArr1.size() * sizeof(ReservoirPT));
+
+	resManager.globalReservoirPTInitBuffer = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr1.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	resManager.globalReservoirPTTemporalBuffer[0] = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr1.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	resManager.globalReservoirPTTemporalBuffer[1] = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr1.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	resManager.globalReservoirPTSpacialBuffer = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr1.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
 }
 
 void ResourceManager::init_rt_scene(VulkanEngine* _engine, ResourceManager& resManager)
@@ -420,6 +428,10 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	const uint32_t reservoirDIInitBinding = 8;
 	const uint32_t reservoirDITemporalBinding = 9;
 	const uint32_t reservoirDISpacialBinding = 10;
+
+	const uint32_t reservoirPTInitBinding = 11;
+	const uint32_t reservoirPTTemporalBinding = 12;
+	const uint32_t reservoirPTSpacialBinding = 13;
 
 	//const uint32_t irradianceMapBinding = 8;
 	//const uint32_t prefilteredMapBinding = 9;
@@ -542,6 +554,27 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	reservoirDISpacialInfo.offset = 0;
 	reservoirDISpacialInfo.range = VK_WHOLE_SIZE;
 
+	VkDescriptorBufferInfo reservoirPTInitInfo;
+	reservoirPTInitInfo.buffer = resManager.globalReservoirPTInitBuffer._buffer;
+	reservoirPTInitInfo.offset = 0;
+	reservoirPTInitInfo.range = VK_WHOLE_SIZE;
+
+	std::vector<VkDescriptorBufferInfo> reservoirPTTemporalBufferInfoList{};
+	reservoirPTTemporalBufferInfoList.resize(2);
+
+	for (size_t i = 0; i < reservoirPTTemporalBufferInfoList.size(); i++)
+	{
+		VkDescriptorBufferInfo& info = reservoirPTTemporalBufferInfoList[i];
+		info.buffer = resManager.globalReservoirPTTemporalBuffer[i]._buffer;
+		info.offset = 0;
+		info.range = VK_WHOLE_SIZE;
+	}
+
+	VkDescriptorBufferInfo reservoirPTSpacialInfo;
+	reservoirPTSpacialInfo.buffer = resManager.globalReservoirPTSpacialBuffer._buffer;
+	reservoirPTSpacialInfo.offset = 0;
+	reservoirPTSpacialInfo.range = VK_WHOLE_SIZE;
+
 
 	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
 		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, vertexBufferInfoList.size())
@@ -557,8 +590,14 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		//.bind_image(brdfLUTBinding, &brdflutMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.bind_image(blockySamplerBinding, &blockySamplerInfo, VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
 		.bind_buffer(materialBinding, &matBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
+		
 		.bind_buffer(reservoirDIInitBinding, &reservoirDIInitInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_COMPUTE_BIT)
 		.bind_buffer(reservoirDITemporalBinding, reservoirDITemporalBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT, reservoirDITemporalBufferInfoList.size())
 		.bind_buffer(reservoirDISpacialBinding, &reservoirDISpacialInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+
+		.bind_buffer(reservoirPTInitBinding, &reservoirPTInitInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_COMPUTE_BIT)
+		.bind_buffer(reservoirPTTemporalBinding, reservoirPTTemporalBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_COMPUTE_BIT, reservoirPTTemporalBufferInfoList.size())
+		.bind_buffer(reservoirPTSpacialBinding, &reservoirPTSpacialInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_COMPUTE_BIT)
+
 		.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene);
 }

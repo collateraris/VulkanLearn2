@@ -312,11 +312,11 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 	_restirSpacialGP = std::make_unique<VulkanReSTIRSpaceReusePass>();
 	_restirSpacialGP->init(engine);
 
-	//_restir_GI_TemporalGP = std::make_unique<VulkanReSTIR_GI_TemporalPass>();
-	//_restir_GI_TemporalGP->init(engine);
+	_restir_PT_TemporalGP = std::make_unique<VulkanReSTIR_PT_TemporalPass>();
+	_restir_PT_TemporalGP->init(engine);
 
-	//_restir_GI_SpacialGP = std::make_unique<VulkanReSTIR_GI_SpaceReusePass>();
-	//_restir_GI_SpacialGP->init(engine);
+	_restir_PT_SpacialGP = std::make_unique<VulkanReSTIR_PT_SpaceReusePass>();
+	_restir_PT_SpacialGP->init(engine);
 
 	_restirUpdateShadeGP = std::make_unique<VulkanReSTIRUpdateReservoirPlusShadePass>();
 	_restirUpdateShadeGP->init(engine);
@@ -375,9 +375,10 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::copy_global_uniform_data(VulkanG
 void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
 	{
-		std::array<VkBufferMemoryBarrier, 1> barriers =
+		std::array<VkBufferMemoryBarrier, 2> barriers =
 		{
 			vkinit::buffer_barrier(_engine->_resManager.globalReservoirDIInitBuffer._buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT),
+			vkinit::buffer_barrier(_engine->_resManager.globalReservoirPTInitBuffer._buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT),
 		};
 
 		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
@@ -409,7 +410,6 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, i
 	}
 	_restirTemporalGP->draw(cmd, current_frame_index);
 	{
-		uint32_t curTemporalIndx = (current_frame_index + 1) % 2;
 		std::array<VkBufferMemoryBarrier, 2> barriers =
 		{
 			vkinit::buffer_barrier(_engine->_resManager.globalReservoirDISpacialBuffer._buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT),
@@ -419,6 +419,45 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, i
 		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
 	}
 	_restirSpacialGP->draw(cmd, current_frame_index);
+	//ReSTIR PT
+	{
+		{
+			std::array<VkBufferMemoryBarrier, 1> barriers =
+			{
+				vkinit::buffer_barrier(_engine->_resManager.globalReservoirPTInitBuffer._buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT),
+			};
+
+			vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
+		}
+		{
+			std::array<VkBufferMemoryBarrier, 1> barriers =
+			{
+				vkinit::buffer_barrier(_engine->_resManager.globalReservoirPTTemporalBuffer[prevTemporalIndx]._buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_READ_BIT),
+			};
+
+			vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
+		}
+
+		{
+			std::array<VkBufferMemoryBarrier, 1> barriers =
+			{
+				vkinit::buffer_barrier(_engine->_resManager.globalReservoirPTTemporalBuffer[curTemporalIndx]._buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT),
+			};
+
+			vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
+		}
+	}
+	_restir_PT_TemporalGP->draw(cmd, current_frame_index);
+	{
+		std::array<VkBufferMemoryBarrier, 2> barriers =
+		{
+			vkinit::buffer_barrier(_engine->_resManager.globalReservoirPTSpacialBuffer._buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT),
+			vkinit::buffer_barrier(_engine->_resManager.globalReservoirPTTemporalBuffer[curTemporalIndx]._buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
+	}
+	_restir_PT_SpacialGP->draw(cmd, current_frame_index);
 	{
 		std::array<VkBufferMemoryBarrier, 1> barriers =
 		{
@@ -427,6 +466,15 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, i
 		};
 
 		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
+	}
+	{
+		std::array<VkBufferMemoryBarrier, 1> barriers =
+		{
+			vkinit::buffer_barrier(_engine->_resManager.globalReservoirPTSpacialBuffer._buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT),
+			//vkinit::buffer_barrier(_engine->_resManager.globalReservoirDITemporalBuffer[curTemporalIndx]._buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
 	}
 	//_restir_GI_TemporalGP->draw(cmd, current_frame_index);
 	//_restir_GI_SpacialGP->draw(cmd, current_frame_index);

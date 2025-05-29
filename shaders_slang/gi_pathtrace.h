@@ -247,6 +247,25 @@ struct SReservoir
 	};
 };
 
+struct SReservoirPT
+{
+	uint4 randomSeed = uint4(0, 0, 0, 0);
+	float4 radiance = float4(0., 0., 0., 0.);
+	float weightSum = 0;
+	uint samplesNumber = 0;
+	float finalWeight = 1;
+	float pad0 = 0;
+
+	[mutating]
+	void updateReservoir(inout RngStateType randSeed, SReservoirPT res, float weight) {
+		weightSum = weightSum + weight; // r.w_sum
+		samplesNumber = samplesNumber + 1; // r.M
+		if (rand(randSeed) < weight / (weightSum + 1e-6)) {
+			radiance = res.radiance; // r.y
+		}
+	};
+};
+
 // -------------------------------------------------------------------------
 //    Utilities
 // -------------------------------------------------------------------------

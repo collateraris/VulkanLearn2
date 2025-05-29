@@ -69,11 +69,15 @@ add_executable(vulkan_guide
     graphic_pipeline/vk_restir_temporal_pass.h
     graphic_pipeline/vk_restir_temporal_pass.cpp
     graphic_pipeline/vk_restir_gi_temporal_pass.h
-    graphic_pipeline/vk_restir_gi_temporal_pass.cpp    
+    graphic_pipeline/vk_restir_gi_temporal_pass.cpp
+    graphic_pipeline/vk_restir_pt_temporal_pass.h
+    graphic_pipeline/vk_restir_pt_temporal_pass.cpp     
     graphic_pipeline/vk_restir_spacial_reuse_pass.h
     graphic_pipeline/vk_restir_spacial_reuse_pass.cpp
     graphic_pipeline/vk_restir_gi_spacial_reuse_pass.h
-    graphic_pipeline/vk_restir_gi_spacial_reuse_pass.cpp    
+    graphic_pipeline/vk_restir_gi_spacial_reuse_pass.cpp
+    graphic_pipeline/vk_restir_pt_spacial_reuse_pass.h
+    graphic_pipeline/vk_restir_pt_spacial_reuse_pass.cpp     
     graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.h
     graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.cpp
     graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h

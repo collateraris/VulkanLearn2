@@ -63,6 +63,16 @@ struct Reservoir
 	vec4 bary__;
 };
 
+struct ReservoirPT
+{
+	glm::ivec4 randomSeed = glm::ivec4(0, 0, 0, 0);
+	glm::vec4 radiance = glm::vec4(1., 0., 1., 1.);
+	float weightSum = 0;
+	uint32_t samplesNumber = 0;
+	float finalWeight = 1;
+	float pad0 = 0;
+};
+
 class ResourceManager
 {
 public:
@@ -80,9 +90,15 @@ public:
 	std::vector<IndirectBatch> indirectBatchRO;
 	AllocatedBuffer globalObjectBuffer;
 	AllocatedBuffer globalMaterialBuffer;
+
 	AllocatedBuffer globalReservoirDIInitBuffer;
 	AllocatedBuffer globalReservoirDITemporalBuffer[2];
 	AllocatedBuffer globalReservoirDISpacialBuffer;
+
+	AllocatedBuffer globalReservoirPTInitBuffer;
+	AllocatedBuffer globalReservoirPTTemporalBuffer[2];
+	AllocatedBuffer globalReservoirPTSpacialBuffer;
+
 	VulkanRaytracerBuilder _rtBuilder;
 	glm::vec3 maxCube = { std::numeric_limits<float>::min(), std::numeric_limits<float>::min(), std::numeric_limits<float>::min()};
 	glm::vec3 minCube = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};

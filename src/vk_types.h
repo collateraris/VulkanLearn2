@@ -186,6 +186,8 @@ enum class EPipelineType : uint32_t
 	ReSTIR_DI_SpaceReuse,
 	ReSTIR_GI_Temporal,
 	ReSTIR_GI_SpaceReuse,
+	ReSTIR_PT_Temporal,
+	ReSTIR_PT_SpaceReuse,
 	ReSTIR_UpdateReservoir_PlusShade,
 	NRD_RaytraceDenoiseShader_0,
 	NRD_RaytraceDenoiseShader_1,

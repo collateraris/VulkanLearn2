@@ -22,6 +22,15 @@ RWStructuredBuffer<SReservoir> reservoirTemporalBuffer[]  : register(t9);
 [[vk::binding(10, 0)]]
 RWStructuredBuffer<SReservoir> reservoirSpacialBuffer  : register(t10);
 
+[[vk::binding(11, 0)]]
+RWStructuredBuffer<SReservoirPT> reservoirPTInitBuffer  : register(t11);
+
+[[vk::binding(12, 0)]]
+RWStructuredBuffer<SReservoirPT> reservoirPTTemporalBuffer[]  : register(t12);
+
+[[vk::binding(13, 0)]]
+RWStructuredBuffer<SReservoirPT> reservoirPTSpacialBuffer  : register(t13);
+
 [[vk::binding(0, 1)]]
 cbuffer MyContantBuffer : register(b0)
 {
@@ -59,14 +68,19 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     uint reservoirIndx = dispatchThreadId.y * (giParams.widthScreen + 1) + dispatchThreadId.x;
 
     SReservoir reservoirSpacial = reservoirSpacialBuffer[reservoirIndx];
-    //uint curTemporalIndx = (giParams.frameCount + 1) % 2;
+    uint curTemporalIndx = (giParams.frameCount + 1) % 2;
     //reservoirTemporalBuffer[curTemporalIndx][reservoirIndx] = reservoirSpacial;
     //SReservoir reservoirSpacial = reservoirInitBuffer[reservoirIndx];
     //SReservoir reservoirSpacial = reservoirTemporalBuffer[curTemporalIndx][reservoirIndx];
 
+    //SReservoirPT indirect = reservoirPTTemporalBuffer[curTemporalIndx][reservoirIndx];
+    SReservoirPT indirect = reservoirPTSpacialBuffer[reservoirIndx];
+    //SReservoirPT indirect = reservoirPTInitBuffer[reservoirIndx];
+    float4 indirectRadiance = float4(indirect.radiance.xyz * indirect.finalWeight, 1.);
+
     if (wposObjectId.w < 0.f || reservoirSpacial.lightSampler < 0)
     {
-        ptOutput[dispatchThreadId.xy] = ptIndirectOutput[dispatchThreadId.xy];
+        ptOutput[dispatchThreadId.xy] = indirectRadiance;
         return;
     };
 
@@ -116,5 +130,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     float3 radiance = evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * reservoirSpacial.finalWeight);
 
-    ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f) + ptIndirectOutput[dispatchThreadId.xy];
+    ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f) + indirectRadiance;
+    //ptOutput[dispatchThreadId.xy] = indirectRadiance;
+    //ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f);
 }
