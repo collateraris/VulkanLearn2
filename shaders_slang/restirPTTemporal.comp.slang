@@ -72,7 +72,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         target_pdf = 0;
     };
 
-    prevTemporalReservoir.samplesNumber = min(5 * reservoirInit.samplesNumber, prevTemporalReservoir.samplesNumber);
+    prevTemporalReservoir.samplesNumber = min(10 * reservoirInit.samplesNumber, prevTemporalReservoir.samplesNumber);
 
     temporalReservoir.updateReservoir(rngState, prevTemporalReservoir, target_pdf * prevTemporalReservoir.finalWeight * prevTemporalReservoir.samplesNumber);
 

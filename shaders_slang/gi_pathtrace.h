@@ -262,6 +262,7 @@ struct SReservoirPT
 		samplesNumber = samplesNumber + 1; // r.M
 		if (rand(randSeed) < weight / (weightSum + 1e-6)) {
 			radiance = res.radiance; // r.y
+			randomSeed = res.randomSeed;
 		}
 	};
 };

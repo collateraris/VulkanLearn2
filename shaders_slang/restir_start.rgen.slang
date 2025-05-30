@@ -140,6 +140,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 	float2 candidateBary;
 	float2 selectBary;
 
+	[unroll]
 	for (int i = 0; i < RIS_CANDIDATES_LIGHTS; i++) {
 
 		float candidateWeight;
@@ -243,6 +244,7 @@ void main()
 
 	SReservoirPT PT_Reservoir = SReservoirPT(uint4(0, 0, 0, 0), float4(0., 0., 0., 0.), 0., 0, 1., 0.);
 
+	[unroll]
 	for (int bounce = 0; bounce <= giParams.numRays; bounce++) 
 	{
 		IndirectGbufferRayPayload payload = shootRay(rayOri, rayDir, FLT_MAX);
@@ -316,7 +318,7 @@ void main()
 			normalOutput = payload.normal_;
 			wposObjectIdOutput = payload.position_objectID;
 			DI_RISreservoir = candidateReservoir;
-			radiance = throughput * material.emissive; // store only indirect illum
+			radiance = 0;//throughput * material.emissive; // store only indirect illum
 			PT_Reservoir.randomSeed = rngState;
 		}
 
