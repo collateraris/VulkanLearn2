@@ -2,7 +2,7 @@
 #define M_PI     3.14159265358979323846
 #define FLT_MAX 3.402823466e+38F
 // Number of candidates used for resampling of analytical lights
-#define RIS_CANDIDATES_LIGHTS 16
+#define RIS_CANDIDATES_LIGHTS 64
 // Switches between two RNGs
 #define USE_PCG 1
 
