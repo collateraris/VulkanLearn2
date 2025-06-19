@@ -2,11 +2,12 @@
 
 ReSTIR DI & GI & PT
 1spp ReSTIR DI
-![image](https://https://github.com/collateraris/VulkanLearn2/img/1spp_sponza.png)
+![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/restir_di_64_ris.png)
 
 1spp ReSTIR GI
-![image](https://https://github.com/collateraris/VulkanLearn2/img/restir_di_64_ris.png)
-![image](https://https://github.com/collateraris/VulkanLearn2/img/restir_gi_1spp.png)
+
+![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/1spp_sponza.png)
+![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/restir_gi_1spp.png)
 
 ## Goals
 
