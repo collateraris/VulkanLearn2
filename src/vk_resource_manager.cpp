@@ -346,7 +346,7 @@ void ResourceManager::init_rt_scene(VulkanEngine* _engine, ResourceManager& resM
 		// Identify the above data as containing opaque triangles.
 		VkAccelerationStructureGeometryKHR asGeom{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
 		asGeom.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-		asGeom.flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;  // Avoid double hits;
+		asGeom.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;//VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;  // Avoid double hits;
 		asGeom.geometry.triangles = triangles;
 
 		// The entire array will be used to build the BLAS.

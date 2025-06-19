@@ -88,7 +88,7 @@ void VulkanRaytracerBuilder::build_tlas(VulkanEngine& engine, std::vector<VkAcce
     // Put the above into a VkAccelerationStructureGeometryKHR. We need to put the instances struct in a union and label it as instance data.
     VkAccelerationStructureGeometryKHR topASGeometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
     topASGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
-    topASGeometry.flags = VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;  // Avoid double hits;
+    topASGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;//VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;  // Avoid double hits;
     topASGeometry.geometry.instances = instancesVk;
 
     // Find sizes
