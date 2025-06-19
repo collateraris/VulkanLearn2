@@ -212,97 +212,8 @@ float3 randomReplayPath(uint4 rngState, float3 rayDir, float3 rayOri, float3 thr
 {
 	float3 radiance = float3(0., 0., 0.,);
 
-	IndirectGbufferRayPayload payload = shootRay(rayOri, rayDir, FLT_MAX);
-
-	if (!payload.hasHit())
-	{
-		radiance += throughput * float3(0., 0., 0.);
-		return radiance;
-	}
-
-	// Load material properties at the hit point
-	MaterialProperties material = loadMaterialProperties(payload);
-
-	float3 geometryNormal;
-	float3 shadingNormal;
-	decodeNormals(payload.normal_, geometryNormal, shadingNormal);
-
-	float3 V = -rayDir;
-	if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
-	if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
-
-    // Neighborhood around surface point (approximated by tangent plane from geometry normal) is visible, 
-    // yet camera would be behind the tangent plane formed by bumped normal -- this can cause black spots 
-    // as brdf evaluates to 0 in these regions. To mitigate the issue, rotate the bumped normal towards
-    // wo until their dot product becomes greater than zero:
-    //
-    // 1. Project bumped normal onto plane formed by normal vector wo
-    // 2. Slightly rotate the projection towards wo so that their dot product becomes greater than zero
-    if(dot(V, geometryNormal) > 0 && dot(V, shadingNormal) < 0)
-    {
-        V = normalize(V);
-        shadingNormal = shadingNormal - dot(shadingNormal, V) * V;
-        shadingNormal = 1e-4f * V + shadingNormal;
-        shadingNormal = normalize(shadingNormal);
-    }	
-
-    worldPos1st = payload.position_objectID.xyz;
-    shadingNormal1st = shadingNormal;
-
-	radiance += throughput * material.emissive;
-
-	// Evaluate direct light (next event estimation), start by sampling one light 
-	SLight light;
-	float lightWeight = -1;
-	if (sampleLightRIS(rngState, payload.position_objectID.xyz, geometryNormal, light, lightWeight, material, shadingNormal, V)) {
-
-		// Prepare data needed to evaluate the light
-		float3 lightVector;
-		float lightDistance;
-		getLightData(light, payload.position_objectID.xyz, lightVector, lightDistance);
-		float3 L = normalize(lightVector);
-			
-		// If light is not in shadow, evaluate BRDF and accumulate its contribution into radiance
-		if (castShadowRay(payload.position_objectID.xyz, geometryNormal, L, lightDistance))
-		{
-			radiance += throughput * evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * lightWeight);
-		}
-	}
-
-
-	// Sample BRDF to generate the next ray
-	// First, figure out whether to sample diffuse or specular BRDF
-	int brdfType;
-	if (material.metalness == 1.0f && material.roughness == 0.0f) {
-		// Fast path for mirrors
-		brdfType = SPECULAR_TYPE;
-	} else {
-
-		// Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
-		float brdfProbability = getBrdfProbability(material, V, shadingNormal);
-
-		if (rand(rngState) < brdfProbability) {
-			brdfType = SPECULAR_TYPE;
-			throughput /= brdfProbability;
-		} else {
-			brdfType = DIFFUSE_TYPE;
-			throughput /= (1.0f - brdfProbability);
-		}
-	}
-
-	// Run importance sampling of selected BRDF to generate reflecting ray direction
-	float3 brdfWeight;
-	float2 u = float2(rand(rngState), rand(rngState));
-	if (!evalIndirectCombinedBRDF(u, shadingNormal, geometryNormal, V, material, brdfType, rayDir, brdfWeight))
-		return radiance;
-
-	// Account for surface properties using the BRDF "weight"
-	throughput *= brdfWeight;
-
-	// Offset a new ray origin from the hitpoint to prevent self-intersections
-	rayOri = offsetRay(payload.position_objectID.xyz, geometryNormal);
-	[unroll]
-    for (int bounce = 2; bounce <= giParams.numRays; bounce++) 
+	[loop]
+    for (int bounce = 1; bounce <= giParams.numRays; bounce++) 
 	{
 		IndirectGbufferRayPayload payload = shootRay(rayOri, rayDir, FLT_MAX);
 
@@ -337,6 +248,12 @@ float3 randomReplayPath(uint4 rngState, float3 rayDir, float3 rayOri, float3 thr
             shadingNormal = 1e-4f * V + shadingNormal;
             shadingNormal = normalize(shadingNormal);
         }	
+
+		if (bounce == 1)
+		{
+			worldPos1st = payload.position_objectID.xyz;
+			shadingNormal1st = shadingNormal;
+		}
 
 		radiance += throughput * material.emissive;
 
@@ -502,7 +419,7 @@ void main()
         reservoirIndx = neighborIndex.y * (LaunchDimensions.x + 1) + neighborIndex.x;
         neighborReservoir = reservoirPTTemporalBuffer[curTemporalIndx][reservoirIndx];
 
-        if (wposObjectIdN.w < 0.f || neighborReservoir.samplesNumber == 0)
+        if (wposObjectIdN.w < 0.f)
             continue;
 
         normalEncode = ptNormalOutput[neighborIndex];
@@ -536,7 +453,7 @@ void main()
 
         float3 worldPos1stN;
         float3 shadingNormal1stN;
-        neighborReservoir.radiance.xyz = randomReplayPath(rngStateN, rayDirN, rayOriN, throughputN, worldPos1stN, shadingNormal1stN);
+        //neighborReservoir.radiance.xyz = randomReplayPath(rngStateN, rayDirN, rayOriN, throughputN, worldPos1stN, shadingNormal1stN);
 
         target_pdf = luminance(neighborReservoir.radiance.xyz);
 
