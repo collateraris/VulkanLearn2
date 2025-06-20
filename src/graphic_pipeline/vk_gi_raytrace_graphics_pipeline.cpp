@@ -303,6 +303,9 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 		init_scene_descriptors();
 	}
 
+	_restir_DI_InitGP = std::make_unique<VulkanReSTIR_DI_InitPass>();
+	_restir_DI_InitGP->init(engine);
+
 	_restirInitGP = std::make_unique<VulkanReSTIRInitPass>();
 	_restirInitGP->init(engine);
 
@@ -386,7 +389,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, i
 
 	uint32_t curTemporalIndx = (current_frame_index + 1) % 2;
 	uint32_t prevTemporalIndx = current_frame_index % 2;
-
+	_restir_DI_InitGP->draw(cmd, current_frame_index);
 	_restirInitGP->draw(cmd, current_frame_index);
 	{
 		{

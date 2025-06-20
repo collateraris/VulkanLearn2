@@ -66,6 +66,8 @@ add_executable(vulkan_guide
     graphic_pipeline/vk_restir_pathtrace_graphics_pipeline.cpp   
     graphic_pipeline/vk_restir_init_pass.h
     graphic_pipeline/vk_restir_init_pass.cpp
+    graphic_pipeline/vk_restir_di_init_pass.h
+    graphic_pipeline/vk_restir_di_init_pass.cpp
     graphic_pipeline/vk_restir_temporal_pass.h
     graphic_pipeline/vk_restir_temporal_pass.cpp
     graphic_pipeline/vk_restir_gi_temporal_pass.h

@@ -71,8 +71,7 @@ void VulkanReSTIRUpdateReservoirPlusShadePass::init_description_set_global_buffe
 		.bind_image(1, ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
 		.bind_image(2, ETextureResourceNames::PT_GBUFFER_NORMAL, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
 		.bind_image(3, ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
-		.bind_image(4, ETextureResourceNames::PT_REFERENCE_OUTPUT, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
-		.bind_image(5, _outputTex, EResOp::WRITE, VK_SHADER_STAGE_COMPUTE_BIT)
+		.bind_image(4, _outputTex, EResOp::WRITE, VK_SHADER_STAGE_COMPUTE_BIT)
 		.create_desciptor_manager();
 }
 

@@ -22,14 +22,16 @@ StructuredBuffer<SLight> lightsBuffer  : register(t4);
 [[vk::binding(7, 0)]]
 StructuredBuffer<SMaterialData> matBuffer  : register(t7);
 
-[[vk::binding(11, 0)]]
-RWStructuredBuffer<SReservoirPT> reservoirPTInitBuffer  : register(t11);
+[[vk::binding(8, 0)]]
+RWStructuredBuffer<SReservoir> reservoirInitBuffer  : register(t8);
+
 
 [[vk::binding(0, 1)]]
 cbuffer MyContantBuffer : register(b0)
 {
 	SGlobalGIParams giParams;
 };
+
 
 [[vk::binding(0, 2)]]
 RWTexture2D<float4> ptAlbedoMetalnessOutput : register(u0);
@@ -94,7 +96,6 @@ bool castShadowRay(float3 hitPosition, float3 surfaceNormal, float3 directionToL
 	return !payload.hasHit;
 }
 
-
 MaterialProperties loadMaterialProperties(IndirectGbufferRayPayload payload)
 {
     MaterialProperties result = (MaterialProperties) 0;
@@ -105,19 +106,6 @@ MaterialProperties loadMaterialProperties(IndirectGbufferRayPayload payload)
 
     return result;
 }
-
-MaterialProperties loadMaterialProperties2(uint2 LaunchIndex)
-{
-    MaterialProperties result = (MaterialProperties) 0;
-    float4 albedo_metalness = ptAlbedoMetalnessOutput[LaunchIndex];
-    result.baseColor = albedo_metalness.xyz;
-    result.metalness = albedo_metalness.w;
-    float4  emission_roughness = ptEmissionRoughnessOutput[LaunchIndex];
-    result.emissive = emission_roughness.xyz;
-    result.roughness = emission_roughness.w;
-
-    return result;
-};
 
 // Samples a random light from the pool of all lights using simplest uniform distirbution
 bool sampleLightUniform(inout RngStateType rngState, float3 hitPosition, float3 surfaceNormal, out SLight light, out float lightSampleWeight, out uint selectLightIndex) {
@@ -149,7 +137,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 	float2 selectBary;
 
 	[unroll]
-	for (int i = 0; i < RIS_CANDIDATES_LIGHTS2; i++) {
+	for (int i = 0; i < RIS_CANDIDATES_LIGHTS; i++) {
 
 		float candidateWeight;
 		SLight candidate;
@@ -243,78 +231,22 @@ void main()
 	float3 radiance = float3(0.0f, 0.0f, 0.0f);
 	float3 throughput = float3(1.0f, 1.0f, 1.0f);
 
-	float3 worldPos = ptWposObjectIdOutput[LaunchIndex].xyz;
-	float4 normal_ = ptNormalOutput[LaunchIndex];
-	MaterialProperties material =  loadMaterialProperties2(LaunchIndex);
+	float4 albedoMetalnessOutput = float4(0., 0., 0., 0.);
+	float4 emissionRoughnessOutput = float4(0., 0., 0., 0.);
+	float4 normalOutput = float4(0., 0., 0., 0.);
+	float4 wposObjectIdOutput = float4(0., 0., 0., -1);
 
-	float3 geometryNormal;
-	float3 shadingNormal;
-	decodeNormals(normal_, geometryNormal, shadingNormal);
+	SReservoir DI_RISreservoir = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
 
-	float3 V = -rayDir;
-	if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
-	if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
+	IndirectGbufferRayPayload payload = shootRay(rayOri, rayDir, FLT_MAX);
 
-	// Neighborhood around surface point (approximated by tangent plane from geometry normal) is visible, 
-	// yet camera would be behind the tangent plane formed by bumped normal -- this can cause black spots 
-	// as brdf evaluates to 0 in these regions. To mitigate the issue, rotate the bumped normal towards
-	// wo until their dot product becomes greater than zero:
-	//
-	// 1. Project bumped normal onto plane formed by normal vector wo
-	// 2. Slightly rotate the projection towards wo so that their dot product becomes greater than zero
-#if 1
-	if(dot(V, geometryNormal) > 0 && dot(V, shadingNormal) < 0)
+	[branch]
+	if (!payload.hasHit())
 	{
-		V = normalize(V);
-		shadingNormal = shadingNormal - dot(shadingNormal, V) * V;
-		shadingNormal = 1e-4f * V + shadingNormal;
-		shadingNormal = normalize(shadingNormal);
+		radiance += throughput * float3(0., 0., 0.);
 	}
-#endif
-
-    // Sample BRDF to generate the next ray
-    // First, figure out whether to sample diffuse or specular BRDF
-    int brdfType;
-    if (material.metalness == 1.0f && material.roughness == 0.0f) {
-        // Fast path for mirrors
-        brdfType = SPECULAR_TYPE;
-    } else {
-
-        // Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
-        float brdfProbability = getBrdfProbability(material, V, shadingNormal);
-
-        if (rand(rngState) < brdfProbability) {
-            brdfType = SPECULAR_TYPE;
-            throughput /= brdfProbability;
-        } else {
-            brdfType = DIFFUSE_TYPE;
-            throughput /= (1.0f - brdfProbability);
-        }
-    }
-
-    // Run importance sampling of selected BRDF to generate reflecting ray direction
-    float3 brdfWeight;
-    float2 u = float2(rand(rngState), rand(rngState));
-    evalIndirectCombinedBRDF(u, shadingNormal, geometryNormal, V, material, brdfType, rayDir, brdfWeight);
-
-    // Account for surface properties using the BRDF "weight"
-    throughput *= brdfWeight;
-
-    // Offset a new ray origin from the hitpoint to prevent self-intersections
-    rayOri = offsetRay(worldPos, geometryNormal);
-
-	SReservoirPT PT_Reservoir = SReservoirPT(uint4(0, 0, 0, 0), float4(0., 0., 0., 0.), 0., 0, 1., 0.);
-
-	[loop]
-	for (int bounce = 1; bounce <= giParams.numRays; bounce++) 
+	else
 	{
-		IndirectGbufferRayPayload payload = shootRay(rayOri, rayDir, FLT_MAX);
-
-		if (!payload.hasHit())
-		{
-			radiance += throughput * float3(0., 0., 0.);
-			break;
-		}
 
 		// Load material properties at the hit point
 		MaterialProperties material = loadMaterialProperties(payload);
@@ -327,23 +259,23 @@ void main()
 		if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
 		if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
 
-        // Neighborhood around surface point (approximated by tangent plane from geometry normal) is visible, 
-        // yet camera would be behind the tangent plane formed by bumped normal -- this can cause black spots 
-        // as brdf evaluates to 0 in these regions. To mitigate the issue, rotate the bumped normal towards
-        // wo until their dot product becomes greater than zero:
-        //
-        // 1. Project bumped normal onto plane formed by normal vector wo
-        // 2. Slightly rotate the projection towards wo so that their dot product becomes greater than zero
-#if 1
-        if(dot(V, geometryNormal) > 0 && dot(V, shadingNormal) < 0)
-        {
-            V = normalize(V);
-            shadingNormal = shadingNormal - dot(shadingNormal, V) * V;
-            shadingNormal = 1e-4f * V + shadingNormal;
-            shadingNormal = normalize(shadingNormal);
-        }
-#endif	
-		radiance += throughput * material.emissive;// * 10 + material.baseColor/M_PI;
+		// Neighborhood around surface point (approximated by tangent plane from geometry normal) is visible, 
+		// yet camera would be behind the tangent plane formed by bumped normal -- this can cause black spots 
+		// as brdf evaluates to 0 in these regions. To mitigate the issue, rotate the bumped normal towards
+		// wo until their dot product becomes greater than zero:
+		//
+		// 1. Project bumped normal onto plane formed by normal vector wo
+		// 2. Slightly rotate the projection towards wo so that their dot product becomes greater than zero
+	#if 1
+		if(dot(V, geometryNormal) > 0 && dot(V, shadingNormal) < 0)
+		{
+			V = normalize(V);
+			shadingNormal = shadingNormal - dot(shadingNormal, V) * V;
+			shadingNormal = 1e-4f * V + shadingNormal;
+			shadingNormal = normalize(shadingNormal);
+		}
+	#endif	
+		radiance += throughput * material.emissive;
 
 		// Evaluate direct light (next event estimation), start by sampling one light 
 		SLight light;
@@ -362,51 +294,23 @@ void main()
 			{
 				radiance += throughput * evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * lightWeight);
 			}
-		}
-
-		// Russian Roulette
-		if (bounce > MIN_BOUNCES) {
-			float rrProbability = min(0.95f, luminance(throughput));
-			if (rrProbability < rand(rngState)) break;
-			else throughput /= rrProbability;
-		}
-
-		// Sample BRDF to generate the next ray
-		// First, figure out whether to sample diffuse or specular BRDF
-		int brdfType;
-		if (material.metalness == 1.0f && material.roughness == 0.0f) {
-			// Fast path for mirrors
-			brdfType = SPECULAR_TYPE;
-		} else {
-
-			// Decide whether to sample diffuse or specular BRDF (based on Fresnel term)
-			float brdfProbability = getBrdfProbability(material, V, shadingNormal);
-
-			if (rand(rngState) < brdfProbability) {
-				brdfType = SPECULAR_TYPE;
-				throughput /= brdfProbability;
-			} else {
-				brdfType = DIFFUSE_TYPE;
-				throughput /= (1.0f - brdfProbability);
+			else
+			{
+				candidateReservoir.finalWeight = 0;
 			}
 		}
 
-		// Run importance sampling of selected BRDF to generate reflecting ray direction
-		float3 brdfWeight;
-		float2 u = float2(rand(rngState), rand(rngState));
-		if (!evalIndirectCombinedBRDF(u, shadingNormal, geometryNormal, V, material, brdfType, rayDir, brdfWeight)) {
-			break; // Ray was eaten by the surface :(
-		}
+		albedoMetalnessOutput = float4(material.baseColor, material.metalness);
+		emissionRoughnessOutput = float4(material.emissive, material.roughness);
+		normalOutput = payload.normal_;
+		wposObjectIdOutput = payload.position_objectID;
+		DI_RISreservoir = candidateReservoir;
+	}
 
-		// Account for surface properties using the BRDF "weight"
-		throughput *= brdfWeight;
-
-		// Offset a new ray origin from the hitpoint to prevent self-intersections
-		rayOri = offsetRay(payload.position_objectID.xyz, geometryNormal);
-	}	
-
-	PT_Reservoir.radiance = float4(radiance, 1.);
-	PT_Reservoir.samplesNumber = 1;
-
-	reservoirPTInitBuffer[LaunchIndex.y * (LaunchDimensions.x + 1) + LaunchIndex.x] = PT_Reservoir;
+	ptAlbedoMetalnessOutput[LaunchIndex] = albedoMetalnessOutput;
+	ptEmissionRoughnessOutput[LaunchIndex] = emissionRoughnessOutput;
+	ptNormalOutput[LaunchIndex] = normalOutput;
+	ptWposObjectIdOutput[LaunchIndex] = wposObjectIdOutput;
+	
+	reservoirInitBuffer[LaunchIndex.y * (LaunchDimensions.x + 1) + LaunchIndex.x] = DI_RISreservoir;
 };

@@ -182,6 +182,7 @@ enum class EPipelineType : uint32_t
 	PT_Gbuffer,
 	PT_Reference,
 	ReSTIR_Init,
+	ReSTIR_DI_Init,
 	ReSTIR_DI_Temporal,
 	ReSTIR_DI_SpaceReuse,
 	ReSTIR_GI_Temporal,

@@ -38,22 +38,19 @@ cbuffer MyContantBuffer : register(b0)
 };
 
 [[vk::binding(0, 2)]]
-RWTexture2D<float4> ptAlbedoMetalnessOutput : register(u1);
+RWTexture2D<float4> ptAlbedoMetalnessOutput : register(u0);
 
 [[vk::binding(1, 2)]]
-RWTexture2D<float4> ptEmissionRoughnessOutput : register(u2);
+RWTexture2D<float4> ptEmissionRoughnessOutput : register(u1);
 
 [[vk::binding(2, 2)]]
-RWTexture2D<float4> ptNormalOutput : register(u3);
+RWTexture2D<float4> ptNormalOutput : register(u2);
 
 [[vk::binding(3, 2)]]
-RWTexture2D<float4> ptWposObjectIdOutput : register(u4);
+RWTexture2D<float4> ptWposObjectIdOutput : register(u3);
 
 [[vk::binding(4, 2)]]
-RWTexture2D<float4> ptIndirectOutput : register(u5);
-
-[[vk::binding(5, 2)]]
-RWTexture2D<float4> ptOutput : register(u6);
+RWTexture2D<float4> ptOutput : register(u4);
 
 [shader("compute")]
 [numthreads(16, 16, 1)]

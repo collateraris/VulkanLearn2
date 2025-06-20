@@ -121,120 +121,15 @@ Texture& VulkanReSTIRInitPass::get_tex(ETextureResourceNames name) const
 void VulkanReSTIRInitPass::init_description_set_global_buffer()
 {
 	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-		.bind_image(0, ETextureResourceNames::PT_REFERENCE_OUTPUT, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(1, ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(2, ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(3, ETextureResourceNames::PT_GBUFFER_NORMAL, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
-		.bind_image(4, ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID, EResOp::WRITE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(0, ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(1, ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(2, ETextureResourceNames::PT_GBUFFER_NORMAL, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_image(3, ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID, EResOp::READ_STORAGE, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		.create_desciptor_manager();
 }
 
 void VulkanReSTIRInitPass::init_tex()
 {
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::PT_REFERENCE_OUTPUT);
-
-		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
-
-			Texture& prevTex = *_engine->_resManager.get_engine_texture(ETextureResourceNames::PT_REFERENCE_OUTPUT);
-			VkClearValue clear_value = { 0., 0., 0., 0. };
-			cmd.clear_image(prevTex, clear_value);
-
-			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-
-			});
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS);
-
-		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
-
-			Texture& prevTex = *_engine->_resManager.get_engine_texture(ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS);
-			VkClearValue clear_value = { 0., 0., 0., 0. };
-			cmd.clear_image(prevTex, clear_value);
-
-			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-
-			});
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS);
-
-		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
-
-			Texture& prevTex = *_engine->_resManager.get_engine_texture(ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS);
-			VkClearValue clear_value = { 0., 0., 0., 0. };
-			cmd.clear_image(prevTex, clear_value);
-
-			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-
-			});
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::PT_GBUFFER_NORMAL);
-
-		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
-
-			Texture& prevTex = *_engine->_resManager.get_engine_texture(ETextureResourceNames::PT_GBUFFER_NORMAL);
-			VkClearValue clear_value = { 0., 0., 0., 0. };
-			cmd.clear_image(prevTex, clear_value);
-
-			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-
-			});
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_engine_texture(ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID);
-
-		_engine->immediate_submit2([&](VulkanCommandBuffer& cmd) {
-
-			Texture& prevTex = *_engine->_resManager.get_engine_texture(ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID);
-			VkClearValue clear_value = { 0., 0., 0., 0. };
-			cmd.clear_image(prevTex, clear_value);
-
-			vkutil::image_pipeline_barrier(cmd.get_cmd(), prevTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
-
-			});
-	}
 }
 
 void VulkanReSTIRInitPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)

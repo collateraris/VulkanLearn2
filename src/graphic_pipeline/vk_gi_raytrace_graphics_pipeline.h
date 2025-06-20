@@ -5,6 +5,7 @@
 
 #include <vk_render_pass.h>
 #include <vk_mesh.h>
+#include <graphic_pipeline/vk_restir_di_init_pass.h>
 #include <graphic_pipeline/vk_restir_init_pass.h>
 #include <graphic_pipeline/vk_restir_temporal_pass.h>
 #include <graphic_pipeline/vk_restir_spacial_reuse_pass.h>
@@ -66,6 +67,7 @@ private:
 
 	std::array<AllocatedBuffer, 2> _globalUniformsBuffer;
 
+	std::unique_ptr<VulkanReSTIR_DI_InitPass> _restir_DI_InitGP;
 	std::unique_ptr<VulkanReSTIRInitPass> _restirInitGP;
 	std::unique_ptr<VulkanReSTIRTemporalPass> _restirTemporalGP;
 	std::unique_ptr<VulkanReSTIRSpaceReusePass> _restirSpacialGP;
