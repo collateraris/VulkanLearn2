@@ -29,15 +29,9 @@ void AsimpLoader::processScene(const SceneConfig& config, Scene& newScene, Resou
 	const unsigned int flags = 0 |
 		aiProcess_Triangulate |
 		aiProcess_MakeLeftHanded |
-		aiProcess_GenSmoothNormals |
-		aiProcess_LimitBoneWeights |
-		aiProcess_SplitLargeMeshes |
-		aiProcess_ImproveCacheLocality |
-		aiProcess_RemoveRedundantMaterials |
-		aiProcess_FindDegenerates |
-		aiProcess_FindInvalidData |
 		aiProcess_GenUVCoords |
 		aiProcess_Triangulate |
+		aiProcess_GenNormals | 
 		aiProcess_CalcTangentSpace;
 
 	printf("Loading scene from '%s'...\n", config.fileName.c_str());

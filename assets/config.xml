@@ -8,7 +8,7 @@
 	></window>
 			
 	<current_scene
-		id="2"
+		id="4"
 	></current_scene>
 
 	<render_mode name="RESTIR"></render_mode>
@@ -104,6 +104,31 @@
 			camPos_axisZ = "-4.472"
 			camPitch = "0.354"
 			camYaw	= "1.816"
+		></scene>
+		<scene id="4" 
+			path="Bistro_v5_2/BistroExterior.fbx"
+			hdr="Bistro_v5_2/san_giuseppe_bridge_4k.hdr"  
+			scaleFactor = "1" 
+			needRotation = "1" 
+			radians = "90" 
+			axisX = "1" 
+			axisY = "0" 
+			axisZ ="0"
+			useSun = "0"
+			useUniformGeneratePointLight = "0"
+			numUniformPointLightPerAxis = "2"
+			sunDirection_axisX = "0.532" 
+			sunDirection_axisY = "-0.847" 
+			sunDirection_axisZ ="-0.008"
+			sunColor_axisX = "1" 
+			sunColor_axisY = "1" 
+			sunColor_axisZ ="1"
+			useCustomCameraPos = "1"
+			camPos_axisX = "-18.384" 
+			camPos_axisY = "5.079" 
+			camPos_axisZ = "0.246"
+			camPitch = "-0.075"
+			camYaw	= "3.948"
 		></scene>				
 	</scene_configs>
 	
