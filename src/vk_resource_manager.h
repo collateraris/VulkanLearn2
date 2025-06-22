@@ -73,6 +73,14 @@ struct ReservoirPT
 	float pad0 = 0;
 };
 
+struct SAliasTable
+{
+	float threshold = 0;
+	uint32_t indexA = 0;
+	uint32_t indexB = 0;
+	float weights = 0;
+};
+
 class ResourceManager
 {
 public:
@@ -123,4 +131,6 @@ public:
 
 	static void init_rt_scene(VulkanEngine* _engine, ResourceManager& resManager);
 	static void init_global_bindless_descriptor(VulkanEngine* _engine, ResourceManager& resManager);
+
+	static std::vector<SAliasTable> create_alias_table(std::vector<float>& weights);
 };
