@@ -34,6 +34,7 @@
 #include <graphic_pipeline/vk_pathtracer_graphics_pipeline.h>
 #include <graphic_pipeline/vk_pathtrace_gbuffer.h>
 #include <graphic_pipeline/vk_pathtrace_reference.h>
+#include <graphic_pipeline/vk_flux_generation.h>
 #include <vk_light_manager.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
@@ -157,6 +158,7 @@ public:
 	VulkanVbufferGraphicsPipeline _visBufGenerateGraphicsPipeline;
 	VulkanGbufferGenerateGraphicsPipeline _gBufGenerateGraphicsPipeline;
 	VulkanIblMapsGeneratorGraphicsPipeline _iblGenGraphicsPipeline;
+	VulkanFluxGeneration _fluxGenerationGraphicsPipeline;
 	VulkanReSTIRPathtracingGraphicsPipeline _ptReSTIRGraphicsPipeline;
 	VulkanPathTracerGraphicsPipeline _ptGraphicsPipeline;
 	VulkanGbufferShadingGraphicsPipeline _gBufShadingGraphicsPipeline;

@@ -19,12 +19,13 @@ public:
 	struct Light
 	{
 		glm::vec4 position = glm::vec4(1);
-		glm::vec4 direction = glm::vec4(1);
+		glm::vec4 direction_flux = glm::vec4(1);
 		glm::vec4 color_type = glm::vec4(1);
 		glm::vec4 position1 = glm::vec4(1);
 		glm::vec4 position2 = glm::vec4(1);
 		glm::vec4 uv0_uv1 = glm::vec4(1);
 		glm::vec4 uv2_objectId_ = glm::vec4(1);
+		glm::vec4 normal_area = glm::vec4(1);
 	};
 
 
@@ -33,6 +34,7 @@ public:
 	void save_config(std::string&& path);
 
 	const AllocatedBuffer& get_light_buffer() const;
+	const AllocatedBuffer& get_lights_alias_table_buffer() const;
 	const std::vector<VulkanLightManager::Light>& get_lights() const;
 
 	bool is_sun_active() const;
@@ -44,6 +46,10 @@ public:
 	void update_light_buffer();
 	void create_light_buffer();
 	void create_cpu_host_visible_light_buffer();
+	void generate_lights_alias_table();
+	void update_lights_alias_table();
+
+	float get_invWeightsSum();
 
 private:
 
@@ -51,8 +57,11 @@ private:
 
 	int32_t sunIndex = -1;
 
+	float invWeightsSum = 0;
+
 	VulkanEngine* _engine = nullptr;
 
 	std::vector<VulkanLightManager::Light> _lightsOnScene = {};
 	AllocatedBuffer _lightsBuffer;
+	AllocatedBuffer  _lightsAliasTable;
 };

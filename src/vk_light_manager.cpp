@@ -2,6 +2,7 @@
 
 #include <vk_engine.h>
 #include <time.h>
+#include <vk_initializers.h>
 
 glm::vec3 randomColor(std::uniform_int_distribution<>& dis, std::mt19937& gen)
 {
@@ -49,9 +50,66 @@ void VulkanLightManager::create_cpu_host_visible_light_buffer()
 	update_light_buffer();
 }
 
+void VulkanLightManager::generate_lights_alias_table()
+{
+	std::vector<float> weights(_lightsOnScene.size(), 1. / _lightsOnScene.size());
+	std::vector<SAliasTable> table = ResourceManager::create_alias_table(weights);
+
+	_lightsAliasTable = _engine->create_cpu_to_gpu_buffer(sizeof(SAliasTable) * _lightsOnScene.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+	_engine->map_buffer(_engine->_allocator, _lightsAliasTable._allocation, [&](void*& data) {
+			SAliasTable* tableItem = (SAliasTable*)data;
+			for (int i = 0; i < _lightsOnScene.size() && i < VULKAN_MAX_LIGHT_COUNT; i++)
+			{
+				const SAliasTable& object = table[i];
+				tableItem[i].threshold = object.threshold;
+				tableItem[i].weights = object.weights;
+				tableItem[i].indexA = object.indexA;
+				tableItem[i].indexB = object.indexB;
+			}
+	});
+}
+
+void VulkanLightManager::update_lights_alias_table()
+{
+	std::vector<float> weights = {};
+
+	_engine->map_buffer(_engine->_allocator, _lightsBuffer._allocation, [&](void*& data) {
+			VulkanLightManager::Light* lightSSBO = (VulkanLightManager::Light*)data;
+			for (int i = 0; i < _lightsOnScene.size() && i < VULKAN_MAX_LIGHT_COUNT; i++)
+			{
+				weights.push_back(lightSSBO[i].direction_flux.a);
+			}
+	});
+
+	std::vector<SAliasTable> table = ResourceManager::create_alias_table(weights);
+
+	_engine->map_buffer(_engine->_allocator, _lightsAliasTable._allocation, [&](void*& data) {
+		SAliasTable* tableItem = (SAliasTable*)data;
+		for (int i = 0; i < _lightsOnScene.size() && i < VULKAN_MAX_LIGHT_COUNT; i++)
+		{
+			const SAliasTable& object = table[i];
+			tableItem[i].threshold = object.threshold;
+			tableItem[i].weights = object.weights;
+			tableItem[i].indexA = object.indexA;
+			tableItem[i].indexB = object.indexB;
+		}
+		});
+}
+
+float VulkanLightManager::get_invWeightsSum()
+{
+	return invWeightsSum;
+}
+
 const AllocatedBuffer& VulkanLightManager::get_light_buffer() const
 {
 	return _lightsBuffer;
+}
+
+const AllocatedBuffer& VulkanLightManager::get_lights_alias_table_buffer() const
+{
+	return _lightsAliasTable;
 }
 
 const std::vector<VulkanLightManager::Light>& VulkanLightManager::get_lights() const
@@ -68,21 +126,39 @@ void VulkanLightManager::add_sun_light(glm::vec3&& direction, glm::vec3&& color)
 {
 	sunIndex = _lightsOnScene.size();
 	_lightsOnScene.push_back({
-					.direction = glm::vec4(direction, 1.f),
+					.direction_flux = glm::vec4(direction, 1.f),
 					.color_type = glm::vec4(color, static_cast<uint32_t>(ELightType::Sun))
 		});
+}
+
+glm::vec4 computeFaceNormalAndAreaW(glm::vec4& position, glm::vec4& position1, glm::vec4& position2)
+{
+	// Compute face normal in world space.
+	// The length of the vector is twice the triangle area since we're in world space.
+	// Note that this is not true if the normal is transformed using the inverse-transpose.
+	glm::vec3 e[2];
+	e[0] = position1.xyz - position.xyz;
+	e[1] = position2.xyz - position.xyz;
+	glm::vec3 N = cross(e[0], e[1]);
+	float triangleArea = 0.5f * length(N);
+
+	// Flip the normal depending on final winding order in world space.
+	//if (isWorldFrontFaceCW(instanceID)) N = -N;
+
+	return glm::vec4(glm::normalize(N), triangleArea);
 }
 
 void VulkanLightManager::add_emission_light(glm::vec4& position, glm::vec4& position1, glm::vec4& position2, glm::vec2& uv0, glm::vec2& uv1, glm::vec2& uv2, uint32_t objectId)
 {
 	_lightsOnScene.push_back({
 					.position = position,
-					.direction = glm::vec4(1),
+					.direction_flux = glm::vec4(1),
 					.color_type = glm::vec4(glm::vec3(1., 1., 1.), static_cast<uint32_t>(ELightType::Emission)),
 					.position1 = position1,
 					.position2 = position2,
 					.uv0_uv1 = glm::vec4(uv0.x, uv0.y, uv1.x, uv1.y),
-					.uv2_objectId_ = glm::vec4(uv2.x, uv2.y, objectId, 1.f)
+					.uv2_objectId_ = glm::vec4(uv2.x, uv2.y, objectId, 1.f),
+					.normal_area = computeFaceNormalAndAreaW(position, position1, position2);
 		});
 }
 
@@ -139,13 +215,14 @@ void VulkanLightManager::update_light_buffer()
 		for (int i = 0; i < _lightsOnScene.size() && i < VULKAN_MAX_LIGHT_COUNT; i++)
 		{
 			const VulkanLightManager::Light& object = _lightsOnScene[i];
-			lightSSBO[i].direction = object.direction;
+			lightSSBO[i].direction_flux = object.direction_flux;
 			lightSSBO[i].position = object.position;
 			lightSSBO[i].color_type = object.color_type;
 			lightSSBO[i].position1 = object.position1;
 			lightSSBO[i].position2 = object.position2;
 			lightSSBO[i].uv0_uv1 = object.uv0_uv1;
 			lightSSBO[i].uv2_objectId_ = object.uv2_objectId_;
+			lightSSBO[i].normal_area = object.normal_area;
 		}
 		});
 }

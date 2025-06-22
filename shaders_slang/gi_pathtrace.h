@@ -2,7 +2,7 @@
 #define M_PI     3.14159265358979323846
 #define FLT_MAX 3.402823466e+38F
 // Number of candidates used for resampling of analytical lights
-#define RIS_CANDIDATES_LIGHTS 16
+#define RIS_CANDIDATES_LIGHTS 64
 // Switches between two RNGs
 #define USE_PCG 1
 
@@ -21,6 +21,10 @@ struct SGlobalGIParams
 	uint enableAccumulation;
 	uint widthScreen;
 	uint heightScreen;
+	float invWeightsSum;
+	uint pad1;
+	uint pad2;
+	uint pad3;
 };
 
 struct STemporalReservoirInfo
@@ -92,12 +96,13 @@ struct ShadowHitInfo
 struct SLight
 {
 	float4 position;
-	float4 direction;
+	float4 direction_flux;
 	float4 color_type;
 	float4 position1;
 	float4 position2;
 	float4 uv0_uv1;
 	float4 uv2_objectId_;
+	float4 normal_area;
 };
 
 struct SVertex {
@@ -267,6 +272,27 @@ struct SReservoirPT
 	};
 };
 
+struct SAliasTable
+{
+	float threshold;
+	uint indexA;
+	uint indexB;
+	float weights;
+
+	float getThreshold() { return threshold; };
+	uint getIndexA() { return indexA; };
+	uint getIndexB() { return indexB; };
+
+    /** Sample from the table proportional to the weights.
+        \param[in] rnd Uniform random number in [0..1).
+        \return Returns the sampled item index.
+    */
+	uint sample(inout RngStateType rngState)
+    {
+        return rand(rngState) >= getThreshold() ? getIndexA() : getIndexB();
+    };
+};
+
 // -------------------------------------------------------------------------
 //    Utilities
 // -------------------------------------------------------------------------
@@ -356,7 +382,7 @@ void getLightData(SLight light, float3 hitPosition, out float3 lightVector, out 
 		lightVector = light.position.xyz - hitPosition;
 		lightDistance = length(lightVector);
 	} else if (type == DIRECTIONAL_LIGHT) {
-		lightVector = -light.direction.xyz; 
+		lightVector = -light.direction_flux.xyz; 
 		lightDistance = FLT_MAX;
 	} else {
 		lightDistance = FLT_MAX;

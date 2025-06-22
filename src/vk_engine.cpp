@@ -124,11 +124,21 @@ void VulkanEngine::init()
 	if (config.lightConfig.bUseSun || config.lightConfig.bUseUniformGeneratePointLight || (_lightManager.get_lights().size() > 0))
 	{
 		_lightManager.create_cpu_host_visible_light_buffer();
+		_lightManager.generate_lights_alias_table();
 	}
 	
 	//_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
 	ResourceManager::init_rt_scene(this, _resManager);
 	ResourceManager::init_global_bindless_descriptor(this, _resManager);
+
+	_fluxGenerationGraphicsPipeline.init(this);
+	immediate_submit([&](VkCommandBuffer cmd) {
+		_fluxGenerationGraphicsPipeline.draw(cmd, _lightManager.get_lights().size());
+		});
+
+	_lightManager.update_lights_alias_table();
+
+
 
 #if VBUFFER_ON
 	_visBufGenerateGraphicsPipeline.init(this);

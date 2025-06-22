@@ -84,7 +84,7 @@ foreach(SLANG_SRC ${SLANG_SOURCE_FILES})
   ##execute glslang command to compile that specific shader
   add_custom_command(
     OUTPUT ${SPIRV}
-    COMMAND ${SLANG}  ${SLANG_SRC} -profile glsl_460 -target spirv -entry main -o ${SPIRV}
+    COMMAND ${SLANG}  ${SLANG_SRC} -O3 -profile glsl_460 -target spirv -entry main -o ${SPIRV}
     OUTPUT ${GLSL}
    COMMAND ${SLANG}  ${SLANG_SRC} -profile glsl_460 -target glsl -entry main -o ${GLSL}
     DEPENDS ${SLANG_SRC})
