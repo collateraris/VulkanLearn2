@@ -82,6 +82,8 @@ public:
 	void end_render_pass();
 
 	void record(VkCommandBufferUsageFlagBits flags, std::function<void()>&& func);
+
+	VkCommandBuffer& get_cmd() { return _cmd; };
 private:
 	VkCommandBuffer _cmd;
 

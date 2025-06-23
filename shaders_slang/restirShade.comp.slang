@@ -116,7 +116,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (type == EMISSION_LIGHT)
     {
         float2 bary = reservoirSpacial.bary__.xy;
-        light.position.xyz = (1.0f - bary.x - bary.y) * light.position.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
+        light.position_radius.xyz = (1.0f - bary.x - bary.y) * light.position_radius.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
         float2 texCoord = (1.0f - bary.x - bary.y) * light.uv0_uv1.xy + bary.x * light.uv0_uv1.zw + bary.y * light.uv2_objectId_.xy;
         SMaterialData mat = matBuffer[uint(light.uv2_objectId_.z)];
         light.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
@@ -125,7 +125,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     getLightData(light, wposObjectId.xyz, lightVector, lightDistance);
     float3 L = normalize(lightVector);
 
-    float3 radiance = evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * reservoirSpacial.finalWeight);
+    float3 radiance = material.emissive + evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * reservoirSpacial.finalWeight);
 
     ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f) + indirectRadiance;
     //ptOutput[dispatchThreadId.xy] = indirectRadiance;

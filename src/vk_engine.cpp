@@ -125,10 +125,26 @@ void VulkanEngine::init()
 	{
 		_lightManager.create_cpu_host_visible_light_buffer();
 	}
+
+	_lightManager.generate_lights_alias_table();
 	
 	//_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
 	ResourceManager::init_rt_scene(this, _resManager);
 	ResourceManager::init_global_bindless_descriptor(this, _resManager);
+
+	_fluxGenerationGraphicsPipeline.init(this);
+	immediate_submit([&](VkCommandBuffer cmd) {
+		std::array<VkBufferMemoryBarrier, 1> barriers =
+		{
+			vkinit::buffer_barrier(_lightManager.get_light_buffer()._buffer, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT),
+		};
+
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
+		
+		_fluxGenerationGraphicsPipeline.draw(cmd, _lightManager.get_lights().size());
+		});
+	_lightManager.update_light_data_from_gpu();
+	_lightManager.update_lights_alias_table();
 
 #if VBUFFER_ON
 	_visBufGenerateGraphicsPipeline.init(this);
@@ -1012,11 +1028,11 @@ AllocatedBuffer VulkanEngine::create_buffer_n_copy_data(size_t allocSize, void* 
 			});
 
 		//add the destruction of mesh buffer to the deletion queue
-		_mainDeletionQueue.push_function([=]() {
-			vmaDestroyBuffer(_allocator, resBuffer._buffer, resBuffer._allocation);
+		_mainDeletionQueue.push_function([&]() {
+			destroy_buffer(_allocator, resBuffer);
 			});
 
-		vmaDestroyBuffer(_allocator, stagingBuffer._buffer, stagingBuffer._allocation);
+		destroy_buffer(_allocator, stagingBuffer);
 	}
 	return resBuffer;
 }
@@ -1039,6 +1055,11 @@ AllocatedBuffer VulkanEngine::create_staging_buffer(size_t allocSize, VkBufferUs
 AllocatedBuffer VulkanEngine::create_cpu_to_gpu_buffer(size_t allocSize, VkBufferUsageFlags usage)
 {
 	return create_staging_buffer(allocSize, usage);
+}
+
+void VulkanEngine::destroy_buffer(VmaAllocator& allocator, AllocatedBuffer& buffer)
+{
+	vmaDestroyBuffer(allocator, buffer._buffer, buffer._allocation);
 }
 
 AllocatedBuffer VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaAllocationCreateFlags flags)

@@ -242,13 +242,13 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 		newMatDesc->baseColorFactor.a = opacity;
 	}
 
-	aiColor3D emissiveFactor(0., 0., 0.);  
+	aiColor3D emissiveFactor(1., 1., 1.);  
 	if (amat->Get(AI_MATKEY_COLOR_EMISSIVE, emissiveFactor) == aiReturn_SUCCESS)
 	{
 		newMatDesc->emissiveFactorMult_emissiveStrength = glm::vec4(emissiveFactor.r, emissiveFactor.g, emissiveFactor.b, 1);
 	}
 
-	float emissiveStrenght(0.f);
+	float emissiveStrenght(1.f);
 	if (amat->Get(AI_MATKEY_EMISSIVE_INTENSITY, emissiveStrenght) == aiReturn_SUCCESS)
 	{
 		newMatDesc->emissiveFactorMult_emissiveStrength *= emissiveStrenght;

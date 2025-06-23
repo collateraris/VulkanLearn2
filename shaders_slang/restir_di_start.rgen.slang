@@ -25,6 +25,9 @@ StructuredBuffer<SMaterialData> matBuffer  : register(t7);
 [[vk::binding(8, 0)]]
 RWStructuredBuffer<SReservoir> reservoirInitBuffer  : register(t8);
 
+[[vk::binding(14, 0)]]
+StructuredBuffer<SAliasTable> aliasTable  : register(t14);
+
 
 [[vk::binding(0, 1)]]
 cbuffer MyContantBuffer : register(b0)
@@ -113,12 +116,17 @@ bool sampleLightUniform(inout RngStateType rngState, float3 hitPosition, float3 
 	if (giParams.lightsCount == 0) return false;
 
 	uint randomLightIndex = min(giParams.lightsCount - 1, uint(rand(rngState) * giParams.lightsCount));
-	light = lightsBuffer[randomLightIndex];
+	SAliasTable alias = aliasTable[randomLightIndex];
+	uint lightIndex = alias.sample(rngState);
+	light = lightsBuffer[lightIndex];
+
+	float weight = aliasTable[lightIndex].weights;
+	lightSampleWeight = giParams.weightSum / weight;
 
 	// PDF of uniform distribution is (1/light count). Reciprocal of that PDF (simply a light count) is a weight of this sample
-	lightSampleWeight = float(giParams.lightsCount);
+	//lightSampleWeight = float(giParams.lightsCount);
 
-	selectLightIndex = randomLightIndex;
+	selectLightIndex = lightIndex;
 
 	return true;
 };
@@ -149,7 +157,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 				float2 uv = float2(rand(rngState), rand(rngState));
 				float2 bary = UniformSampleTriangle(uv);
 				candidateBary = bary;
-				candidate.position.xyz = (1.0f - bary.x - bary.y) * candidate.position.xyz + bary.x * candidate.position1.xyz + bary.y * candidate.position2.xyz;
+				candidate.position_radius.xyz = (1.0f - bary.x - bary.y) * candidate.position_radius.xyz + bary.x * candidate.position1.xyz + bary.y * candidate.position2.xyz;
 				float2 texCoord = (1.0f - bary.x - bary.y) * candidate.uv0_uv1.xy + bary.x * candidate.uv0_uv1.zw + bary.y * candidate.uv2_objectId_.xy;
 				SMaterialData mat = matBuffer[uint(candidate.uv2_objectId_.z)];
 				candidate.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
@@ -160,7 +168,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 			getLightData(candidate, hitPosition, lightVector, lightDistance);
 
 			float3 L = normalize(lightVector);
-			float candidatePdfG = luminance(evalCombinedBRDF(shadingNormal, L, V, material) * getLightIntensityAtPoint(candidate, length(lightVector)));
+			float candidatePdfG =  luminance(evalCombinedBRDF(shadingNormal, L, V, material) * getLightIntensityAtPoint(candidate, length(lightVector)));
 			const float candidateRISWeight = candidatePdfG * candidateWeight; 
 
 			totalWeights += candidateRISWeight;

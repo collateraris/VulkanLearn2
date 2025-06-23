@@ -34,6 +34,7 @@
 #include <graphic_pipeline/vk_pathtracer_graphics_pipeline.h>
 #include <graphic_pipeline/vk_pathtrace_gbuffer.h>
 #include <graphic_pipeline/vk_pathtrace_reference.h>
+#include <graphic_pipeline/vk_flux_generation.h>
 #include <vk_light_manager.h>
 
 constexpr size_t MAX_OBJECTS = 10000;
@@ -154,6 +155,7 @@ public:
 
 	VulkanDepthReduceRenderPass _depthReduceRenderPass;
 	std::vector<VkFramebuffer> _framebuffers;
+	VulkanFluxGeneration _fluxGenerationGraphicsPipeline;
 	VulkanVbufferGraphicsPipeline _visBufGenerateGraphicsPipeline;
 	VulkanGbufferGenerateGraphicsPipeline _gBufGenerateGraphicsPipeline;
 	VulkanIblMapsGeneratorGraphicsPipeline _iblGenGraphicsPipeline;
@@ -269,6 +271,7 @@ public:
 	AllocatedBuffer create_gpuonly_buffer_with_device_address(size_t allocSize, VkBufferUsageFlags usage);
 	AllocatedBuffer create_staging_buffer(size_t allocSize, VkBufferUsageFlags usage);
 	AllocatedBuffer create_cpu_to_gpu_buffer(size_t allocSize, VkBufferUsageFlags usage);
+	void destroy_buffer(VmaAllocator& allocator, AllocatedBuffer& buffer);
 
 	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaAllocationCreateFlags flags);
 

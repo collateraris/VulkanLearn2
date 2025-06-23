@@ -433,6 +433,8 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	const uint32_t reservoirPTTemporalBinding = 12;
 	const uint32_t reservoirPTSpacialBinding = 13;
 
+	const uint32_t globalEmissiveAliasTableBinding = 14;
+
 	//const uint32_t irradianceMapBinding = 8;
 	//const uint32_t prefilteredMapBinding = 9;
 	//const uint32_t brdfLUTBinding = 10;
@@ -575,6 +577,11 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	reservoirPTSpacialInfo.offset = 0;
 	reservoirPTSpacialInfo.range = VK_WHOLE_SIZE;
 
+	VkDescriptorBufferInfo emissiveAliasTableInfo; 
+	emissiveAliasTableInfo.buffer = _engine->_lightManager.get_lights_alias_table_buffer()._buffer;
+	emissiveAliasTableInfo.offset = 0;
+	emissiveAliasTableInfo.range = VK_WHOLE_SIZE;
+
 
 	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
 		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, vertexBufferInfoList.size())
@@ -598,6 +605,8 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		.bind_buffer(reservoirPTInitBinding, &reservoirPTInitInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_COMPUTE_BIT)
 		.bind_buffer(reservoirPTTemporalBinding, reservoirPTTemporalBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_COMPUTE_BIT, reservoirPTTemporalBufferInfoList.size())
 		.bind_buffer(reservoirPTSpacialBinding, &reservoirPTSpacialInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_COMPUTE_BIT)
+
+		.bind_buffer(globalEmissiveAliasTableBinding, &emissiveAliasTableInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 
 		.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene);
 }

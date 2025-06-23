@@ -42,6 +42,10 @@ public:
 		uint32_t enableAccumulation = 0;
 		uint32_t widthScreen = 0;
 		uint32_t heightScreen = 0;
+		float weightSum;
+		uint32_t pad0;
+		uint32_t pad1;
+		uint32_t pad2;
 	};
 	VulkanGIShadowsRaytracingGraphicsPipeline() = default;
 	void init_textures(VulkanEngine* engine);

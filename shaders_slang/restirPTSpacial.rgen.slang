@@ -28,6 +28,9 @@ RWStructuredBuffer<SReservoirPT> reservoirPTTemporalBuffer[]  : register(t12);
 [[vk::binding(13, 0)]]
 RWStructuredBuffer<SReservoirPT> reservoirPTSpacialBuffer  : register(t13);
 
+[[vk::binding(14, 0)]]
+StructuredBuffer<SAliasTable> aliasTable  : register(t14);
+
 [[vk::binding(0, 1)]]
 cbuffer MyContantBuffer : register(b0)
 {
@@ -126,12 +129,17 @@ bool sampleLightUniform(inout RngStateType rngState, float3 hitPosition, float3 
 	if (giParams.lightsCount == 0) return false;
 
 	uint randomLightIndex = min(giParams.lightsCount - 1, uint(rand(rngState) * giParams.lightsCount));
-	light = lightsBuffer[randomLightIndex];
+	SAliasTable alias = aliasTable[randomLightIndex];
+	uint lightIndex = alias.sample(rngState);
+	light = lightsBuffer[lightIndex];
+
+	float weight = aliasTable[lightIndex].weights;
+	lightSampleWeight = giParams.weightSum / weight;
 
 	// PDF of uniform distribution is (1/light count). Reciprocal of that PDF (simply a light count) is a weight of this sample
-	lightSampleWeight = float(giParams.lightsCount);
+	//lightSampleWeight = float(giParams.lightsCount);
 
-	selectLightIndex = randomLightIndex;
+	selectLightIndex = lightIndex;
 
 	return true;
 };
@@ -157,7 +165,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 			{
 				float2 uv = float2(rand(rngState), rand(rngState));
 				float2 bary = UniformSampleTriangle(uv);
-				candidate.position.xyz = (1.0f - bary.x - bary.y) * candidate.position.xyz + bary.x * candidate.position1.xyz + bary.y * candidate.position2.xyz;
+				candidate.position_radius.xyz = (1.0f - bary.x - bary.y) * candidate.position_radius.xyz + bary.x * candidate.position1.xyz + bary.y * candidate.position2.xyz;
 				float2 texCoord = (1.0f - bary.x - bary.y) * candidate.uv0_uv1.xy + bary.x * candidate.uv0_uv1.zw + bary.y * candidate.uv2_objectId_.xy;
 				SMaterialData mat = matBuffer[uint(candidate.uv2_objectId_.z)];
 				candidate.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
@@ -398,7 +406,7 @@ void main()
     SReservoirPT neighborReservoir = SReservoirPT(uint4(0, 0, 0, 0), float4(0., 0., 0., 0.), 0., 0, 1., 0.);
 
     int neighborsCount = 7;
-    int neighborsRange = 5; // Want to sample neighbors within [-neighborsRange, neighborsRange] offset
+    int neighborsRange = 1; // Want to sample neighbors within [-neighborsRange, neighborsRange] offset
 
     const float dist_threshold = 0.01f;
     const float angle_threshold = 25.f * M_PI / 180.f;

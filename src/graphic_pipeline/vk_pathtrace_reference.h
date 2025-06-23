@@ -35,8 +35,12 @@ public:
 		uint32_t  numRays;
 		uint32_t mode = 0;
 		uint32_t enableAccumulation = 0;
-		uint32_t pad2 = 0;
-		uint32_t pad3 = 0;
+		uint32_t widthScreen = 0;
+		uint32_t heightScreen = 0;
+		float weightSum;
+		uint32_t pad0;
+		uint32_t pad1;
+		uint32_t pad2;
 	};
 
 	VulkanPTRef() = default;

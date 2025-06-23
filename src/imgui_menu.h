@@ -182,7 +182,7 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, T& gi
     static uint32_t RESTIR_DI_SpacialReuse = 1u << 2;
     static uint32_t RESTIR_GI_SpacialReuse = 1u << 3;
     static glm::mat4 prevCameraMatrix;
-    static T::GlobalGIParams giParams = {.shadowMult = 0.0, .numRays = 1};
+    static T::GlobalGIParams giParams = {.shadowMult = 0.0, .numRays = 1, .weightSum = lightManager.get_WeightsSum()};
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
     ImGui::Begin("Edit GI", &p_open);
     static int numRays = 0;

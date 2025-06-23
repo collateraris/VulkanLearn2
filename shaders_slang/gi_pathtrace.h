@@ -22,6 +22,10 @@ struct SGlobalGIParams
 	uint enableAccumulation;
 	uint widthScreen;
 	uint heightScreen;
+	float weightSum;
+	uint pad0;
+	uint pad1;
+	uint pad2;
 };
 
 struct STemporalReservoirInfo
@@ -92,13 +96,14 @@ struct ShadowHitInfo
 
 struct SLight
 {
-	float4 position;
-	float4 direction;
+	float4 position_radius;
+	float4 direction_flux;
 	float4 color_type;
 	float4 position1;
 	float4 position2;
 	float4 uv0_uv1;
 	float4 uv2_objectId_;
+	float4 normal_area;
 };
 
 struct SVertex {
@@ -268,6 +273,27 @@ struct SReservoirPT
 	};
 };
 
+struct SAliasTable
+{
+	float threshold;
+	uint indexA;
+	uint indexB;
+	float weights;
+
+	float getThreshold() { return threshold; };
+	uint getIndexA() { return indexA; };
+	uint getIndexB() { return indexB; };
+
+    /** Sample from the table proportional to the weights.
+        \param[in] rnd Uniform random number in [0..1).
+        \return Returns the sampled item index.
+    */
+	uint sample(inout RngStateType rngState)
+    {
+        return rand(rngState) >= getThreshold() ? getIndexA() : getIndexB();
+    };
+};
+
 // -------------------------------------------------------------------------
 //    Utilities
 // -------------------------------------------------------------------------
@@ -351,13 +377,13 @@ void getLightData(SLight light, float3 hitPosition, out float3 lightVector, out 
 	uint type = uint(light.color_type.w);
 	if (type == EMISSION_LIGHT)
 	{
-		lightVector = light.position.xyz - hitPosition;
+		lightVector = light.position_radius.xyz - hitPosition;
 		lightDistance = length(lightVector);
 	} else if (type == POINT_LIGHT) {
-		lightVector = light.position.xyz - hitPosition;
+		lightVector = light.position_radius.xyz - hitPosition;
 		lightDistance = length(lightVector);
 	} else if (type == DIRECTIONAL_LIGHT) {
-		lightVector = -light.direction.xyz; 
+		lightVector = -light.direction_flux.xyz; 
 		lightDistance = FLT_MAX;
 	} else {
 		lightDistance = FLT_MAX;
@@ -371,7 +397,7 @@ float3 getLightIntensityAtPoint(SLight light, float distance) {
 	if (type == EMISSION_LIGHT || type == POINT_LIGHT) {
 		// Cem Yuksel's improved attenuation avoiding singularity at distance=0
 		// Source: http://www.cemyuksel.com/research/pointlightattenuation/
-		const float radius = 0.5f; //< We hardcode radius at 0.5, but this should be a light parameter
+		const float radius = light.position_radius.w; //< We hardcode radius at 0.5, but this should be a light parameter
 		const float radiusSquared = radius * radius;
 		const float distanceSquared = distance * distance;
 		const float attenuation = 2.0f / (distanceSquared + radiusSquared + distance * sqrt(distanceSquared + radiusSquared));
