@@ -1,13 +1,13 @@
 # VulkanLearn2
 
 ReSTIR DI & GI & PT
-# 1spp ReSTIR DI without accumulation
-![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/restir_di_64_ris.png)
 
-# 1spp ReSTIR GI without accumulation
+# 1spp ReSTIR PT without accumulation
 
-![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/1spp_sponza.png)
-![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/restir_gi_1spp.png)
+![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/restir_pt_sponza_1spp_witho 2.png)
+![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/restir_pt_sponza_1spp_witho.png)
+![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/1spp_alias_table_restir_pt.jpeg)
+![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/1spp_alias_table_restir_pt_2.jpeg)
 
 ## Goals
 
