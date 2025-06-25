@@ -28,6 +28,9 @@ RWStructuredBuffer<SReservoirPT> reservoirPTInitBuffer  : register(t11);
 [[vk::binding(14, 0)]]
 StructuredBuffer<SAliasTable> aliasTable  : register(t14);
 
+[[vk::binding(15, 0)]]
+StructuredBuffer<SCell> cellGridData  : register(t15);
+
 [[vk::binding(0, 1)]]
 cbuffer MyContantBuffer : register(b0)
 {
@@ -127,13 +130,22 @@ bool sampleLightUniform(inout RngStateType rngState, float3 hitPosition, float3 
 
 	if (giParams.lightsCount == 0) return false;
 
-	uint randomLightIndex = min(giParams.lightsCount - 1, uint(rand(rngState) * giParams.lightsCount));
-	SAliasTable alias = aliasTable[randomLightIndex];
+	float3 gridCoord = (hitPosition - giParams.gridMin.xyz) / (giParams.gridMax.xyz - giParams.gridMin.xyz);
+    uint3 cellIdx = clamp(uint3(gridCoord * GRID_SIZE), uint3(0), GRID_SIZE - uint3(1));
+
+	uint linearIdx = cellIdx.x * GRID_SIZE*GRID_SIZE + cellIdx.y * GRID_SIZE + cellIdx.z;
+	SCell cell = cellGridData[linearIdx];
+
+	if (cell.startIndex == -1) return false;
+	
+	uint randomLightIndex = min(cell.numLights - 1, uint(rand(rngState) * cell.numLights));
+
+	SAliasTable alias = aliasTable[cell.startIndex + randomLightIndex];
 	uint lightIndex = alias.sample(rngState);
 	light = lightsBuffer[lightIndex];
 
-	float weight = aliasTable[lightIndex].weights;
-	lightSampleWeight = giParams.weightSum / weight;
+	float weight = light.direction_flux.w;
+	lightSampleWeight = cell.weightsSum / weight;
 
 	// PDF of uniform distribution is (1/light count). Reciprocal of that PDF (simply a light count) is a weight of this sample
 	//lightSampleWeight = float(giParams.lightsCount);
@@ -174,6 +186,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 				SMaterialData mat = matBuffer[uint(candidate.uv2_objectId_.z)];
 				candidate.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
 				candidate.color_type.xyz = float3(candidate.color_type.x * mat.emissiveFactorMult_emissiveStrength.x, candidate.color_type.y * mat.emissiveFactorMult_emissiveStrength.y, candidate.color_type.z * mat.emissiveFactorMult_emissiveStrength.z);
+				candidate.color_type.xyz *= mat.emissiveFactorMult_emissiveStrength.w;
 			}
 			float3	lightVector;
 			float lightDistance;

@@ -434,6 +434,7 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	const uint32_t reservoirPTSpacialBinding = 13;
 
 	const uint32_t globalEmissiveAliasTableBinding = 14;
+	const uint32_t globalGridBinding = 15;
 
 	//const uint32_t irradianceMapBinding = 8;
 	//const uint32_t prefilteredMapBinding = 9;
@@ -582,6 +583,11 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 	emissiveAliasTableInfo.offset = 0;
 	emissiveAliasTableInfo.range = VK_WHOLE_SIZE;
 
+	VkDescriptorBufferInfo gridInfo;
+	gridInfo.buffer = _engine->_lightManager.get_lights_cell_grid_buffer()._buffer;
+	gridInfo.offset = 0;
+	gridInfo.range = VK_WHOLE_SIZE;
+
 
 	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
 		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, vertexBufferInfoList.size())
@@ -607,6 +613,7 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 		.bind_buffer(reservoirPTSpacialBinding, &reservoirPTSpacialInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_COMPUTE_BIT)
 
 		.bind_buffer(globalEmissiveAliasTableBinding, &emissiveAliasTableInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
+		.bind_buffer(globalGridBinding, &gridInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 
 		.build_bindless(_engine, EDescriptorResourceNames::Bindless_Scene);
 }

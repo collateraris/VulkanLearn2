@@ -117,7 +117,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     SReservoir neighborReservoir = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
 
     int neighborsCount = 7;
-    int neighborsRange = 5; // Want to sample neighbors within [-neighborsRange, neighborsRange] offset
+    int neighborsRange = 2; // Want to sample neighbors within [-neighborsRange, neighborsRange] offset
 
     const float dist_threshold = 0.01f;
     const float angle_threshold = 25.f * M_PI / 180.f;

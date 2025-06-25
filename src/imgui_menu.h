@@ -182,43 +182,14 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, T& gi
     static uint32_t RESTIR_DI_SpacialReuse = 1u << 2;
     static uint32_t RESTIR_GI_SpacialReuse = 1u << 3;
     static glm::mat4 prevCameraMatrix;
-    static T::GlobalGIParams giParams = {.shadowMult = 0.0, .numRays = 1, .weightSum = lightManager.get_WeightsSum()};
+    static T::GlobalGIParams giParams = {.shadowMult = 0.0, .numRays = 1, 
+        .sunIndex = lightManager.get_sun_index(),
+        .gridMax = vec4(lightManager.get_grid_max(), 1.),
+        .gridMin = vec4(lightManager.get_grid_min(), 1.)};
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
     ImGui::Begin("Edit GI", &p_open);
     static int numRays = 0;
     bChangedValue |= ImGui::InputInt("Indirect numRays", &numRays);
-    bChangedValue |= ImGui::InputFloat("shadow Mult", &giParams.shadowMult);
-    bChangedValue |= ImGui::Checkbox("EnableAccumulation", &bEnableAccumulation);
-    giParams.enableAccumulation = bEnableAccumulation;
-    bChangedValue |= ImGui::Checkbox("ReSTIR DI SpacialReuse ON", &bRestirDI_SpacialReuse);
-    if (bRestirDI_SpacialReuse)
-    {
-        giParams.mode |= RESTIR_DI_SpacialReuse;
-    }
-    else
-    {
-        giParams.mode &= ~RESTIR_DI_SpacialReuse;
-    }
-
-    bChangedValue |= ImGui::Checkbox("ReSTIR GI ON", &bRestirGI);
-    if (bRestirGI)
-    {
-        giParams.mode |= RESTIR_GI;
-    }
-    else
-    {
-        giParams.mode &= ~RESTIR_GI;
-    }
-
-    bChangedValue |= ImGui::Checkbox("ReSTIR GI SpacialReuse ON", &bRestirGI_SpacialReuse);
-    if (bRestirGI_SpacialReuse)
-    {
-        giParams.mode |= RESTIR_GI_SpacialReuse;
-    }
-    else
-    {
-        giParams.mode &= ~RESTIR_GI_SpacialReuse;
-    }
 
     giParams.numRays = std::max(0, numRays);
     giParams.frameCount = frameNumber;

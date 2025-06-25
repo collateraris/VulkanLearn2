@@ -1,4 +1,4 @@
-#include <vk_light_manager.h>
+﻿#include <vk_light_manager.h>
 
 #include <vk_engine.h>
 #include <time.h>
@@ -68,23 +68,44 @@ void VulkanLightManager::create_cpu_host_visible_light_buffer()
 	update_light_buffer();
 }
 
-void VulkanLightManager::generate_lights_alias_table()
+void VulkanLightManager::generate_lights_cell_grid()
 {
-	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(_lightsOnScene.size() * sizeof(VulkanLightManager::SAliasTable));
-	_lightsAliasTable = _engine->create_cpu_to_gpu_buffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(GRID_SIZE * GRID_SIZE * GRID_SIZE * sizeof(VulkanLightManager::SCell));
+	_lightsCellGrid = _engine->create_cpu_to_gpu_buffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 }
+
 
 const AllocatedBuffer& VulkanLightManager::get_lights_alias_table_buffer() const
 {
 	return _lightsAliasTable;
 }
 
+const AllocatedBuffer& VulkanLightManager::get_lights_cell_grid_buffer() const
+{
+	return _lightsCellGrid;
+}
+
 float VulkanLightManager::get_WeightsSum()
 {
 	float sum = 0;
-	for (auto& w : lightsWeights) { sum += w; }
+	for (auto& w : _lightsWeights) { sum += w; }
 
 	return sum;
+}
+
+int32_t VulkanLightManager::get_sun_index() const
+{
+	return sunIndex;
+}
+
+const glm::vec3& VulkanLightManager::get_grid_max() const
+{
+	return _gridMax;
+}
+
+const glm::vec3& VulkanLightManager::get_grid_min() const
+{
+	return _gridMin;
 }
 
 std::vector<VulkanLightManager::SAliasTable> create_alias_table(const std::vector<float>& weights, std::vector<uint32_t>& lightIndices)
@@ -118,9 +139,9 @@ std::vector<VulkanLightManager::SAliasTable> create_alias_table(const std::vecto
 	for (uint32_t i = 0; i < weightsCount; ++i)
 	{
 		if (weights[i] < avgWeight)
-			lowIdx[lowCount++] = lightIndices[i];
+			lowIdx[lowCount++] = i;
 		else
-			highIdx[highCount++] = lightIndices[i];
+			highIdx[highCount++] = i;
 	}
 
 	// Create alias table entries by merging above- and below-average samples
@@ -130,7 +151,7 @@ std::vector<VulkanLightManager::SAliasTable> create_alias_table(const std::vecto
 		if ((lowIdx[i] != 0xFFFFFFFFu) && (highIdx[i] != 0xFFFFFFFFu))
 		{
 			// Create an alias table tuple: 
-			items[i] = { weightsChangable[lowIdx[i]] / avgWeight, highIdx[i], lowIdx[i], weights[i] };
+			items[i] = { weightsChangable[lowIdx[i]] / avgWeight, lightIndices[highIdx[i]], lightIndices[lowIdx[i]], weights[i] };
 
 			// We've removed some weight from element highIdx[i]; update it's weight, then re-enter it
 			// on the end of either the above-average or below-average lists.
@@ -153,11 +174,11 @@ std::vector<VulkanLightManager::SAliasTable> create_alias_table(const std::vecto
 		//        or trying to reduce catasrophic numerical cancellation in the "updatedWeight" computation above).
 		else if (highIdx[i] != 0xFFFFFFFFu)
 		{
-			items[i] = { 1.0f, highIdx[i], highIdx[i], weights[i] };
+			items[i] = { 1.0f, lightIndices[highIdx[i]], lightIndices[highIdx[i]], weights[i] };
 		}
 		else if (lowIdx[i] != 0xFFFFFFFFu)
 		{
-			items[i] = { 1.0f, lowIdx[i], lowIdx[i], weights[i] };
+			items[i] = { 1.0f, lightIndices[lowIdx[i]], lightIndices[lowIdx[i]], weights[i] };
 		}
 
 		// If there is neither a highIdx[i] or lowIdx[i] for some array element(s).  By construction, 
@@ -171,33 +192,140 @@ std::vector<VulkanLightManager::SAliasTable> create_alias_table(const std::vecto
 	return items;
 }
 
+
 void VulkanLightManager::update_lights_alias_table()
 {
-	std::vector<uint32_t> lightIndices = {};
-
-	for (size_t i = 0; i < lightsWeights.size(); i++)
+	_gridMax = { std::numeric_limits<float>::min(), std::numeric_limits<float>::min(), std::numeric_limits<float>::min() };
+	_gridMin = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
+	for (int lightIndex = 0; lightIndex < _lightsOnScene.size() && lightIndex < VULKAN_MAX_LIGHT_COUNT; lightIndex++)
 	{
-		lightIndices.push_back(i);
+		glm::vec3 lightPos = glm::vec3(1);
+		Light& light = _lightsOnScene[lightIndex];
+		ELightType lightType = static_cast<ELightType>(light.color_type.w);
+
+		if (lightType == ELightType::Sun)
+		{
+			continue;
+		}
+		else if (lightType == ELightType::Point)
+		{
+			lightPos = light.position_radius;
+		}
+		else if (lightType == ELightType::Emission)
+		{
+			lightPos = (light.position_radius + light.position1 + light.position2) / 3;
+		}
+
+		glm::vec3 minBound = lightPos - 2 * light.position_radius.w;
+		glm::vec3 maxBound = lightPos + 2 * light.position_radius.w;
+
+		_gridMax.x = std::max(_gridMax.x, maxBound.x);
+		_gridMax.y = std::max(_gridMax.y, maxBound.y);
+		_gridMax.z = std::max(_gridMax.z, maxBound.z);
+
+		_gridMin.x = std::min(_gridMin.x, minBound.x);
+		_gridMin.y = std::min(_gridMin.y, minBound.y);
+		_gridMin.z = std::min(_gridMin.z, minBound.z);
 	}
 
-	std::vector<SAliasTable> table = create_alias_table(lightsWeights, lightIndices);
+	_grid.resize(GRID_SIZE);
+	for (size_t i = 0; i < GRID_SIZE; i++)
+	{
+		_grid[i].resize(GRID_SIZE);
+		for (size_t j = 0; j < GRID_SIZE; j++)
+		{
+			_grid[i][j].resize(GRID_SIZE);
+		}
+	}
+
+
+	for (int i = 0; i < _lightsOnScene.size() && i < VULKAN_MAX_LIGHT_COUNT; i++)
+	{
+		add_light_to_grid(i, _gridMax, _gridMin);
+	}
+
+	std::vector<SAliasTable> bigAliasTable = {};
+
+	std::vector<SCell> cellTable(GRID_SIZE * GRID_SIZE * GRID_SIZE);
+
+	for (size_t i = 0; i < GRID_SIZE; i++)
+	{
+		for (size_t j = 0; j < GRID_SIZE; j++)
+		{
+			for (size_t k = 0; k < GRID_SIZE; k++)
+			{
+				std::vector<uint32_t>& lightsIndices = _grid[i][j][k];
+
+				const uint32_t linearIdx = i * GRID_SIZE * GRID_SIZE + j * GRID_SIZE + k;
+
+				SCell& cell = cellTable[linearIdx];
+
+				cell.startIndex = -1;
+
+				if (lightsIndices.size() == 0)
+					continue;
+
+				std::vector<float> lightsWeights = {};
+				float weightsSum = 0;
+				for (size_t x = 0; x < lightsIndices.size(); x++)
+				{
+					float w = _lightsWeights[lightsIndices[x]];
+					weightsSum += w;
+					lightsWeights.push_back(w);
+				}
+
+				std::vector<SAliasTable> table = create_alias_table(lightsWeights, lightsIndices);
+
+				uint32_t startIndex = bigAliasTable.size();
+
+				for (auto& t: table)
+				{
+					bigAliasTable.push_back(t);
+				}
+
+				cell.weightsSum = weightsSum;
+				cell.startIndex = startIndex;
+				cell.numLights = lightsIndices.size();
+			}
+		}
+	}
+
+	_grid.clear();
+
+
+	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(bigAliasTable.size() * sizeof(VulkanLightManager::SAliasTable));
+	_lightsAliasTable = _engine->create_cpu_to_gpu_buffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 	_engine->map_buffer(_engine->_allocator, _lightsAliasTable._allocation, [&](void*& data) {
 		SAliasTable* tableItem = (SAliasTable*)data;
-		for (int i = 0; i < _lightsOnScene.size() && i < VULKAN_MAX_LIGHT_COUNT; i++)
+		for (int i = 0; i < bigAliasTable.size() && i < VULKAN_MAX_LIGHT_COUNT; i++)
 		{
-			const SAliasTable& object = table[i];
+			const SAliasTable& object = bigAliasTable[i];
 			tableItem[i].threshold = object.threshold;
 			tableItem[i].weights = object.weights;
 			tableItem[i].indexA = object.indexA;
 			tableItem[i].indexB = object.indexB;
 		}
 	});
+
+	bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(cellTable.size() * sizeof(VulkanLightManager::SCell));
+	_lightsCellGrid = _engine->create_cpu_to_gpu_buffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+	_engine->map_buffer(_engine->_allocator, _lightsCellGrid._allocation, [&](void*& data) {
+		SCell* tableItem = (SCell*)data;
+		for (int i = 0; i < cellTable.size() && i < VULKAN_MAX_LIGHT_COUNT; i++)
+		{
+			const SCell& object = cellTable[i];
+			tableItem[i].startIndex = object.startIndex;
+			tableItem[i].numLights = object.numLights;
+			tableItem[i].weightsSum = object.weightsSum;
+		}
+	});
 }
 
 void VulkanLightManager::update_light_data_from_gpu()
 {
-	lightsWeights.clear();
+	_lightsWeights.clear();
 
 	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(_lightsOnScene.size() * sizeof(VulkanLightManager::Light));
 	AllocatedBuffer staggingBuffer = _engine->create_staging_buffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
@@ -220,18 +348,64 @@ void VulkanLightManager::update_light_data_from_gpu()
 			vkCmdPipelineBarrier(cmd.get_cmd(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, 0, barriers2.size(), barriers2.data(), 0, 0);
 		});
 
-	lightsWeights.resize(_lightsOnScene.size());
+	_lightsWeights.resize(_lightsOnScene.size());
 
 	_engine->map_buffer(_engine->_allocator, staggingBuffer._allocation, [&](void*& data) {
 		VulkanLightManager::Light* lightSSBO = (VulkanLightManager::Light*)data;
 		for (int i = 0; i < _lightsOnScene.size() && i < VULKAN_MAX_LIGHT_COUNT; i++)
 		{
 			_lightsOnScene[i] = lightSSBO[i];
-			lightsWeights[i] = _lightsOnScene[i].direction_flux[3];
+			_lightsWeights[i] = _lightsOnScene[i].direction_flux[3];
 		}
 	});
 
 	_engine->destroy_buffer(_engine->_allocator, staggingBuffer);
+}
+
+void VulkanLightManager::add_light_to_grid(uint32_t lightIndex,glm::vec3& gridMax, glm::vec3 gridMin)
+{
+	Light& light = _lightsOnScene[lightIndex];
+	ELightType lightType = static_cast<ELightType>(light.color_type.w);
+	
+	glm::vec3 lightPos = glm::vec3(1);
+
+	if (lightType == ELightType::Sun)
+	{
+		for (size_t i = 0; i < GRID_SIZE; i++)
+			for (size_t j = 0; j < GRID_SIZE; j++)
+				for (size_t k = 0; k < GRID_SIZE; k++)
+					_grid[i][j][k].push_back(lightIndex);
+		return;
+	}
+	else if (lightType == ELightType::Point)
+	{
+		lightPos = light.position_radius;
+	}
+	else if (lightType == ELightType::Emission)
+	{
+		lightPos = (light.position_radius + light.position1 + light.position2) / 3;
+	}
+
+	float radius = light.position_radius.w;
+	glm::vec3 minBound = lightPos - radius;
+	glm::vec3 maxBound = lightPos + radius;
+
+	glm::vec3 size = gridMax - gridMin;
+
+	glm::vec3 gridMinBound = (minBound - gridMin) / size;
+	glm::vec3 gridMaxBound = (maxBound - gridMin) / size;
+
+
+	glm::uvec3 startCell = clamp(glm::uvec3(gridMinBound * GRID_SIZE), glm::uvec3(0), glm::uvec3(GRID_SIZE) - glm::uvec3(1));
+	glm::uvec3 endCell = clamp(glm::uvec3(gridMaxBound * GRID_SIZE), glm::uvec3(0), glm::uvec3(GRID_SIZE) - glm::uvec3(1));
+
+	for (size_t z = startCell.z; z <= endCell.z; ++z) {
+		for (size_t y = startCell.y; y <= endCell.y; ++y) {
+			for (size_t x = startCell.x; x <= endCell.x; ++x) {
+				_grid[x][y][z].push_back(lightIndex);
+			}
+		}
+	}
 }
 
 const AllocatedBuffer& VulkanLightManager::get_light_buffer() const
@@ -261,7 +435,6 @@ void VulkanLightManager::add_sun_light(glm::vec3&& direction, glm::vec3&& color)
 void VulkanLightManager::add_emission_light(glm::vec4& position, glm::vec4& position1, glm::vec4& position2, glm::vec2& uv0, glm::vec2& uv1, glm::vec2& uv2, uint32_t objectId)
 {
 	//if (_lightsOnScene.size() > 2000) return;
-
 	_lightsOnScene.push_back({
 					.position_radius = position,
 					.direction_flux = glm::vec4(1),
@@ -284,7 +457,7 @@ void VulkanLightManager::update_sun_light(std::function<void(glm::vec3& directio
 
 	func(direction, color);
 
-	sunInfo.direction_flux = glm::vec4(direction, 1.f);
+	sunInfo.direction_flux = glm::vec4(direction, sunInfo.direction_flux.w);
 	sunInfo.color_type = glm::vec4(color, static_cast<uint32_t>(ELightType::Sun));
 
 }

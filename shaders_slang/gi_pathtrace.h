@@ -6,6 +6,7 @@
 #define RIS_CANDIDATES_LIGHTS2 1
 // Switches between two RNGs
 #define USE_PCG 1
+#define GRID_SIZE 32
 
 struct SGlobalGIParams
 {
@@ -18,14 +19,12 @@ struct SGlobalGIParams
 	float shadowMult;
 	uint lightsCount;
 	uint  numRays;
-	uint mode;
+	int sunIndex;
 	uint enableAccumulation;
 	uint widthScreen;
 	uint heightScreen;
-	float weightSum;
-	uint pad0;
-	uint pad1;
-	uint pad2;
+	float4 gridMax;
+	float4 gridMin;
 };
 
 struct STemporalReservoirInfo
@@ -294,6 +293,14 @@ struct SAliasTable
     };
 };
 
+
+struct SCell
+{
+	int startIndex;
+	uint numLights;
+	float weightsSum;
+	uint pad1;
+};
 // -------------------------------------------------------------------------
 //    Utilities
 // -------------------------------------------------------------------------

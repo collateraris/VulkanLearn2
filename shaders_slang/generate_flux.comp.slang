@@ -1,19 +1,6 @@
 #include "gi_pathtrace.h"
 #include "brdf.h"
 
-[[vk::binding(1, 0)]]
-Texture2D<float4> texSet[] : register(t1);
-
-[[vk::binding(6, 0)]]
-SamplerState      linearSampler : register(s6);
-
-
-[[vk::binding(4, 0)]]
-RWStructuredBuffer<SLight> lightsBuffer  : register(t4);
-
-[[vk::binding(7, 0)]]
-StructuredBuffer<SMaterialData> matBuffer  : register(t7);
-
 struct SFluxData
 {
     uint lightCount;
@@ -22,11 +9,25 @@ struct SFluxData
     uint pad2;
 };
 
-[[vk::binding(0, 1)]]
+[[vk::binding(0, 0)]]
 cbuffer MyContantBuffer : register(b0)
 {
 	SFluxData fluxParams;
 };
+
+[[vk::binding(1, 0)]]
+Texture2D<float4> texSet[] : register(t1);
+
+[[vk::binding(2, 0)]]
+SamplerState      linearSampler : register(s6);
+
+
+[[vk::binding(3, 0)]]
+RWStructuredBuffer<SLight> lightsBuffer  : register(t4);
+
+[[vk::binding(4, 0)]]
+StructuredBuffer<SMaterialData> matBuffer  : register(t7);
+
 
 [shader("compute")]
 [numthreads(256, 1, 1)]
@@ -79,10 +80,10 @@ void main(uint3 DTid : SV_DispatchThreadID)
     }
     else if (type == DIRECTIONAL_LIGHT)
     {
-        light.direction_flux.w = 100000;
+        light.direction_flux.w = 100;
     }
 
-    light.position_radius.w = sqrt(light.direction_flux.w / (4 * M_PI));
+    light.position_radius.w = sqrt(light.direction_flux.w / (4 * M_PI * 0.01));
 //*/
     //light.direction_flux.w = triIdx;
     lightsBuffer[triIdx] = light;

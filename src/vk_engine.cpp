@@ -126,12 +126,6 @@ void VulkanEngine::init()
 		_lightManager.create_cpu_host_visible_light_buffer();
 	}
 
-	_lightManager.generate_lights_alias_table();
-	
-	//_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
-	ResourceManager::init_rt_scene(this, _resManager);
-	ResourceManager::init_global_bindless_descriptor(this, _resManager);
-
 	_fluxGenerationGraphicsPipeline.init(this);
 	immediate_submit([&](VkCommandBuffer cmd) {
 		std::array<VkBufferMemoryBarrier, 1> barriers =
@@ -140,11 +134,16 @@ void VulkanEngine::init()
 		};
 
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, barriers.size(), barriers.data(), 0, 0);
-		
+
 		_fluxGenerationGraphicsPipeline.draw(cmd, _lightManager.get_lights().size());
 		});
 	_lightManager.update_light_data_from_gpu();
 	_lightManager.update_lights_alias_table();
+
+	
+	//_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
+	ResourceManager::init_rt_scene(this, _resManager);
+	ResourceManager::init_global_bindless_descriptor(this, _resManager);
 
 #if VBUFFER_ON
 	_visBufGenerateGraphicsPipeline.init(this);

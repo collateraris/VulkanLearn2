@@ -414,14 +414,12 @@ struct alignas(16) GlobalGIParams
 	float shadowMult;
 	uint32_t lightsCount;
 	uint32_t  numRays;
-	uint32_t mode = 0;
+	int32_t sunIndex = -1;
 	uint32_t enableAccumulation = 0;
 	uint32_t widthScreen = 0;
 	uint32_t heightScreen = 0;
-	float weightSum;
-	uint32_t pad0;
-	uint32_t pad1;
-	uint32_t pad2;
+	glm::vec4 gridMax = glm::vec4(1);
+	glm::vec4 gridMin = glm::vec4(1);
 };
 
 struct STemporalReservoirInfo

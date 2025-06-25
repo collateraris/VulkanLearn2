@@ -16,6 +16,9 @@ class VulkanEngine;
 class VulkanLightManager
 {
 public:
+
+	static const size_t GRID_SIZE = 32;
+
 	struct Light
 	{
 		glm::vec4 position_radius = glm::vec4(1);
@@ -36,6 +39,14 @@ public:
 		float weights = 0;
 	};
 
+	struct SCell
+	{
+		int32_t startIndex = -1;
+		uint32_t numLights = 0;
+		float weightsSum = 0;
+		uint32_t pad1;
+	};
+
 
 	void init(VulkanEngine* engine);
 	void load_config(std::string&& path);
@@ -44,7 +55,11 @@ public:
 	const AllocatedBuffer& get_light_buffer() const;
 	const std::vector<VulkanLightManager::Light>& get_lights() const;
 	const AllocatedBuffer& get_lights_alias_table_buffer() const;
+	const AllocatedBuffer& get_lights_cell_grid_buffer() const;
 	float get_WeightsSum();
+	int32_t get_sun_index() const;
+	const glm::vec3& get_grid_max() const;
+	const glm::vec3& get_grid_min() const;
 
 	bool is_sun_active() const;
 	void add_sun_light(glm::vec3&& direction, glm::vec3&& color);
@@ -56,12 +71,15 @@ public:
 	void create_light_buffer();
 	void create_cpu_host_visible_light_buffer();
 
-	void generate_lights_alias_table();
+
+	void generate_lights_cell_grid();
 	void update_lights_alias_table();
 
 	void update_light_data_from_gpu();
 
 private:
+
+	void add_light_to_grid(uint32_t lightIndex, glm::vec3& gridMax, glm::vec3 gridMin);
 
 	bool bUseCpuHostVisibleBuffer = false;
 
@@ -72,6 +90,12 @@ private:
 	std::vector<VulkanLightManager::Light> _lightsOnScene = {};
 	AllocatedBuffer _lightsBuffer;
 
-	std::vector<float> lightsWeights = {};
+	std::vector<float> _lightsWeights = {};
 	AllocatedBuffer  _lightsAliasTable;
+	AllocatedBuffer _lightsCellGrid;
+
+	std::vector<std::vector<std::vector<std::vector<uint32_t>>>> _grid;
+
+	glm::vec3 _gridMax;
+	glm::vec3 _gridMin;
 };

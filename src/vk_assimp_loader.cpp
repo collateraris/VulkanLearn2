@@ -247,11 +247,21 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 	{
 		newMatDesc->emissiveFactorMult_emissiveStrength = glm::vec4(emissiveFactor.r, emissiveFactor.g, emissiveFactor.b, 1);
 	}
+	else
+	{
+		newMatDesc->emissiveFactorMult_emissiveStrength = glm::vec4(1, 1, 1, 1);
+	}
 
 	float emissiveStrenght(1.f);
 	if (amat->Get(AI_MATKEY_EMISSIVE_INTENSITY, emissiveStrenght) == aiReturn_SUCCESS)
 	{
-		newMatDesc->emissiveFactorMult_emissiveStrength *= emissiveStrenght;
+		//emissiveStrenght *= 1000;
+		newMatDesc->emissiveFactorMult_emissiveStrength.w *= emissiveStrenght;
+	}
+	else
+	{
+		//emissiveStrenght = 1000;
+		newMatDesc->emissiveFactorMult_emissiveStrength.w *= emissiveStrenght;
 	}
 
 	float metallicFactor(0.f);
