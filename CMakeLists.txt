@@ -34,7 +34,7 @@ add_subdirectory(src)
 
 find_program(GLSLC "glslc.exe" $ENV{VULKAN_SDK}/Bin/)
 find_program(DXC "dxc.exe" ${PROJECT_SOURCE_DIR}/third_party/dxc/)
-find_program(SLANG "slangc.exe" ${PROJECT_SOURCE_DIR}/third_party/slang/bin)
+find_program(SLANG "slangc.exe" ${VULKAN_SDK}/Include/slang)
 
 ## find all the shader files under the shaders folder
 file(GLOB_RECURSE GLSL_SOURCE_FILES
@@ -84,9 +84,7 @@ foreach(SLANG_SRC ${SLANG_SOURCE_FILES})
   ##execute glslang command to compile that specific shader
   add_custom_command(
     OUTPUT ${SPIRV}
-    COMMAND ${SLANG}  ${SLANG_SRC} -profile glsl_460 -target spirv -entry main -o ${SPIRV}
-    OUTPUT ${GLSL}
-   COMMAND ${SLANG}  ${SLANG_SRC} -profile glsl_460 -target glsl -entry main -o ${GLSL}
+    COMMAND ${SLANG}  ${SLANG_SRC} -profile glsl_460 -capability spvCooperativeVectorNV -target spirv -entry main -o ${SPIRV}
     DEPENDS ${SLANG_SRC})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(SLANG_SRC)    
