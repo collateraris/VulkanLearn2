@@ -99,12 +99,12 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
   indirectRpl.albedo_metalness.w = 0.;
   if (mat.metalnessTexIndex > 0)
       indirectRpl.albedo_metalness.w = texSet[mat.metalnessTexIndex].SampleLevel(linearSampler, texCoord, 0).b; 
-  indirectRpl.albedo_metalness.w *= mat.metallicFactor_roughnessFactor.x;
+  indirectRpl.albedo_metalness.w *= mat.metallicFactor_roughnessFactor_transparent_.x;
 
   indirectRpl.emission_roughness.w = 1.;
   if (mat.roughnessTexIndex > 0)
       indirectRpl.emission_roughness.w = texSet[mat.roughnessTexIndex].SampleLevel(linearSampler, texCoord, 0).g;
-  indirectRpl.emission_roughness.w *= mat.metallicFactor_roughnessFactor.y;
+  indirectRpl.emission_roughness.w *= mat.metallicFactor_roughnessFactor_transparent_.y;
       
   float3 shadingNormal = worldNormal;
   // avoid normal mapping if tangent = (0, 0, 0), which results in NaN

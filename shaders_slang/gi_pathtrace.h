@@ -142,7 +142,7 @@ struct SMaterialData
 	int pad1;
 	float4 baseColorFactor;
 	float4 emissiveFactorMult_emissiveStrength;
-	float4 metallicFactor_roughnessFactor;
+	float4 metallicFactor_roughnessFactor_transparent_;
 };
 
 // -------------------------------------------------------------------------

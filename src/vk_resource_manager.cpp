@@ -222,6 +222,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 		map.meshIndex = scene._meshes[nodeIndex];
 		map.mesh = resManager.meshList[map.meshIndex].get();
 		map.matDescIndex = scene._matForNode[nodeIndex];
+		resManager.meshList[map.meshIndex].get()->is_transparent = resManager.matDescList[map.matDescIndex].get()->opacityTextureIndex != -1 || resManager.matDescList[map.matDescIndex].get()->metallicFactor_roughnessFactor_transparent_.z < 0.5;
 		const std::string& matName = resManager.matDescList[map.matDescIndex].get()->matName;
 		map.transformMatrix = scene._localTransforms[nodeIndex];
 
@@ -296,7 +297,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 			.opacityTexIndex = mat->opacityTextureIndex,
 			.baseColorFactor = mat->baseColorFactor,
 			.emissiveFactorMult_emissiveStrength = mat->emissiveFactorMult_emissiveStrength,
-			.metallicFactor_roughnessFactor = mat->metallicFactor_roughnessFactor,
+			.metallicFactor_roughnessFactor_transparent_ = mat->metallicFactor_roughnessFactor_transparent_,
 		});
 	};
 
@@ -346,7 +347,7 @@ void ResourceManager::init_rt_scene(VulkanEngine* _engine, ResourceManager& resM
 		// Identify the above data as containing opaque triangles.
 		VkAccelerationStructureGeometryKHR asGeom{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
 		asGeom.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-		asGeom.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;//VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR;  // Avoid double hits;
+		asGeom.flags = mesh.is_transparent ? VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR : VK_GEOMETRY_OPAQUE_BIT_KHR;
 		asGeom.geometry.triangles = triangles;
 
 		// The entire array will be used to build the BLAS.

@@ -242,6 +242,12 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 		newMatDesc->baseColorFactor.a = opacity;
 	}
 
+	aiString alphaMode;
+	if (amat->Get(AI_MATKEY_GLTF_ALPHAMODE, alphaMode) == aiReturn_SUCCESS)
+	{
+		newMatDesc->metallicFactor_roughnessFactor_transparent_.z = std::strcmp(alphaMode.C_Str(),"OPAQUE") ? 0. : 1.;
+	}
+
 	aiColor3D emissiveFactor(1., 1., 1.);  
 	if (amat->Get(AI_MATKEY_COLOR_EMISSIVE, emissiveFactor) == aiReturn_SUCCESS)
 	{
@@ -267,13 +273,13 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 	float metallicFactor(0.f);
 	if (amat->Get(AI_MATKEY_METALLIC_FACTOR, metallicFactor) == aiReturn_SUCCESS)
 	{
-		newMatDesc->metallicFactor_roughnessFactor.x *= metallicFactor;
+		newMatDesc->metallicFactor_roughnessFactor_transparent_.x *= metallicFactor;
 	}
 
 	float roughnessFactor(0.);
 	if (amat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughnessFactor) == aiReturn_SUCCESS)
 	{
-		newMatDesc->metallicFactor_roughnessFactor.y *= roughnessFactor;
+		newMatDesc->metallicFactor_roughnessFactor_transparent_.y *= roughnessFactor;
 	}
 
 }

@@ -52,6 +52,6 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
     if (mat.opacityTexIndex > 0)
         opacity = texSet[mat.opacityTexIndex].Sample(linearSampler, texCoord).r;
 
-    if (opacity < 1.)
+    if (opacity < 0.5)
         IgnoreHit();
 }

@@ -26,7 +26,7 @@ struct MaterialDesc
 	int32_t opacityTextureIndex = -1;
 	glm::vec4 baseColorFactor = glm::vec4(1., 1., 1., 1.);
 	glm::vec4 emissiveFactorMult_emissiveStrength = glm::vec4(1., 1., 1., 1.);
-	glm::vec4 metallicFactor_roughnessFactor = glm::vec4(1., 1., 1., 1.);
+	glm::vec4 metallicFactor_roughnessFactor_transparent_ = glm::vec4(1., 1., 1., 1.);
 };
 
 struct GlobalObjectData
@@ -51,7 +51,7 @@ struct GlobalMaterialData
 	int32_t pad1;	
 	glm::vec4 baseColorFactor;
 	glm::vec4 emissiveFactorMult_emissiveStrength;
-	glm::vec4 metallicFactor_roughnessFactor;
+	glm::vec4 metallicFactor_roughnessFactor_transparent_;
 };
 
 struct Reservoir

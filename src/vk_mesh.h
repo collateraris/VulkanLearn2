@@ -69,4 +69,6 @@ struct Mesh {
 	void buildMeshlets();
 #endif
 	Mesh& calcAddInfo();
+
+	bool is_transparent = false;
 };
