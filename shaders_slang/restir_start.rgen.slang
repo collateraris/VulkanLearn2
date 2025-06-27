@@ -259,6 +259,7 @@ void main()
 
 	// Initialize random numbers generator
 	RngStateType rngState = initRNG(LaunchIndex, LaunchDimensions, giParams.frameCount);
+	SReservoirPT PT_Reservoir = SReservoirPT(rngState, float4(0., 0., 0., 0.), 0., 0, 1., 0.);
 
 	// Initialize path tracing data
 	float3 radiance = float3(0.0f, 0.0f, 0.0f);
@@ -323,8 +324,6 @@ void main()
 
     // Offset a new ray origin from the hitpoint to prevent self-intersections
     rayOri = offsetRay(worldPos, geometryNormal);
-
-	SReservoirPT PT_Reservoir = SReservoirPT(uint4(0, 0, 0, 0), float4(0., 0., 0., 0.), 0., 0, 1., 0.);
 
 	[loop]
 	for (int bounce = 1; bounce <= giParams.numRays; bounce++) 
