@@ -255,7 +255,7 @@ static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, T& gi
 static void ShowVkMenu(VulkanEngine& engine)
 {
     ImguiAppLog::ShowFPSLog(engine._stats);
-    if (engine.get_mode() == ERenderMode::ReSTIR)
+    if (engine.get_mode() == ERenderMode::ReSTIR || engine.get_mode() == ERenderMode::ReSTIR_NRC)
     {
         ImguiAppLog::EditGI<VulkanGIShadowsRaytracingGraphicsPipeline>(engine._lightManager, engine._camera, engine._giRtGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
     }

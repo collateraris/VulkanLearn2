@@ -38,6 +38,8 @@ ERenderMode vk_utils::Config::GetRenderMode()
             mode = ERenderMode::Pathtracer;
         else if (!name.compare("RESTIR"))
             mode = ERenderMode::ReSTIR;
+        else if (!name.compare("RESTIR_NRC"))
+            mode = ERenderMode::ReSTIR_NRC;    
 
     }
     return mode;

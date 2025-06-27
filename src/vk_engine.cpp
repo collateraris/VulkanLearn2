@@ -152,7 +152,7 @@ void VulkanEngine::init()
 	_gBufGenerateGraphicsPipeline.init(this);
 #endif	
 
-	if (get_mode() == ERenderMode::ReSTIR)
+	if (get_mode() == ERenderMode::ReSTIR || get_mode() == ERenderMode::ReSTIR_NRC)
 	{
 		_giRtGraphicsPipeline.init_textures(this);
 		_giRtGraphicsPipeline.init(this);
@@ -275,7 +275,7 @@ void VulkanEngine::draw()
 				_gBufGenerateGraphicsPipeline.copy_global_uniform_data(globalCameraData, get_current_frame_index());
 			}
 #endif
-			if (get_mode() == ERenderMode::ReSTIR)
+			if (get_mode() == ERenderMode::ReSTIR || get_mode() == ERenderMode::ReSTIR_NRC)
 			{
 				_giRtGraphicsPipeline.try_reset_accumulation(_camera);
 			}
@@ -306,7 +306,7 @@ void VulkanEngine::draw()
 		_ptReference.barrier_for_reading(&get_current_frame()._mainCommandBuffer);
 		_accumulationGP.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index(), ERenderMode::Pathtracer);
 	}	
-	if (get_mode() == ERenderMode::ReSTIR)
+	if (get_mode() == ERenderMode::ReSTIR || get_mode() == ERenderMode::ReSTIR_NRC)
 	{
 		_giRtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 	}
@@ -347,7 +347,7 @@ void VulkanEngine::draw()
 			vkCmdSetScissor(cmd, 0, 1, &scissor);
 			vkCmdSetDepthBias(cmd, 0, 0, 0);
 			
-			if (get_mode() == ERenderMode::Pathtracer || get_mode() == ERenderMode::ReSTIR)
+			if (get_mode() == ERenderMode::Pathtracer || get_mode() == ERenderMode::ReSTIR || get_mode() == ERenderMode::ReSTIR_NRC)
 			{
 				_gBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 			}			

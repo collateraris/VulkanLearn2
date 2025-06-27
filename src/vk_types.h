@@ -27,6 +27,7 @@ enum ERenderMode
 	None,
 	ReSTIR,
 	Pathtracer,
+	ReSTIR_NRC,
 };
 
 
