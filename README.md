@@ -20,10 +20,10 @@ ReSTIR DI & GI & PT
 
 ## Referense Pathtracer from RaytracerGems 2 with emissive triangle and NEE RIS support
 
-![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/ref_path_bistro_interior_1spp_1.jpeg)
-![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/ref_path_bistro_interior_1spp_2.jpeg)
+![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/ref_path_bistro_interior_1spp_1.jpg)
+![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/ref_path_bistro_interior_1spp_2.jpg)
 
 ## Restir PT with emissive triangle
 
-![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/restir_pt_bistro_interior_1spp_1.jpeg)
-![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/restir_pt_bistro_interior_1spp_2.jpeg)
+![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/restir_pt_bistro_interior_1spp_1.jpg)
+![image](https://github.com/collateraris/VulkanLearn2/blob/main/img/restir_pt_bistro_interior_1spp_2.jpg)
