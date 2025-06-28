@@ -28,7 +28,7 @@ cbuffer MyContantBuffer2 : register(b1)
 ByteAddressBuffer gMLPParams : register(t2);
 
 [[vk::binding(3, 1)]]
-RWByteAddressBuffer gMLPParamsGradients  : register(t3);
+RWByteAddressBuffer gMLPParamsGradients  : register(t3); 
 
 [[vk::binding(0, 2)]]
 RWTexture2D<float4> ptAlbedoMetalnessOutput : register(u0);

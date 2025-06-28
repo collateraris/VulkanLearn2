@@ -563,7 +563,8 @@ void VulkanEngine::init_vulkan()
 		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, // Required by ray tracing pipeline
 #if VULKAN_RAYTRACE_DEBUG_ON		
 		VK_NV_RAY_TRACING_VALIDATION_EXTENSION_NAME,
-#endif		
+#endif	
+		VK_NV_COOPERATIVE_VECTOR_EXTENSION_NAME,
 	};
 
 	vkb::PhysicalDevice physicalDevice = selector
@@ -637,6 +638,13 @@ void VulkanEngine::init_vulkan()
 	rtValidationFeatures.pNext = nullptr;
 	rtValidationFeatures.rayTracingValidation = true;
 
+	VkPhysicalDeviceCooperativeVectorPropertiesNV coopVecFeatures = {};
+	coopVecFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_VECTOR_PROPERTIES_NV;
+	coopVecFeatures.pNext = nullptr;
+	coopVecFeatures.cooperativeVectorSupportedStages = VK_SHADER_STAGE_COMPUTE_BIT;
+	coopVecFeatures.cooperativeVectorTrainingFloat16Accumulation = true;
+	coopVecFeatures.cooperativeVectorTrainingFloat32Accumulation = true;
+
 	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features)
 		.add_pNext(&featuresMesh)
 		.add_pNext(&buffer_device_address_features)
@@ -645,6 +653,7 @@ void VulkanEngine::init_vulkan()
 		.add_pNext(&acceleration_structure_features)
 		.add_pNext(&rt_features)
 		.add_pNext(&ray_query_features)
+		.add_pNext(&coopVecFeatures)
 		//.add_pNext(&synchronized2_features)
 	#if VULKAN_RAYTRACE_DEBUG_ON	
 		.add_pNext(&rtValidationFeatures)

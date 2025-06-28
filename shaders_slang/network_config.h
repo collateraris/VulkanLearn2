@@ -1,6 +1,9 @@
 #define INPUT_FEATURES 9
-#define INPUT_NEURONS (INPUT_FEATURES * 6) // 6* from Frequency Encoding
+// EncodeFrequency expands the input by 6 per input feature
+#define FREQUENCY_EXPANSION 6
+#define INPUT_NEURONS (INPUT_FEATURES * FREQUENCY_EXPANSION) // 6* from Frequency Encoding
 #define OUTPUT_NEURONS 4
+
 
 #define HIDDEN_NEURONS 32
 #define NUM_HIDDEN_LAYERS 3
