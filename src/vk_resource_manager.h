@@ -3,6 +3,8 @@
 #include <vk_types.h>
 #include <vk_mesh.h>
 #include <vk_raytracer_builder.h>
+#include <neural_shading/NeuralRadianceCache.h>
+
 
 class VulkanEngine;
 struct RenderObject;
@@ -99,6 +101,8 @@ public:
 	AllocatedBuffer globalReservoirPTTemporalBuffer[2];
 	AllocatedBuffer globalReservoirPTSpacialBuffer;
 
+	std::unique_ptr<NeuralRadianceCache> nrc_cache;
+
 	VulkanRaytracerBuilder _rtBuilder;
 	glm::vec3 maxCube = { std::numeric_limits<float>::min(), std::numeric_limits<float>::min(), std::numeric_limits<float>::min()};
 	glm::vec3 minCube = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
@@ -120,6 +124,7 @@ public:
 
 	static std::vector<IndirectBatch> compact_draws(RenderObject* objects, int count);
 	static void init_scene(VulkanEngine* _engine, ResourceManager& resManager, Scene& scene);
+	static void init_nrc_cache(VulkanEngine* _engine, ResourceManager& resManager);
 
 	static void init_rt_scene(VulkanEngine* _engine, ResourceManager& resManager);
 	static void init_global_bindless_descriptor(VulkanEngine* _engine, ResourceManager& resManager);

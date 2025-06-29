@@ -118,7 +118,10 @@ add_executable(vulkan_guide
     neural_shading/Float16.cpp  
     neural_shading/NeuralNetwork.h
     neural_shading/NeuralNetwork.cpp 
-    neural_shading/NeuralNetworkTypes.h     
+    neural_shading/NeuralNetworkTypes.h 
+    neural_shading/NetworkConfig.h 
+    neural_shading/NeuralRadianceCache.h 
+    neural_shading/NeuralRadianceCache.cpp   
     )
 
 

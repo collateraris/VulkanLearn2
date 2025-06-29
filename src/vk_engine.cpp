@@ -143,6 +143,10 @@ void VulkanEngine::init()
 	
 	//_iblGenGraphicsPipeline.init(this, config.hdrCubemapPath);
 	ResourceManager::init_rt_scene(this, _resManager);
+	if (get_mode() == ERenderMode::ReSTIR_NRC)
+	{
+		ResourceManager::init_nrc_cache(this, _resManager);
+	}
 	ResourceManager::init_global_bindless_descriptor(this, _resManager);
 
 #if VBUFFER_ON

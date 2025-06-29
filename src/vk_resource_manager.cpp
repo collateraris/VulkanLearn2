@@ -322,6 +322,12 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 
 }
 
+void ResourceManager::init_nrc_cache(VulkanEngine* _engine, ResourceManager& resManager)
+{
+	resManager.nrc_cache = std::make_unique<NeuralRadianceCache>();
+	resManager.nrc_cache->init(_engine);
+}
+
 void ResourceManager::init_rt_scene(VulkanEngine* _engine, ResourceManager& resManager)
 {	
 	auto create_blas_input = [&](Mesh & mesh) -> VulkanRaytracerBuilder::BlasInput

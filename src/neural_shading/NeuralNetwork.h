@@ -76,7 +76,7 @@ public:
         return m_networkArchitecture;
     }
 
-    const std::vector<uint8_t>& GetNetworkParams() const
+    std::vector<uint8_t>& GetNetworkParams()
     {
         return m_networkParams;
     }
