@@ -111,7 +111,15 @@ add_executable(vulkan_guide
     sys_config/vk_strings.h
     sys_event/EventManager.h
     sys_event/EventManager.cpp
-    sys_event/Delegate.h)
+    sys_event/Delegate.h
+    neural_shading/CoopVector.h
+    neural_shading/CoopVector.cpp
+    neural_shading/Float16.h
+    neural_shading/Float16.cpp  
+    neural_shading/NeuralNetwork.h
+    neural_shading/NeuralNetwork.cpp 
+    neural_shading/NeuralNetworkTypes.h     
+    )
 
 
 set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:vulkan_guide>")
