@@ -11,6 +11,7 @@ import NS_PCG32;
 
 [[vk::binding(13, 0)]]
 RWStructuredBuffer<SReservoirPT> reservoirPTSpacialBuffer  : register(t13);
+ 
 
 [[vk::binding(0, 1)]]
 cbuffer MyContantBuffer : register(b0)
@@ -18,17 +19,18 @@ cbuffer MyContantBuffer : register(b0)
 	SGlobalGIParams giParams;
 };
 
-[[vk::binding(1, 1)]]
-cbuffer MyContantBuffer2 : register(b1)
+[[vk::binding(0, 2)]]
+cbuffer MyContantBuffer2 : register(b0)
 {
 	TrainingConstantBufferEntry gConst;
 };
 
-[[vk::binding(2, 1)]]
-ByteAddressBuffer gMLPParams : register(t2);
+[[vk::binding(0, 3)]]
+ByteAddressBuffer gMLPParams : register(t0);
 
-[[vk::binding(3, 1)]]
-RWByteAddressBuffer gMLPParamsGradients  : register(t3); 
+[[vk::binding(1, 0)]]
+RWByteAddressBuffer gMLPParamsGradients  : register(t1);
+
 
 [[vk::binding(0, 2)]]
 RWTexture2D<float4> ptAlbedoMetalnessOutput : register(u0);

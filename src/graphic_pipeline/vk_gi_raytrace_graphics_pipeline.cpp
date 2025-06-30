@@ -321,11 +321,30 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 	_restir_PT_SpacialGP = std::make_unique<VulkanReSTIR_PT_SpaceReusePass>();
 	_restir_PT_SpacialGP->init(engine);
 
-	_restirUpdateShadeGP = std::make_unique<VulkanReSTIRUpdateReservoirPlusShadePass>();
-	_restirUpdateShadeGP->init(engine);
+	if (_engine->get_mode() == ReSTIR_NRC)
+	{
+		_nrcTrainGP = std::make_unique<VulkanNRC_TrainingPass>();
+		_nrcTrainGP->init(engine);
 
-	_accumulationGP = std::make_unique<VulkanSimpleAccumulationGraphicsPipeline>();
-	_accumulationGP->init(engine, _restirUpdateShadeGP->get_output());
+		_nrcOptimizeGP = std::make_unique<VulkanNRC_OptimizePass>();
+		_nrcOptimizeGP->init(engine);
+
+		_nrcInferenceGP = std::make_unique<VulkanNRC_InferencePass>();
+		_nrcInferenceGP->init(engine);
+
+		_accumulationGP = std::make_unique<VulkanSimpleAccumulationGraphicsPipeline>();
+		_accumulationGP->init(engine, _nrcInferenceGP->get_output());
+	}
+	else
+	{
+
+		_restirUpdateShadeGP = std::make_unique<VulkanReSTIRUpdateReservoirPlusShadePass>();
+		_restirUpdateShadeGP->init(engine);
+
+		_accumulationGP = std::make_unique<VulkanSimpleAccumulationGraphicsPipeline>();
+		_accumulationGP->init(engine, _restirUpdateShadeGP->get_output());
+	}
+
 
 	//_raytraceReflection = std::make_unique<VulkanRaytrace_ReflectionPass>();
 	//_raytraceReflection->init(engine);
@@ -347,12 +366,70 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors()
 			globalUniformsInfo.offset = 0;
 			globalUniformsInfo.range = VK_WHOLE_SIZE;
 
+
 			EDescriptorResourceNames currentDesciptor = i == 0 ? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0 : EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
 
 			vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 				.bind_buffer(0, &globalUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_COMPUTE_BIT)
 				.build(_engine, currentDesciptor);
 		}
+	}
+
+	if (_engine->get_mode() == ReSTIR_NRC)
+	{
+		for (int i = 0; i < FRAME_OVERLAP; i++)
+		{
+			//set 1
+			VkDescriptorBufferInfo nrcUniformsInfo;
+			nrcUniformsInfo.buffer = _nrcUniformsBuffer[i]._buffer;
+			nrcUniformsInfo.offset = 0;
+			nrcUniformsInfo.range = VK_WHOLE_SIZE;
+
+			EDescriptorResourceNames currentDesciptor = i == 0 ? EDescriptorResourceNames::NRC_GlobalUniformBuffer_Frame0 : EDescriptorResourceNames::NRC_GlobalUniformBuffer_Frame1;
+
+			vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+				.bind_buffer(0, &nrcUniformsInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+				.build(_engine, currentDesciptor);
+		}
+
+		const uint32_t mlpDeviceBinding = 0;
+		const uint32_t mlpParamsBinding = 1;
+		const uint32_t mlpGradientsBinding = 2;
+		const uint32_t mlpMoments1Binding = 3;
+		const uint32_t mlpMoments2Binding = 4;
+
+		VkDescriptorBufferInfo mlpDeviceInfo;
+		mlpDeviceInfo.buffer = _engine->_resManager.nrc_cache->m_mlpDeviceBuffer._buffer;
+		mlpDeviceInfo.offset = 0;
+		mlpDeviceInfo.range = VK_WHOLE_SIZE;
+
+		VkDescriptorBufferInfo mlpParamsInfo;
+		mlpParamsInfo.buffer = _engine->_resManager.nrc_cache->m_mlpParamsBuffer32._buffer;
+		mlpParamsInfo.offset = 0;
+		mlpParamsInfo.range = VK_WHOLE_SIZE;
+
+		VkDescriptorBufferInfo mlpGradientsInfo;
+		mlpGradientsInfo.buffer = _engine->_resManager.nrc_cache->m_mlpGradientsBuffer._buffer;
+		mlpGradientsInfo.offset = 0;
+		mlpGradientsInfo.range = VK_WHOLE_SIZE;
+
+		VkDescriptorBufferInfo mlpMoments1Info;
+		mlpMoments1Info.buffer = _engine->_resManager.nrc_cache->m_mlpMoments1Buffer._buffer;
+		mlpMoments1Info.offset = 0;
+		mlpMoments1Info.range = VK_WHOLE_SIZE;
+
+		VkDescriptorBufferInfo mlpMoments2Info;
+		mlpMoments2Info.buffer = _engine->_resManager.nrc_cache->m_mlpMoments2Buffer._buffer;
+		mlpMoments2Info.offset = 0;
+		mlpMoments2Info.range = VK_WHOLE_SIZE;
+
+		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+			.bind_buffer(mlpDeviceBinding, &mlpDeviceInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+			.bind_buffer(mlpParamsBinding, &mlpParamsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+			.bind_buffer(mlpGradientsBinding, &mlpGradientsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+			.bind_buffer(mlpMoments1Binding, &mlpMoments1Info, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+			.bind_buffer(mlpMoments2Binding, &mlpMoments2Info, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+			.build(_engine, EDescriptorResourceNames::NRC_MLP);
 	}
 }
 
@@ -361,6 +438,10 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_global_buffers()
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
 		_globalUniformsBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		if (_engine->get_mode() == ReSTIR_NRC)
+		{
+			_nrcUniformsBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(TrainingConstantBufferEntry), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		}
 	}
 }
 
@@ -484,11 +565,45 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, i
 
 	//_raytraceReflection->draw(cmd, current_frame_index);
 
-	_restirUpdateShadeGP->barrier_for_compute_write(cmd);
-	_restirUpdateShadeGP->draw(cmd, current_frame_index);
+	if (_engine->get_mode() == ReSTIR_NRC)
+	{
+		static std::random_device rd;
+		std::uniform_int_distribution<uint64_t> ldist;
+		uint64_t seed = ldist(rd);
+		for (int i = 0; i < BATCH_COUNT; ++i)
+		{
+			NeuralRadianceCache& nrc = *_engine->_resManager.nrc_cache.get();
 
-	_restirUpdateShadeGP->barrier_for_frag_read(cmd);
-	_accumulationGP->draw(cmd, current_frame_index);
+			TrainingConstantBufferEntry trainingModelConstant = {
+			.maxParamSize = nrc.m_totalParameterCount, .learningRate = nrc.m_learningRate, .currentStep = float(++nrc.m_currentOptimizationStep), .batchSize = nrc.m_batchSize, .seed = seed
+			};
+
+			std::ranges::copy(nrc.m_weightOffsets, trainingModelConstant.weightOffsets);
+			std::ranges::copy(nrc.m_biasOffsets, trainingModelConstant.biasOffsets);
+
+			_engine->map_buffer(_engine->_allocator, _nrcUniformsBuffer[current_frame_index]._allocation, [&](void*& data) {
+				memcpy(data, &trainingModelConstant, sizeof(TrainingConstantBufferEntry));
+				});
+
+			_nrcTrainGP->draw(cmd, current_frame_index);
+
+			_nrcOptimizeGP->draw(cmd, current_frame_index);
+		}
+
+		_nrcInferenceGP->barrier_for_compute_write(cmd);
+		_nrcInferenceGP->draw(cmd, current_frame_index);
+
+		_nrcInferenceGP->barrier_for_frag_read(cmd);
+		_accumulationGP->draw(cmd, current_frame_index);
+	}
+	else
+	{
+		_restirUpdateShadeGP->barrier_for_compute_write(cmd);
+		_restirUpdateShadeGP->draw(cmd, current_frame_index);
+
+		_restirUpdateShadeGP->barrier_for_frag_read(cmd);
+		_accumulationGP->draw(cmd, current_frame_index);
+	}
 
 	//_denoiserPass->draw(cmd, current_frame_index);
 }

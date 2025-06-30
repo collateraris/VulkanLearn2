@@ -17,6 +17,9 @@
 #include <graphic_pipeline/vk_raytrace_reflection.h>
 #include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
 #include <graphic_pipeline/vk_raytracer_denoiser_pass.h>
+#include <graphic_pipeline/vk_nrc_training.h>
+#include <graphic_pipeline/vk_nrc_optimize.h>
+#include <graphic_pipeline/vk_nrc_inference.h>
 
 class VulkanEngine;
 class VulkanFrameBuffer;
@@ -68,6 +71,7 @@ private:
 	VkFormat    _giSamplesColorFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
 
 	std::array<AllocatedBuffer, 2> _globalUniformsBuffer;
+	std::array<AllocatedBuffer, 2> _nrcUniformsBuffer;
 
 	std::unique_ptr<VulkanReSTIR_DI_InitPass> _restir_DI_InitGP;
 	std::unique_ptr<VulkanReSTIRInitPass> _restirInitGP;
@@ -80,6 +84,10 @@ private:
 	std::unique_ptr<VulkanReSTIRUpdateReservoirPlusShadePass> _restirUpdateShadeGP;
 	std::unique_ptr<VulkanRaytrace_ReflectionPass> _raytraceReflection;
 	std::unique_ptr<VulkanSimpleAccumulationGraphicsPipeline> _accumulationGP;
+
+	std::unique_ptr<VulkanNRC_TrainingPass> _nrcTrainGP;
+	std::unique_ptr<VulkanNRC_OptimizePass> _nrcOptimizeGP;
+	std::unique_ptr<VulkanNRC_InferencePass> _nrcInferenceGP;
 
 	std::unique_ptr<VulkanRaytracerDenoiserPass> _denoiserPass;
 };

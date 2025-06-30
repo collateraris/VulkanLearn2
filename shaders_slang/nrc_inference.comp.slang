@@ -27,6 +27,7 @@ RWStructuredBuffer<SReservoir> reservoirSpacialBuffer  : register(t10);
 [[vk::binding(13, 0)]]
 RWStructuredBuffer<SReservoirPT> reservoirPTSpacialBuffer  : register(t13);
 
+
 [[vk::binding(0, 1)]]
 cbuffer MyContantBuffer : register(b0)
 {
@@ -34,28 +35,29 @@ cbuffer MyContantBuffer : register(b0)
 };
 
 [[vk::binding(0, 2)]]
-RWTexture2D<float4> ptAlbedoMetalnessOutput : register(u0);
-
-[[vk::binding(1, 2)]]
-RWTexture2D<float4> ptEmissionRoughnessOutput : register(u1);
-
-[[vk::binding(2, 2)]]
-RWTexture2D<float4> ptNormalOutput : register(u2);
-
-[[vk::binding(3, 2)]]
-RWTexture2D<float4> ptWposObjectIdOutput : register(u3);
-
-[[vk::binding(4, 2)]]
-RWTexture2D<float4> ptOutput : register(u4);
-
-[[vk::binding(0, 3)]]
-cbuffer MyContantBuffer2 : register(b1)
+cbuffer MyContantBuffer2 : register(b0)
 {
 	TrainingConstantBufferEntry gConst;
 };
 
-[[vk::binding(1, 3)]]
-ByteAddressBuffer gMLPParams : register(u1);
+[[vk::binding(0, 3)]]
+ByteAddressBuffer gMLPParams : register(t0);
+
+[[vk::binding(0, 4)]]
+RWTexture2D<float4> ptAlbedoMetalnessOutput : register(u0);
+
+[[vk::binding(1, 4)]]
+RWTexture2D<float4> ptEmissionRoughnessOutput : register(u1);
+
+[[vk::binding(2, 4)]]
+RWTexture2D<float4> ptNormalOutput : register(u2);
+
+[[vk::binding(3, 4)]]
+RWTexture2D<float4> ptWposObjectIdOutput : register(u3);
+
+[[vk::binding(4, 4)]]
+RWTexture2D<float4> ptOutput : register(u4);
+
 
 [shader("compute")]
 [numthreads(16, 16, 1)]
