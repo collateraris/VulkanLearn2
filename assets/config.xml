@@ -11,7 +11,7 @@
 		id="1"
 	></current_scene>
 
-	<render_mode name="RESTIR_NRC"></render_mode>
+	<render_mode name="RESTIR"></render_mode>
 
 	<env_map
 		size="512"
