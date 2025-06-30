@@ -28,24 +28,24 @@ cbuffer MyContantBuffer2 : register(b0)
 [[vk::binding(0, 3)]]
 ByteAddressBuffer gMLPParams : register(t0);
 
-[[vk::binding(1, 0)]]
+[[vk::binding(1, 3)]]
 RWByteAddressBuffer gMLPParamsGradients  : register(t1);
 
 
-[[vk::binding(0, 2)]]
+[[vk::binding(0, 4)]]
 RWTexture2D<float4> ptAlbedoMetalnessOutput : register(u0);
 
-[[vk::binding(1, 2)]]
+[[vk::binding(1, 4)]]
 RWTexture2D<float4> ptEmissionRoughnessOutput : register(u1);
 
-[[vk::binding(2, 2)]]
+[[vk::binding(2, 4)]]
 RWTexture2D<float4> ptNormalOutput : register(u2);
 
-[[vk::binding(3, 2)]]
+[[vk::binding(3, 4)]]
 RWTexture2D<float4> ptWposObjectIdOutput : register(u3);
 
 [shader("compute")]
-[numthreads(64, 1, 1)] 
+[numthreads(16, 16, 1)] 
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
     if (dispatchThreadId.x >= giParams.widthScreen ||  dispatchThreadId.y >= giParams.heightScreen)
