@@ -31,7 +31,7 @@ void VulkanNRC_TrainingPass::init(VulkanEngine* engine)
 		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::NRC_Training,
 			[=](VkPipeline& pipeline, VkPipelineLayout& pipelineLayout) {
 				ShaderEffect computeEffect;
-				computeEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("nrc_optimizer.comp.slang.spv")), VK_SHADER_STAGE_COMPUTE_BIT);
+				computeEffect.add_stage(_engine->_shaderCache.get_shader(VulkanEngine::shader_slang_path("nrc_training.comp.slang.spv")), VK_SHADER_STAGE_COMPUTE_BIT);
 				computeEffect.reflect_layout(engine->_device, nullptr, 0);
 
 				ComputePipelineBuilder computePipelineBuilder;

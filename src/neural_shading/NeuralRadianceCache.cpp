@@ -36,12 +36,13 @@ void NeuralRadianceCache::create_mlp_buffers()
     m_batchSize = BATCH_SIZE;
 
     m_mlpHostBuffer = _engine->create_buffer_n_copy_data(params.size(), m_neuralNetwork->GetNetworkParams().data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    m_mlpDeviceBuffer = _engine->create_gpuonly_buffer(m_deviceNetworkLayout.networkSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    std::vector<float> fbuf0(params.size(), 0.);
+    m_mlpDeviceBuffer = _engine->create_buffer_n_copy_data(m_deviceNetworkLayout.networkSize, fbuf0.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
     // Convert to GPU optimized layout
     m_networkUtils->ConvertWeights(m_neuralNetwork->GetNetworkLayout(), m_deviceNetworkLayout, m_mlpHostBuffer, 0, m_mlpDeviceBuffer, 0);
 
-    std::vector<float> fbuf(m_totalParameterCount);
+    std::vector<float> fbuf(m_totalParameterCount, 0.);
     std::transform((uint16_t*)params.data(), ((uint16_t*)params.data()) + m_totalParameterCount, fbuf.begin(), [](auto v) { return rtxns::float16ToFloat32(v); });
     m_mlpParamsBuffer32 = _engine->create_buffer_n_copy_data(m_totalParameterCount * sizeof(float), fbuf.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
