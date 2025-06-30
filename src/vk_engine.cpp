@@ -565,6 +565,8 @@ void VulkanEngine::init_vulkan()
 		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
 		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME, // Required by ray tracing pipeline
+		VK_EXT_SHADER_REPLICATED_COMPOSITES_EXTENSION_NAME,
+
 #if VULKAN_RAYTRACE_DEBUG_ON		
 		VK_NV_RAY_TRACING_VALIDATION_EXTENSION_NAME,
 #endif	
@@ -649,6 +651,28 @@ void VulkanEngine::init_vulkan()
 	coopVecFeatures.cooperativeVectorTrainingFloat16Accumulation = true;
 	coopVecFeatures.cooperativeVectorTrainingFloat32Accumulation = true;
 
+	VkPhysicalDeviceCooperativeVectorFeaturesNV coopVecFeatures2 = {};
+	coopVecFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COOPERATIVE_VECTOR_FEATURES_NV;
+	coopVecFeatures2.pNext = nullptr;
+	coopVecFeatures2.cooperativeVector = true;
+
+	VkPhysicalDeviceVulkan12Features vulkan12Features = {};
+	vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+	vulkan12Features.pNext = nullptr;
+	vulkan12Features.shaderFloat16 = true;
+
+	VkPhysicalDeviceShaderReplicatedCompositesFeaturesEXT shaderReplicatedFeatures = {};
+	shaderReplicatedFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_REPLICATED_COMPOSITES_FEATURES_EXT;
+	shaderReplicatedFeatures.pNext = nullptr;
+	shaderReplicatedFeatures.shaderReplicatedComposites = true;
+
+	VkPhysicalDevice16BitStorageFeatures  _16bitstorageFeatures = {};
+	_16bitstorageFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_REPLICATED_COMPOSITES_FEATURES_EXT;
+	_16bitstorageFeatures.pNext = nullptr;
+	_16bitstorageFeatures.storageBuffer16BitAccess = true;
+
+
+
 	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features)
 		.add_pNext(&featuresMesh)
 		.add_pNext(&buffer_device_address_features)
@@ -658,6 +682,10 @@ void VulkanEngine::init_vulkan()
 		.add_pNext(&rt_features)
 		.add_pNext(&ray_query_features)
 		.add_pNext(&coopVecFeatures)
+		.add_pNext(&coopVecFeatures2)
+		.add_pNext(&vulkan12Features)
+		.add_pNext(&shaderReplicatedFeatures)
+		.add_pNext(&_16bitstorageFeatures)
 		//.add_pNext(&synchronized2_features)
 	#if VULKAN_RAYTRACE_DEBUG_ON	
 		.add_pNext(&rtValidationFeatures)

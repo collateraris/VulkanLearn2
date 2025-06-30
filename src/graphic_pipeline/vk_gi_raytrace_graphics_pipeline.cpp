@@ -392,44 +392,68 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init_scene_descriptors()
 				.build(_engine, currentDesciptor);
 		}
 
-		const uint32_t mlpDeviceBinding = 0;
-		const uint32_t mlpParamsBinding = 1;
-		const uint32_t mlpGradientsBinding = 2;
-		const uint32_t mlpMoments1Binding = 3;
-		const uint32_t mlpMoments2Binding = 4;
+		{
+			const uint32_t mlpDeviceBinding = 0;
+			const uint32_t mlpParamsBinding = 1;
+			const uint32_t mlpGradientsBinding = 2;
+			const uint32_t mlpMoments1Binding = 3;
+			const uint32_t mlpMoments2Binding = 4;
 
-		VkDescriptorBufferInfo mlpDeviceInfo;
-		mlpDeviceInfo.buffer = _engine->_resManager.nrc_cache->m_mlpDeviceBuffer._buffer;
-		mlpDeviceInfo.offset = 0;
-		mlpDeviceInfo.range = VK_WHOLE_SIZE;
+			VkDescriptorBufferInfo mlpDeviceInfo;
+			mlpDeviceInfo.buffer = _engine->_resManager.nrc_cache->m_mlpDeviceBuffer._buffer;
+			mlpDeviceInfo.offset = 0;
+			mlpDeviceInfo.range = VK_WHOLE_SIZE;
 
-		VkDescriptorBufferInfo mlpParamsInfo;
-		mlpParamsInfo.buffer = _engine->_resManager.nrc_cache->m_mlpParamsBuffer32._buffer;
-		mlpParamsInfo.offset = 0;
-		mlpParamsInfo.range = VK_WHOLE_SIZE;
+			VkDescriptorBufferInfo mlpParamsInfo;
+			mlpParamsInfo.buffer = _engine->_resManager.nrc_cache->m_mlpParamsBuffer32._buffer;
+			mlpParamsInfo.offset = 0;
+			mlpParamsInfo.range = VK_WHOLE_SIZE;
 
-		VkDescriptorBufferInfo mlpGradientsInfo;
-		mlpGradientsInfo.buffer = _engine->_resManager.nrc_cache->m_mlpGradientsBuffer._buffer;
-		mlpGradientsInfo.offset = 0;
-		mlpGradientsInfo.range = VK_WHOLE_SIZE;
+			VkDescriptorBufferInfo mlpGradientsInfo;
+			mlpGradientsInfo.buffer = _engine->_resManager.nrc_cache->m_mlpGradientsBuffer._buffer;
+			mlpGradientsInfo.offset = 0;
+			mlpGradientsInfo.range = VK_WHOLE_SIZE;
 
-		VkDescriptorBufferInfo mlpMoments1Info;
-		mlpMoments1Info.buffer = _engine->_resManager.nrc_cache->m_mlpMoments1Buffer._buffer;
-		mlpMoments1Info.offset = 0;
-		mlpMoments1Info.range = VK_WHOLE_SIZE;
+			VkDescriptorBufferInfo mlpMoments1Info;
+			mlpMoments1Info.buffer = _engine->_resManager.nrc_cache->m_mlpMoments1Buffer._buffer;
+			mlpMoments1Info.offset = 0;
+			mlpMoments1Info.range = VK_WHOLE_SIZE;
 
-		VkDescriptorBufferInfo mlpMoments2Info;
-		mlpMoments2Info.buffer = _engine->_resManager.nrc_cache->m_mlpMoments2Buffer._buffer;
-		mlpMoments2Info.offset = 0;
-		mlpMoments2Info.range = VK_WHOLE_SIZE;
+			VkDescriptorBufferInfo mlpMoments2Info;
+			mlpMoments2Info.buffer = _engine->_resManager.nrc_cache->m_mlpMoments2Buffer._buffer;
+			mlpMoments2Info.offset = 0;
+			mlpMoments2Info.range = VK_WHOLE_SIZE;
 
-		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
-			.bind_buffer(mlpDeviceBinding, &mlpDeviceInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
-			.bind_buffer(mlpParamsBinding, &mlpParamsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
-			.bind_buffer(mlpGradientsBinding, &mlpGradientsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
-			.bind_buffer(mlpMoments1Binding, &mlpMoments1Info, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
-			.bind_buffer(mlpMoments2Binding, &mlpMoments2Info, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
-			.build(_engine, EDescriptorResourceNames::NRC_MLP);
+			vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+				.bind_buffer(mlpDeviceBinding, &mlpDeviceInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+				.bind_buffer(mlpParamsBinding, &mlpParamsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+				.bind_buffer(mlpGradientsBinding, &mlpGradientsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+				.bind_buffer(mlpMoments1Binding, &mlpMoments1Info, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+				.bind_buffer(mlpMoments2Binding, &mlpMoments2Info, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+				.build(_engine, EDescriptorResourceNames::NRC_MLP_Optimize);
+		}
+
+		{
+			const uint32_t mlpDeviceBinding = 0;
+			const uint32_t mlpGradientsBinding = 1;
+
+			VkDescriptorBufferInfo mlpDeviceInfo;
+			mlpDeviceInfo.buffer = _engine->_resManager.nrc_cache->m_mlpDeviceBuffer._buffer;
+			mlpDeviceInfo.offset = 0;
+			mlpDeviceInfo.range = VK_WHOLE_SIZE;
+
+
+			VkDescriptorBufferInfo mlpGradientsInfo;
+			mlpGradientsInfo.buffer = _engine->_resManager.nrc_cache->m_mlpGradientsBuffer._buffer;
+			mlpGradientsInfo.offset = 0;
+			mlpGradientsInfo.range = VK_WHOLE_SIZE;
+
+
+			vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+				.bind_buffer(mlpDeviceBinding, &mlpDeviceInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+				.bind_buffer(mlpGradientsBinding, &mlpGradientsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+				.build(_engine, EDescriptorResourceNames::NRC_MLP_Train_Inference);
+		}
 	}
 }
 

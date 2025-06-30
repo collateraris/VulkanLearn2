@@ -10,15 +10,15 @@ cbuffer MyContantBuffer2 : register(b0)
 };
 
 [[vk::binding(0, 3)]]
-RWBuffer<half> gMLPParams  : register(t0);
+RWStructuredBuffer<half> gMLPParams  : register(t0);
 [[vk::binding(1, 3)]]
-RWBuffer<float> gMLPParams32  : register(t1);
+RWStructuredBuffer<float> gMLPParams32  : register(t1);
 [[vk::binding(2, 3)]]
-RWBuffer<half> gMLPParamsGradients  : register(t2);
+RWStructuredBuffer<half> gMLPParamsGradients  : register(t2);
 [[vk::binding(3, 3)]]
-RWBuffer<float> gMoments1  : register(t3);
+RWStructuredBuffer<float> gMoments1  : register(t3);
 [[vk::binding(4, 3)]]
-RWBuffer<float> gMoments2  : register(t4);
+RWStructuredBuffer<float> gMoments2  : register(t4);
 
 
 [shader("compute")]

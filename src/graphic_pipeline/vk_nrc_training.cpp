@@ -41,7 +41,8 @@ void VulkanNRC_TrainingPass::init(VulkanEngine* engine)
 				std::vector<VkDescriptorSetLayout> setLayout = { _engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->setLayout,
 																	_engine->get_engine_descriptor(EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0)->setLayout,
 																	_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_GlobalUniformBuffer_Frame0)->setLayout,
-																	_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP)->setLayout };
+																	_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP_Train_Inference)->setLayout,
+																	_rpDescrMan.get_layout() };
 				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
 				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
 
@@ -56,6 +57,12 @@ void VulkanNRC_TrainingPass::init(VulkanEngine* engine)
 
 void VulkanNRC_TrainingPass::init_description_set_global_buffer()
 {
+	_rpDescrMan = vkutil::DescriptorManagerBuilder::begin(_engine, _engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+		.bind_image(0, ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
+		.bind_image(1, ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
+		.bind_image(2, ETextureResourceNames::PT_GBUFFER_NORMAL, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
+		.bind_image(3, ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
+		.create_desciptor_manager();
 }
 
 Texture& VulkanNRC_TrainingPass::get_tex(ETextureResourceNames name) const
@@ -66,7 +73,7 @@ Texture& VulkanNRC_TrainingPass::get_tex(ETextureResourceNames name) const
 void VulkanNRC_TrainingPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
 	const NeuralRadianceCache& nrc = *_engine->_resManager.nrc_cache.get();
-	cmd->dispatch(nrc.m_batchSize / 64, 1, 1, [&](VkCommandBuffer cmd)
+	cmd->dispatch(_tileNumberWidth, _tileNumberHeight, 1, [&](VkCommandBuffer cmd)
 	{
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipeline(EPipelineType::NRC_Training));
 
@@ -88,6 +95,8 @@ void VulkanNRC_TrainingPass::draw(VulkanCommandBuffer* cmd, int current_frame_in
 			1, &_engine->get_engine_descriptor(currentNRCUniformsDesc)->set, 0, nullptr);
 
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Training), 3,
-			1, &_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP)->set, 0, nullptr);
+			1, &_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP_Train_Inference)->set, 0, nullptr);
+
+		_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Inference), 4);
 	});
 }

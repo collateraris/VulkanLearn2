@@ -289,7 +289,8 @@ enum class EDescriptorResourceNames : uint32_t
 	GI_GlobalUniformBuffer_Frame1,
 	NRC_GlobalUniformBuffer_Frame0,
 	NRC_GlobalUniformBuffer_Frame1,
-	NRC_MLP,
+	NRC_MLP_Optimize,
+	NRC_MLP_Train_Inference,
 	GBuffer,
 	FluxData,
 	MAX

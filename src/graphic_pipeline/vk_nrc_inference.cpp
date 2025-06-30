@@ -52,7 +52,7 @@ void VulkanNRC_InferencePass::init(VulkanEngine* engine)
 				std::vector<VkDescriptorSetLayout> setLayout = { _engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->setLayout,
 																	_engine->get_engine_descriptor(EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0)->setLayout,
 																	_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_GlobalUniformBuffer_Frame0)->setLayout,
-																	_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP)->setLayout,
+																	_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP_Train_Inference)->setLayout,
 																	_rpDescrMan.get_layout() };
 				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
 				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
@@ -106,7 +106,7 @@ void VulkanNRC_InferencePass::draw(VulkanCommandBuffer* cmd, int current_frame_i
 			1, &_engine->get_engine_descriptor(currentNRCUniformsDesc)->set, 0, nullptr);
 
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Inference), 3,
-			1, &_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP)->set, 0, nullptr);
+			1, &_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP_Train_Inference)->set, 0, nullptr);
 
 		_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Inference), 4);
 	});
