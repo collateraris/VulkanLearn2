@@ -166,7 +166,7 @@ bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surf
 	float samplePdfG = 0.0f;
 	uint candidateLightIndex = -1;
 	[unroll]
-	for (int i = 0; i < RIS_CANDIDATES_LIGHTS; i++) {
+	for (int i = 0; i < RIS_CANDIDATES_LIGHTS2; i++) {
 
 		float candidateWeight;
 		SLight candidate;
@@ -340,10 +340,28 @@ float3 randomReplayPath(uint4 rngState, float3 rayDir, float3 rayOri, float3 thr
     return radiance;
 };
 
-void getBoundParams(SReservoirPT reservoir, MaterialProperties material, float3 V, float3 shadingNormal, float3 geometryNormal, float3 worldPos, out float3 throughputOut, out float3 rayDirOut, out float3 rayOriOut, out uint4 rngStateOut)
+bool getBoundParams(SReservoirPT reservoir, MaterialProperties material, out float3 V, out float3 shadingNormal, out float3 geometryNormal, float3 worldPos, out float3 throughputOut, out float3 rayDirOut, out float3 rayOriOut, out uint4 rngStateOut)
 {
     uint4 rngState = reservoir.randomSeed;
     float3 throughput = float3(1., 1., 1.,);
+
+	if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
+	if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
+
+	// Neighborhood around surface point (approximated by tangent plane from geometry normal) is visible, 
+	// yet camera would be behind the tangent plane formed by bumped normal -- this can cause black spots 
+	// as brdf evaluates to 0 in these regions. To mitigate the issue, rotate the bumped normal towards
+	// wo until their dot product becomes greater than zero:
+	//
+	// 1. Project bumped normal onto plane formed by normal vector wo
+	// 2. Slightly rotate the projection towards wo so that their dot product becomes greater than zero
+	if(dot(V, geometryNormal) > 0 && dot(V, shadingNormal) < 0)
+	{
+		V = normalize(V);
+		shadingNormal = shadingNormal - dot(shadingNormal, V) * V;
+		shadingNormal = 1e-4f * V + shadingNormal;
+		shadingNormal = normalize(shadingNormal);
+	}
 
     // Sample BRDF to generate the next ray
     // First, figure out whether to sample diffuse or specular BRDF
@@ -361,14 +379,15 @@ void getBoundParams(SReservoirPT reservoir, MaterialProperties material, float3 
             throughput /= brdfProbability;
         } else {
             brdfType = DIFFUSE_TYPE;
-            throughputOut /= (1.0f - brdfProbability);
+            throughput /= (1.0f - brdfProbability);
         }
     }
 
     // Run importance sampling of selected BRDF to generate reflecting ray direction
     float3 brdfWeight;
     float2 u = float2(rand(rngState), rand(rngState));
-    evalIndirectCombinedBRDF(u, shadingNormal, geometryNormal, V, material, brdfType, rayDirOut, brdfWeight);
+    if(!evalIndirectCombinedBRDF(u, shadingNormal, geometryNormal, V, material, brdfType, rayDirOut, brdfWeight))
+		return false;
 
     // Account for surface properties using the BRDF "weight"
     throughput *= brdfWeight;
@@ -379,6 +398,8 @@ void getBoundParams(SReservoirPT reservoir, MaterialProperties material, float3 
     reservoir.randomSeed = rngState;
     throughputOut = throughput;
     rngStateOut = rngState;
+
+	return true;
 };
 
 [shader("raygeneration")]
@@ -424,7 +445,7 @@ void main()
     const float dist_threshold = 0.01f;
     const float angle_threshold = 25.f * M_PI / 180.f;
     
-	[unroll]
+	[loop]
     for (int i = 0; i < neighborsCount; i++)
     {
         // Generate a random number from range [0, 2 * neighborsRange] then offset in negative direction 
@@ -455,42 +476,54 @@ void main()
                 continue;
         }
 
-		float2 pixelCenter = float2(neighborIndex) + float2(0.5);
-        float2 inUV = pixelCenter/float2(LaunchDimensions);
-        float2 d = inUV * 2.0 - 1.0;
+		float target_pdf1 = 0;
+		float target_pdf2 = 0;
 
-        float4 target    = mul(giParams.projInverse , float4(d.x, d.y, 1, 1));
-        float4 direction = mul(giParams.viewInverse , float4(normalize(target.xyz), 0));
-        float3 rayDir = normalize(direction.xyz);
-        float3 V = -rayDir;
+		target_pdf1 = neighborReservoir.samplesNumber > 0 ? luminance(neighborReservoir.radiance.xyz) : 0.f;
+		reservoirNew.updateReservoir(rngState, neighborReservoir, target_pdf1 * neighborReservoir.finalWeight * neighborReservoir.samplesNumber);
 
-        //random randomReplayPath
-        float3 throughputN;
-        float3 rayDirN;
-        float3 rayOriN;
-        uint4 rngStateN;
-        MaterialProperties materialN =  loadMaterialProperties2(neighborIndex);
-        getBoundParams(neighborReservoir, materialN, V, shadingNormalN, geometryNormalN, wposObjectIdN.xyz, throughputN, rayDirN, rayOriN, rngStateN);
+		if (neighborReservoir.samplesNumber > 0)
+		{
+			float2 pixelCenter = float2(neighborIndex) + float2(0.5);
+			float2 inUV = pixelCenter/float2(LaunchDimensions);
+			float2 d = inUV * 2.0 - 1.0;
 
-        float3 worldPos1stN;
-        float3 shadingNormal1stN;
-        //neighborReservoir.radiance.xyz = randomReplayPath(rngStateN, rayDirN, rayOriN, throughputN, worldPos1stN, shadingNormal1stN);
+			float4 target    = mul(giParams.projInverse , float4(d.x, d.y, 1, 1));
+			float4 direction = mul(giParams.viewInverse , float4(normalize(target.xyz), 0));
+			float3 rayDir = normalize(direction.xyz);
+			float3 V = -rayDir;
+			
+			//random randomReplayPath
+			float3 throughputN;
+			float3 rayDirN;
+			float3 rayOriN;
+			uint4 rngStateN;
+			MaterialProperties materialN =  loadMaterialProperties2(neighborIndex);
+			if (getBoundParams(reservoirTemporal, materialN, V, shadingNormalN, geometryNormalN, wposObjectIdN.xyz, throughputN, rayDirN, rayOriN, rngStateN))
+			{
+				float3 worldPos1stN;
+				float3 shadingNormal1stN;
+				neighborReservoir.radiance.xyz = randomReplayPath(rngStateN, rayDirN, rayOriN, throughputN, worldPos1stN, shadingNormal1stN);
 
-        target_pdf = luminance(neighborReservoir.radiance.xyz);
+				float target_pdf2 = luminance(neighborReservoir.radiance.xyz);
 
-        // Calculate Jacobian
-        float3 w_qq = wposObjectId.xyz - worldPos1stN.xyz;
-        const float w_qq_len = length(w_qq);
-        w_qq /= w_qq_len;
-        float3 w_rq = wposObjectIdN.xyz - worldPos1stN.xyz;
-        const float w_rq_len = length(w_rq);
-        w_rq /= w_rq_len;
-        const float qq = w_qq_len * w_qq_len;
-        const float rq = w_rq_len * w_rq_len;
-        const float div = rq * abs(dot(w_qq, shadingNormal1stN));
-        target_pdf *= div == 0 ? 0 : abs(dot(w_rq, shadingNormal1stN)) * qq / div;
+				// Calculate Jacobian
+				float3 w_qq = wposObjectId.xyz - worldPos1stN.xyz;
+				const float w_qq_len = length(w_qq);
+				w_qq /= w_qq_len;
+				float3 w_rq = wposObjectIdN.xyz - worldPos1stN.xyz;
+				const float w_rq_len = length(w_rq);
+				w_rq /= w_rq_len;
+				const float qq = w_qq_len * w_qq_len;
+				const float rq = w_rq_len * w_rq_len;
+				const float div = rq * abs(dot(w_qq, shadingNormal1stN));
+				target_pdf2 *= div == 0 ? 0 : abs(dot(w_rq, shadingNormal1stN)) * qq / div;
 
-        reservoirNew.updateReservoir(rngState, neighborReservoir, target_pdf * neighborReservoir.finalWeight * neighborReservoir.samplesNumber);
+				neighborReservoir.samplesNumber += 1;
+			}
+		}
+
+		reservoirNew.updateReservoir(rngState, neighborReservoir, target_pdf2 * neighborReservoir.finalWeight * neighborReservoir.samplesNumber);
 
         lightSamplesCount += neighborReservoir.samplesNumber;
     };
