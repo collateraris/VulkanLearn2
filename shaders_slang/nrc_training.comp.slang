@@ -55,6 +55,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     PCG32 rng = PCG32(gConst.seed, dispatchThreadId.x);
 
+    float4 albedo = float4(ptAlbedoMetalnessOutput[dispatchThreadId.xy].xyz, 1);
     float metalness = ptAlbedoMetalnessOutput[dispatchThreadId.xy].a;
     float roughtness = ptEmissionRoughnessOutput[dispatchThreadId.xy].a;
     float4 normalEncode = ptNormalOutput[dispatchThreadId.xy];
@@ -62,14 +63,14 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     uint reservoirIndx = dispatchThreadId.y * (giParams.widthScreen + 1) + dispatchThreadId.x;
     SReservoirPT indirect = reservoirPTSpacialBuffer[reservoirIndx];
-    float4 indirectRadiance = float4(indirect.radiance.xyz * indirect.finalWeight, 1.);
-
+    float4 indirectRadiance = albedo;//float4(indirect.radiance.xyz * indirect.finalWeight, 1.);
+    //float4 indirectRadiance = float4(indirect.radiance.xyz * indirect.finalWeight, 1.);
 
     //----------- Training step
     float params[INPUT_FEATURES] = {metalness, roughtness, normalEncode.x, normalEncode.y, normalEncode.z, normalEncode.w, wpos.x, wpos.y, wpos.z};
     var inputParams = rtxns::EncodeFrequency<half, INPUT_FEATURES>(params);
 
-    var model = rtxns::mlp::TrainingMLP<half, 
+    var model = rtxns::mlp::TrainingMLP<half,  
         NUM_HIDDEN_LAYERS, INPUT_NEURONS, HIDDEN_NEURONS, OUTPUT_NEURONS, 
         CoopVecMatrixLayout::TrainingOptimal, CoopVecComponentType::Float16>(
         gMLPParams, 

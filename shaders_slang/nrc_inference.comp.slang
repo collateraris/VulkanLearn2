@@ -99,7 +99,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     var model = rtxns::mlp::InferenceMLP<half, 
         NUM_HIDDEN_LAYERS, 
-        INPUT_NEURONS, 
+        INPUT_NEURONS,  
         HIDDEN_NEURONS, 
         OUTPUT_NEURONS, 
         CoopVecMatrixLayout::TrainingOptimal, 
@@ -109,7 +109,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         rtxns::UnpackArray<NUM_TRANSITIONS_ALIGN4, NUM_TRANSITIONS>(gConst.biasOffsets));
 
     var outputParams = model.forward(inputParams, rtxns::mlp::ReLUAct<half, HIDDEN_NEURONS>(), rtxns::mlp::ExponentialAct<half, OUTPUT_NEURONS>());
-    float4 indirectRadiance =  float4(outputParams[0], outputParams[1], outputParams[2], outputParams[3]);    
+    float4 indirectRadiance =  float4(outputParams[0], outputParams[1], outputParams[2], outputParams[3]);  
 
     if (reservoirSpacial.lightSampler < 0)
     {
@@ -149,7 +149,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     float3 radiance = material.emissive + evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * reservoirSpacial.finalWeight);
 
-    ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f) + indirectRadiance;
-    //ptOutput[dispatchThreadId.xy] = indirectRadiance;
+    //ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f) + indirectRadiance;
+    ptOutput[dispatchThreadId.xy] = indirectRadiance;
     //ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f);
 }
