@@ -94,7 +94,20 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     float3 shadingNormal;
     decodeNormals(normalEncode, geometryNormal, shadingNormal);
 
-    float params[INPUT_FEATURES] = {material.metalness, material.roughness, normalEncode.x, normalEncode.y, normalEncode.z, normalEncode.w, wposObjectId.x, wposObjectId.y, wposObjectId.z};
+    uint2 LaunchIndex = dispatchThreadId.xy;
+	uint2 LaunchDimensions = uint2(giParams.widthScreen,giParams.heightScreen);
+    const float2 pixelCenter = float2(LaunchIndex) + float2(0.5);
+    const float2 inUV = pixelCenter/float2(LaunchDimensions);
+    float2 d = inUV * 2.0 - 1.0;
+
+    float4 origin    = mul(giParams.viewInverse , float4(0, 0, 0, 1));
+    float4 target    = mul(giParams.projInverse , float4(d.x, d.y, 1, 1));
+    float4 direction = mul(giParams.viewInverse , float4(normalize(target.xyz), 0));
+
+	float3 rayDir = normalize(direction.xyz);
+    float3 V = -rayDir;
+
+    float params[INPUT_FEATURES] = {material.metalness, material.roughness, rayDir.x, rayDir.y, rayDir.z, 1, wposObjectId.x, wposObjectId.y, wposObjectId.z};
     var inputParams = rtxns::EncodeFrequency<half, INPUT_FEATURES>(params);
 
     var model = rtxns::mlp::InferenceMLP<half, 
@@ -109,26 +122,13 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         rtxns::UnpackArray<NUM_TRANSITIONS_ALIGN4, NUM_TRANSITIONS>(gConst.biasOffsets));
 
     var outputParams = model.forward(inputParams, rtxns::mlp::ReLUAct<half, HIDDEN_NEURONS>(), rtxns::mlp::ExponentialAct<half, OUTPUT_NEURONS>());
-    float4 indirectRadiance =  float4(outputParams[0], outputParams[1], outputParams[2], outputParams[3]);  
+    float4 indirectRadiance =  float4(indirect.radiance.xyz * indirect.finalWeight, 1.);//float4(outputParams[0], outputParams[1], outputParams[2], outputParams[3]);  
 
     if (reservoirSpacial.lightSampler < 0)
     {
         ptOutput[dispatchThreadId.xy] = indirectRadiance;
         return;
     };
-
-    uint2 LaunchIndex = dispatchThreadId.xy;
-	uint2 LaunchDimensions = uint2(giParams.widthScreen,giParams.heightScreen);
-    const float2 pixelCenter = float2(LaunchIndex) + float2(0.5);
-    const float2 inUV = pixelCenter/float2(LaunchDimensions);
-    float2 d = inUV * 2.0 - 1.0;
-
-    float4 origin    = mul(giParams.viewInverse , float4(0, 0, 0, 1));
-    float4 target    = mul(giParams.projInverse , float4(d.x, d.y, 1, 1));
-    float4 direction = mul(giParams.viewInverse , float4(normalize(target.xyz), 0));
-
-	float3 rayDir = normalize(direction.xyz);
-    float3 V = -rayDir;
 
     // Prepare data needed to evaluate the light
     float3 lightVector;
@@ -149,7 +149,7 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     float3 radiance = material.emissive + evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * reservoirSpacial.finalWeight);
 
-    //ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f) + indirectRadiance;
-    ptOutput[dispatchThreadId.xy] = indirectRadiance;
+    ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f) + indirectRadiance;
+    //ptOutput[dispatchThreadId.xy] = indirectRadiance;
     //ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f);
 }

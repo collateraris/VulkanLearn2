@@ -63,11 +63,21 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     uint reservoirIndx = dispatchThreadId.y * (giParams.widthScreen + 1) + dispatchThreadId.x;
     SReservoirPT indirect = reservoirPTSpacialBuffer[reservoirIndx];
-    float4 indirectRadiance = albedo;//float4(indirect.radiance.xyz * indirect.finalWeight, 1.);
-    //float4 indirectRadiance = float4(indirect.radiance.xyz * indirect.finalWeight, 1.);
+    //float4 indirectRadiance = albedo;//float4(indirect.radiance.xyz * indirect.finalWeight, 1.);
+    float4 indirectRadiance = float4(indirect.radiance.xyz * indirect.finalWeight, 1.);
+
+    uint2 LaunchIndex = dispatchThreadId.xy;
+	uint2 LaunchDimensions = uint2(giParams.widthScreen, giParams.heightScreen);
+    const float2 pixelCenter = float2(LaunchIndex) + float2(0.5);
+    const float2 inUV = pixelCenter/float2(LaunchDimensions);
+    float2 d = inUV * 2.0 - 1.0;
+    float4 target    = mul(giParams.projInverse , float4(d.x, d.y, 1, 1));
+    float4 direction = mul(giParams.viewInverse , float4(normalize(target.xyz), 0));
+
+	float3 rayDir = normalize(direction.xyz);
 
     //----------- Training step
-    float params[INPUT_FEATURES] = {metalness, roughtness, normalEncode.x, normalEncode.y, normalEncode.z, normalEncode.w, wpos.x, wpos.y, wpos.z};
+    float params[INPUT_FEATURES] = {metalness, roughtness, rayDir.x, rayDir.y, rayDir.z, 1, wpos.x, wpos.y, wpos.z};
     var inputParams = rtxns::EncodeFrequency<half, INPUT_FEATURES>(params);
 
     var model = rtxns::mlp::TrainingMLP<half,  
