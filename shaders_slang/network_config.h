@@ -5,8 +5,8 @@
 #define OUTPUT_NEURONS 4
 
 
-#define HIDDEN_NEURONS 64
-#define NUM_HIDDEN_LAYERS 7
+#define HIDDEN_NEURONS 32
+#define NUM_HIDDEN_LAYERS 3
 #define BATCH_SIZE (1 << 16)
 #define BATCH_COUNT 1
 
