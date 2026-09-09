@@ -74,6 +74,9 @@
 
 #include <math.h>
 #include <float.h>
+// Recent Windows SDKs use AVX intrinsics in wchar.h. Parse it before
+// IntrinEmu.h remaps those intrinsic names inside the MathLib namespace.
+#include <wchar.h>
 
 #if defined(__i386__) || defined(__x86_64__) || defined(__SCE__)
     #include <x86intrin.h>

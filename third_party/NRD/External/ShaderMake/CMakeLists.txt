@@ -13,6 +13,11 @@ if (NOT SHADERMAKE_IS_SUBMODULE)
 endif()
 
 set (SHADERMAKE_BIN_OUTPUT_PATH "${CMAKE_SOURCE_DIR}/bin" CACHE STRING "")
+# NRD can initialize this cache entry to an empty runtime output directory.
+# Keep the tool inside the build tree instead of resolving /Debug at the drive root.
+if (NOT SHADERMAKE_BIN_OUTPUT_PATH)
+    set (SHADERMAKE_BIN_OUTPUT_PATH "${CMAKE_CURRENT_BINARY_DIR}/bin" CACHE STRING "ShaderMake output directory" FORCE)
+endif ()
 set (SHADERMAKE_SEARCH_FOR_COMPILERS ${SHADERMAKE_IS_SUBMODULE} CACHE BOOL "Toggles whether to search for dxc.exe and fxc.exe")
 option (SHADERMAKE_FIND_FXC "Toggles whether to search for FXC" ON)
 option (SHADERMAKE_FIND_DXC "Toggles whether to search for DXC for DXIL" ON)
@@ -92,6 +97,15 @@ else ()
 endif ()
 
 if (SHADERMAKE_SEARCH_FOR_COMPILERS)
+    # find_program trusts cached paths even after the corresponding SDK is removed.
+    # Preserve valid overrides and rediscover only missing compiler executables.
+    foreach (SHADERMAKE_COMPILER_PATH FXC_PATH DXC_PATH DXC_SPIRV_PATH)
+        if (DEFINED ${SHADERMAKE_COMPILER_PATH} AND NOT EXISTS "${${SHADERMAKE_COMPILER_PATH}}")
+            unset (${SHADERMAKE_COMPILER_PATH} CACHE)
+            unset (${SHADERMAKE_COMPILER_PATH})
+        endif ()
+    endforeach ()
+
     # Finding FXC/DXC
     if (WIN32)
         if (SHADERMAKE_FIND_FXC OR SHADERMAKE_FIND_DXC)
@@ -108,22 +122,22 @@ if (SHADERMAKE_SEARCH_FOR_COMPILERS)
             set (WINDOWS_SDK_BIN "${WINDOWS_SDK_ROOT}/bin/${WINDOWS_SDK_VERSION}/x64")
 
             if (SHADERMAKE_FIND_FXC)
-                find_program (FXC_PATH "${WINDOWS_SDK_BIN}/fxc")
+                find_program (FXC_PATH NAMES fxc HINTS "${WINDOWS_SDK_BIN}")
                 if (NOT FXC_PATH)
                     message (FATAL_ERROR "Can't find FXC in WindowsSDK: ${WINDOWS_SDK_BIN}")
                 endif ()
             endif()
 
             if (SHADERMAKE_FIND_DXC)
-                find_program (DXC_PATH "${WINDOWS_SDK_BIN}/dxc")
+                find_program (DXC_PATH NAMES dxc HINTS "${WINDOWS_SDK_BIN}" "$ENV{VULKAN_SDK}/Bin" "${DXC_CUSTOM_PATH}")
                 if (NOT DXC_PATH)
-                    message (FATAL_ERROR "Can't find DXC in WindowsSDK: ${WINDOWS_SDK_BIN}")
+                    message (FATAL_ERROR "Can't find DXC: install WindowsSDK/VulkanSDK or set DXC_PATH to dxc.exe.")
                 endif ()
             endif()
         endif()
 
         if (SHADERMAKE_FIND_DXC_SPIRV)
-            find_program (DXC_SPIRV_PATH "$ENV{VULKAN_SDK}/Bin/dxc")
+            find_program (DXC_SPIRV_PATH NAMES dxc HINTS "$ENV{VULKAN_SDK}/Bin" "${DXC_CUSTOM_PATH}")
         endif()
     else ()
         if (SHADERMAKE_FIND_DXC_SPIRV)
