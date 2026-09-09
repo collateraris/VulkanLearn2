@@ -7,7 +7,8 @@ class VulkanCommandPool
 {
 public:
 	VulkanCommandPool() = default;
-	~VulkanCommandPool();
+	// Device lifetime is owned by VulkanEngine's deletion queue.
+	~VulkanCommandPool() = default;
 
 	void init(VulkanEngine* engine, const VkCommandPoolCreateInfo& commandPoolInfo);
 

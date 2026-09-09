@@ -4,6 +4,9 @@
 #pragma once
 
 #include <vk_types.h>
+
+void VK_CHECK(VkResult result);
+
 #include <vk_utils.h>
 #include <vk_scene.h>
 #include <vk_resource_manager.h>
@@ -209,6 +212,8 @@ public:
 
 	bool _isInitialized{ false };
 	int _frameNumber {0};
+	bool _frameAccumulationEnabled{ true };
+	bool _denoiserEnabled{ false };
 
 	VkExtent2D _windowExtent{ 2500 , 1400 };
 

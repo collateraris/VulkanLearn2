@@ -3,6 +3,19 @@
 #include <vk_initializers.h>
 #include <sys_config/vk_strings.h>
 #include <spirv_reflect.h>
+#include <unordered_set>
+
+namespace
+{
+	// Effects receive VkDevice rather than VulkanEngine. Keep their reflected
+	// handles with the device until ShaderCache's explicit pre-device cleanup.
+	struct ReflectedDeviceResources
+	{
+		std::vector<VkDescriptorSetLayout> descriptorLayouts;
+		std::unordered_set<VkPipelineLayout> pipelineLayouts;
+	};
+	std::unordered_map<VkDevice, ReflectedDeviceResources> reflectedDeviceResources;
+}
 
 bool ShaderLoader::load_shader_module(VkDevice device, const char* filePath, ShaderModule* outShaderModule)
 {
@@ -180,6 +193,7 @@ void ShaderEffect::reflect_layout(VkDevice device, ReflectionOverrides* override
 
 			constant_ranges.push_back(pcs);
 		}
+		spvReflectDestroyShaderModule(&spvmodule);
 	}
 
 	std::array<DescriptorSetLayoutData, 4> merged_layouts;
@@ -231,7 +245,8 @@ void ShaderEffect::reflect_layout(VkDevice device, ReflectionOverrides* override
 
 		if (ly.create_info.bindingCount > 0) {
 			setHashes[i] = ShaderLoader::hash_descriptor_layout_info(&ly.create_info);
-			vkCreateDescriptorSetLayout(device, &ly.create_info, nullptr, &setLayouts[i]);
+			if (vkCreateDescriptorSetLayout(device, &ly.create_info, nullptr, &setLayouts[i]) == VK_SUCCESS)
+				reflectedDeviceResources[device].descriptorLayouts.push_back(setLayouts[i]);
 		}
 		else {
 			setHashes[i] = 0;
@@ -258,7 +273,8 @@ void ShaderEffect::reflect_layout(VkDevice device, ReflectionOverrides* override
 	mesh_pipeline_layout_info.pSetLayouts = compactedLayouts.data();
 
 
-	vkCreatePipelineLayout(device, &mesh_pipeline_layout_info, nullptr, &builtLayout);
+	if (vkCreatePipelineLayout(device, &mesh_pipeline_layout_info, nullptr, &builtLayout) == VK_SUCCESS)
+		reflectedDeviceResources[device].pipelineLayouts.insert(builtLayout);
 }
 
 void ShaderEffect::fill_stages(std::vector<VkPipelineShaderStageCreateInfo>& pipelineStages)
@@ -409,6 +425,34 @@ void ShaderDescriptorBinder::set_shader(ShaderEffect* newShader)
 	}
 
 	shaders = newShader;
+}
+
+void ShaderCache::cleanup()
+{
+	for (auto& [path, shader] : module_cache)
+	{
+		if (shader && shader->module != VK_NULL_HANDLE)
+			vkDestroyShaderModule(_device, shader->module, nullptr);
+	}
+	module_cache.clear();
+	auto reflected = reflectedDeviceResources.find(_device);
+	if (reflected != reflectedDeviceResources.end())
+	{
+		// Layouts adopted by VulkanRenderPipeline were removed from this set.
+		// The remaining layouts include reflected layouts replaced by callers.
+		for (VkPipelineLayout layout : reflected->second.pipelineLayouts)
+			vkDestroyPipelineLayout(_device, layout, nullptr);
+		for (VkDescriptorSetLayout layout : reflected->second.descriptorLayouts)
+			vkDestroyDescriptorSetLayout(_device, layout, nullptr);
+		reflectedDeviceResources.erase(reflected);
+	}
+}
+
+void ShaderCache::disown_reflected_pipeline_layout(VkPipelineLayout layout)
+{
+	auto reflected = reflectedDeviceResources.find(_device);
+	if (reflected != reflectedDeviceResources.end())
+		reflected->second.pipelineLayouts.erase(layout);
 }
 
 ShaderModule* ShaderCache::get_shader(const std::string& path)

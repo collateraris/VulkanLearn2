@@ -1,6 +1,7 @@
 #include "gi_pathtrace.h"
 #include "brdf.h"
 #include "network_config.h"
+#include "nrc_common.h"
 
 import NS_CooperativeVectorAutoDiff;
 import NS_CooperativeVectorFunctions;
@@ -8,8 +9,20 @@ import NS_Utils;
 import NS_Activation;
 import NS_MLP;
 
+[[vk::binding(0, 0)]]
+StructuredBuffer<SVertex> vertices[] : register(t0);
+
 [[vk::binding(1, 0)]]
 Texture2D<float4> texSet[] : register(t1);
+
+[[vk::binding(2, 0)]]
+RaytracingAccelerationStructure topLevelAS : register(t2);
+
+[[vk::binding(3, 0)]]
+StructuredBuffer<SObjectData> objectBuffer : register(t3);
+
+[[vk::binding(5, 0)]]
+StructuredBuffer<uint> indices[] : register(t5);
 
 [[vk::binding(6, 0)]]
 SamplerState      linearSampler : register(s6);
@@ -58,6 +71,8 @@ RWTexture2D<float4> ptWposObjectIdOutput : register(u3);
 [[vk::binding(4, 4)]]
 RWTexture2D<float4> ptOutput : register(u4);
 
+#include "restir_lighting.h"
+#include "restir_visibility.h"
 
 [shader("compute")]
 [numthreads(16, 16, 1)]
@@ -69,14 +84,15 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     };
 
     float4 wposObjectId = ptWposObjectIdOutput[dispatchThreadId.xy];
-    uint reservoirIndx = dispatchThreadId.y * (giParams.widthScreen + 1) + dispatchThreadId.x;
+    uint reservoirIndx = dispatchThreadId.y * giParams.widthScreen + dispatchThreadId.x;
 
     SReservoir reservoirSpacial = reservoirSpacialBuffer[reservoirIndx];
     SReservoirPT indirect = reservoirPTSpacialBuffer[reservoirIndx];
 
-    if (wposObjectId.w < 0.f)
+    if (wposObjectId.w < 0.f || !all(isfinite(wposObjectId.xyz)))
     {
-        ptOutput[dispatchThreadId.xy] = float4(0., 0., 0., 0.);
+        ptOutput[dispatchThreadId.xy] = float4(min(restirEnvironment(-restirViewDirection(dispatchThreadId.xy)),
+            float3(65504.f)), 1.f);
         return;
     };
 
@@ -84,31 +100,15 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     float4 emissiveRoughtness = ptEmissionRoughnessOutput[dispatchThreadId.xy];
     float4 normalEncode = ptNormalOutput[dispatchThreadId.xy];
     
-    MaterialProperties material = (MaterialProperties) 0;
-    material.baseColor = albedoMetalness.xyz;
-    material.metalness = albedoMetalness.w;
-    material.emissive = emissiveRoughtness.xyz;
-    material.roughness = emissiveRoughtness.w;
+    MaterialProperties material = restirMaterial(albedoMetalness, emissiveRoughtness);
 
     float3 geometryNormal;
     float3 shadingNormal;
     decodeNormals(normalEncode, geometryNormal, shadingNormal);
 
-    uint2 LaunchIndex = dispatchThreadId.xy;
-	uint2 LaunchDimensions = uint2(giParams.widthScreen,giParams.heightScreen);
-    const float2 pixelCenter = float2(LaunchIndex) + float2(0.5);
-    const float2 inUV = pixelCenter/float2(LaunchDimensions);
-    float2 d = inUV * 2.0 - 1.0;
-
-    float4 origin    = mul(giParams.viewInverse , float4(0, 0, 0, 1));
-    float4 target    = mul(giParams.projInverse , float4(d.x, d.y, 1, 1));
-    float4 direction = mul(giParams.viewInverse , float4(normalize(target.xyz), 0));
-
-	float3 rayDir = normalize(direction.xyz);
-    float3 V = -rayDir;
-
-    float params[INPUT_FEATURES] = {material.metalness, material.roughness, rayDir.x, rayDir.y, rayDir.z, 1, wposObjectId.x, wposObjectId.y, wposObjectId.z};
-    var inputParams = rtxns::EncodeFrequency<half, INPUT_FEATURES>(params);
+    float3 V = normalize(giParams.camPos.xyz - wposObjectId.xyz);
+    var inputParams = nrcEncodeSurface(albedoMetalness, material.roughness, shadingNormal,
+        wposObjectId.xyz, V, giParams.gridMin.xyz, giParams.gridMax.xyz);
 
     var model = rtxns::mlp::InferenceMLP<half, 
         NUM_HIDDEN_LAYERS, 
@@ -121,35 +121,28 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         rtxns::UnpackArray<NUM_TRANSITIONS_ALIGN4, NUM_TRANSITIONS>(gConst.weightOffsets), 
         rtxns::UnpackArray<NUM_TRANSITIONS_ALIGN4, NUM_TRANSITIONS>(gConst.biasOffsets));
 
-    var outputParams = model.forward(inputParams, rtxns::mlp::ReLUAct<half, HIDDEN_NEURONS>(), rtxns::mlp::ExponentialAct<half, OUTPUT_NEURONS>());
-    float4 indirectRadiance =  float4(indirect.radiance.xyz * indirect.finalWeight, 1.);//float4(outputParams[0], outputParams[1], outputParams[2], outputParams[3]);  
-
-    if (reservoirSpacial.lightSampler < 0)
+    var outputParams = model.forward(inputParams, rtxns::mlp::ReLUAct<half, HIDDEN_NEURONS>(),
+        rtxns::mlp::NoneAct<half, OUTPUT_NEURONS>());
+    float3 prediction = float3(outputParams[0], outputParams[1], outputParams[2]);
+    float3 indirectRadiance = nrcIndirectTarget(indirect);
+    if (all(isfinite(prediction)))
     {
-        ptOutput[dispatchThreadId.xy] = indirectRadiance;
-        return;
-    };
-
-    // Prepare data needed to evaluate the light
-    float3 lightVector;
-    float lightDistance;
-    SLight light = lightsBuffer[reservoirSpacial.lightSampler];
-    uint type = uint(light.color_type.w);
-    if (type == EMISSION_LIGHT)
-    {
-        float2 bary = reservoirSpacial.bary__.xy;
-        light.position_radius.xyz = (1.0f - bary.x - bary.y) * light.position_radius.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
-        float2 texCoord = (1.0f - bary.x - bary.y) * light.uv0_uv1.xy + bary.x * light.uv0_uv1.zw + bary.y * light.uv2_objectId_.xy;
-        SMaterialData mat = matBuffer[uint(light.uv2_objectId_.z)];
-        light.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
-        light.color_type.xyz = float3(light.color_type.x * mat.emissiveFactorMult_emissiveStrength.x, light.color_type.y * mat.emissiveFactorMult_emissiveStrength.y, light.color_type.z * mat.emissiveFactorMult_emissiveStrength.z);
+        // Warmup alone does not establish that the cache has converged on a
+        // bright scene. Keep at least 75% PT so an undertrained cache cannot
+        // erase the traced indirect lighting. Both estimate the same term.
+        float cacheWeight = NRC_CACHE_BLEND_MAX * saturate((gConst.currentStep - 32.f) / 96.f);
+        indirectRadiance = lerp(indirectRadiance, max(prediction, float3(0.f)), cacheWeight);
     }
-    getLightData(light, wposObjectId.xyz, lightVector, lightDistance);
-    float3 L = normalize(lightVector);
+    if (giParams.numRays == 0)
+        indirectRadiance = float3(0.f);
 
-    float3 radiance = material.emissive + evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * reservoirSpacial.finalWeight);
-
-    ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f) + indirectRadiance;
-    //ptOutput[dispatchThreadId.xy] = indirectRadiance;
-    //ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f);
+    float3 radiance = material.emissive + indirectRadiance;
+    restirOrientNormals(V, geometryNormal, shadingNormal);
+    if (restirValidLight(reservoirSpacial) && isfinite(reservoirSpacial.finalWeight) &&
+        reservoirSpacial.finalWeight > 0.f && restirLightVisible(reservoirSpacial, wposObjectId.xyz, geometryNormal))
+    {
+        radiance += restirEvaluateDirect(reservoirSpacial, wposObjectId.xyz, material,
+            geometryNormal, shadingNormal, V) * reservoirSpacial.finalWeight;
+    }
+    ptOutput[dispatchThreadId.xy] = float4(clamp(restirFiniteRadiance(radiance), float3(0.f), float3(65504.f)), 1.f);
 }

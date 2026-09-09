@@ -6,19 +6,19 @@
 #include <vk_engine.h>
 #include <vk_initializers.h>
 
-VulkanRenderPipeline::~VulkanRenderPipeline()
-{
-	vkDestroyPipeline(_engine->_device, _pipeline, nullptr);
-
-	vkDestroyPipelineLayout(_engine->_device, _pipelineLayout, nullptr);
-}
-
 void VulkanRenderPipeline::init(VulkanEngine* engine, EPipelineType type, std::function<void(VkPipeline& pipeline, VkPipelineLayout& pipelineLayout)>&& func)
 {
 	_engine = engine;
 	_type = type;
 
 	func(_pipeline, _pipelineLayout);
+	engine->_shaderCache.disown_reflected_pipeline_layout(_pipelineLayout);
+	// Callers create a fresh layout for each pipeline. Capture the handles rather
+	// than this vector element, which can move or outlive the Vulkan device.
+	engine->_mainDeletionQueue.push_function([device = engine->_device, pipeline = _pipeline, layout = _pipelineLayout]() {
+		vkDestroyPipeline(device, pipeline, nullptr);
+		vkDestroyPipelineLayout(device, layout, nullptr);
+	});
 }
 
 EPipelineType VulkanRenderPipeline::get_type() const

@@ -162,7 +162,7 @@ void NetworkUtilities::ConvertWeights(NetworkLayout const& srcLayout,
     //commandList->commitBarriers();
 
     // Convert the matrix parameters on the device
-    m_coopVecUtils->ConvertDeviceMatrixLayout(srcLayout, dstLayout, srcBuffer, 0, dstBuffer, 0);
+    m_coopVecUtils->ConvertDeviceMatrixLayout(srcLayout, dstLayout, srcBuffer, srcBufferOffset, dstBuffer, dstBufferOffset);
 }
 
 HostNetwork::HostNetwork(std::shared_ptr<NetworkUtilities> networkUtils) : m_networkUtils(networkUtils)
@@ -188,8 +188,7 @@ bool rtxns::HostNetwork::Initialise(const NetworkArchitecture& netArch)
     m_networkParams.clear();
     m_networkParams.resize(m_networkLayout.networkSize, 0);
 
-    static std::random_device rd;
-    std::mt19937 gen(rd());
+    std::mt19937 gen(1337);
     std::uniform_real_distribution<float> dist(-1.0, 1.0);
 
     for (uint32_t i = 0; i < m_networkLayout.networkLayers.size(); i++)
@@ -197,11 +196,14 @@ bool rtxns::HostNetwork::Initialise(const NetworkArchitecture& netArch)
         const auto& layer = m_networkLayout.networkLayers[i];
         std::vector<uint16_t> weights;
         weights.resize(size_t(layer.inputs * layer.outputs), 0);
-        std::generate(weights.begin(), weights.end(), [&, k = sqrt(6.f / (layer.inputs + layer.outputs))]() { return rtxns::float32ToFloat16(dist(gen) * k); });
+        // Random hidden features break symmetry. A zero output layer starts the
+        // radiance cache at zero instead of injecting random positive lighting
+        // into frame accumulation before the network has learned the scene.
+        if (i + 1 < m_networkLayout.networkLayers.size())
+            std::generate(weights.begin(), weights.end(), [&, k = sqrt(6.f / (layer.inputs + layer.outputs))]() { return rtxns::float32ToFloat16(dist(gen) * k); });
         std::memcpy(m_networkParams.data() + layer.weightOffset, weights.data(), layer.weightSize);
 
-        std::vector<uint16_t> bias(layer.outputs);
-        std::generate(bias.begin(), bias.end(), [&, k = sqrt(6.f / bias.size())]() { return rtxns::float32ToFloat16(dist(gen) * k); });
+        std::vector<uint16_t> bias(layer.outputs, 0);
         std::memcpy(m_networkParams.data() + layer.biasOffset, bias.data(), layer.biasSize);
     }
     return true;

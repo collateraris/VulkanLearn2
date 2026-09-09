@@ -4,13 +4,14 @@
 
 #include <SDL_events.h>
 #include <glm/glm.hpp>
+#include <array>
 #include <random>
 
 
 struct PlayerCamera {
-	glm::vec3 position;
-	glm::vec3 velocity;
-	glm::vec3 inputAxis;
+	glm::vec3 position{0.0f};
+	glm::vec3 velocity{0.0f};
+	glm::vec3 inputAxis{0.0f};
 	bool bActiveCamera = true;
 
 	glm::mat4 lastViewMatrix;
@@ -25,12 +26,13 @@ struct PlayerCamera {
 	glm::mat4 prevProjWithJitterMatrix;
 
 	float FOV = 70.f;
+	float aspectRatio = 1.0f;
 
 	float farDistance = 10000.0f;
 	float nearDistance = 0.01f;
 
-	float jitterX = 1.f;
-	float jitterY = 1.f;
+	float jitterX = 0.f;
+	float jitterY = 0.f;
 
 	float prevJitterX = 1.f;
 	float prevJitterY = 1.f;
@@ -66,5 +68,12 @@ struct PlayerCamera {
 
 	glm::vec2 get_current_jitter();
 	glm::vec2 get_prev_jitter();
+
+private:
+	void clear_input_state();
+	void update_input_axes();
+	void update_mouse_mode();
+	std::array<bool, SDL_NUM_SCANCODES> _heldKeys{};
+	bool _hasInputFocus = true;
 
 };

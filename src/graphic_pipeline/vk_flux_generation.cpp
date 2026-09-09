@@ -50,6 +50,9 @@ void VulkanFluxGeneration::init(VulkanEngine* engine)
 void VulkanFluxGeneration::init_description_set_global_buffer()
 {
 	_fluxData = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanFluxGeneration::SFluxData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+	_engine->_mainDeletionQueue.push_function([engine = _engine, buffer = _fluxData]() mutable {
+		engine->destroy_buffer(engine->_allocator, buffer);
+	});
 
 	VkDescriptorBufferInfo globalUniformsInfo;
 	globalUniformsInfo.buffer = _fluxData._buffer;

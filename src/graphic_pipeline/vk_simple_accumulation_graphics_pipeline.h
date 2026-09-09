@@ -13,10 +13,10 @@ class VulkanSimpleAccumulationGraphicsPipeline
 {
 	struct PerFrameCB
 	{
-		uint32_t accumCount;
+		uint32_t accumCount = 0;
 		uint32_t initLastFrame = 0;
-		uint32_t pad1;
-		uint32_t pad2;
+		uint32_t pad1 = 0;
+		uint32_t pad2 = 0;
 	};
 
 public:
@@ -36,9 +36,13 @@ private:
 
 	VkExtent3D _imageExtent;
 	Texture _outputTexture;
-	VkFormat      _outputFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
+	// The mean is fed back every frame: FP16 repeatedly quantizes the history
+	// and loses small sample contributions during long accumulation runs.
+	VkFormat      _outputFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
 	Texture _lastFrameTexture;
-	VkFormat      _lastFrameFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
+	VkFormat      _lastFrameFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
+	bool _imagesInitialized = false;
+	bool _accumulationEnabled = true;
 
 	VkFramebuffer _simpleAccumFramebuffer;
 
@@ -50,8 +54,9 @@ private:
 	VkDescriptorSetLayout          _imageDescSetLayout;
 	std::array<VkDescriptorSet, 2>  _imageDescSet;
 
-	PerFrameCB _counter = { 0, 0 };
+	PerFrameCB _counter{};
 
-	glm::mat4 _lastViewMatrix;
+	glm::mat4 _lastViewMatrix{ 1.0f };
+	glm::mat4 _lastProjectionMatrix{ 1.0f };
 };
 

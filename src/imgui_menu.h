@@ -169,99 +169,96 @@ static void ShowFPSLog(Stats stats)
     log.Draw("Example: Log", &p_open);
 }
 template<class T>
-static void EditGI(VulkanLightManager& lightManager, PlayerCamera& camera, T& giGP, int current_frame_index, int frameNumber)
+static void EditGI(VulkanEngine& engine, T& giGP)
 {
+    auto& lightManager = engine._lightManager;
+    auto& camera = engine._camera;
     static bool p_open = true;
-    static bool bResetAccumulation = false;
-    static bool bChangedValue = true;
-    static bool bRestirGI = false;
-    static bool bRestirDI_SpacialReuse = false;
-    static bool bRestirGI_SpacialReuse = false;
-    static bool bEnableAccumulation = false;
-    static uint32_t RESTIR_GI = 1u << 1;
-    static uint32_t RESTIR_DI_SpacialReuse = 1u << 2;
-    static uint32_t RESTIR_GI_SpacialReuse = 1u << 3;
-    static glm::mat4 prevCameraMatrix;
-    static T::GlobalGIParams giParams = {.shadowMult = 0.0, .numRays = 1, 
-        .sunIndex = lightManager.get_sun_index(),
-        .gridMax = vec4(lightManager.get_grid_max(), 1.),
-        .gridMin = vec4(lightManager.get_grid_min(), 1.)};
+    static int numRays = 3;
+    bool settingsChanged = false;
+    bool cameraChanged = false;
+
     ImGui::SetNextWindowSize(ImVec2(500, 100), ImGuiCond_FirstUseEver);
     ImGui::Begin("Edit GI", &p_open);
-    static int numRays = 0;
-    bChangedValue |= ImGui::InputInt("Indirect numRays", &numRays);
+    // The shared output pass resets its own average when this changes.
+    // ReSTIR reservoirs and the NRC training state remain available.
+    ImGui::Checkbox("Frame accumulation", &engine._frameAccumulationEnabled);
+    if (engine.get_mode() == ERenderMode::ReSTIR || engine.get_mode() == ERenderMode::ReSTIR_NRC)
+    {
+        ImGui::Checkbox("Denoiser", &engine._denoiserEnabled);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Reduce noise while preserving geometry and material edges.");
+    }
+    settingsChanged |= ImGui::InputInt("Indirect numRays", &numRays);
+    numRays = std::clamp(numRays, 0, 32);
 
-    giParams.numRays = std::max(0, numRays);
-    giParams.frameCount = frameNumber;
-    giParams.camPos = glm::vec4(camera.position, 1.f);
-    giParams.projView = camera.get_projection_matrix() * camera.get_view_matrix();
-    giParams.viewInverse = glm::inverse(camera.get_view_matrix());
-    giParams.projInverse = glm::inverse(camera.get_projection_matrix());
-    prevCameraMatrix = camera.get_projection_matrix() * camera.get_view_matrix();
-    bResetAccumulation = bChangedValue = giParams.prevProjView != prevCameraMatrix;
-    giParams.prevProjView = prevCameraMatrix;
-    giParams.lightsCount = lightManager.get_lights().size();
-
-    float camera_pos[3] = { camera.position.r, camera.position.g, camera.position.b };
+    float camera_pos[3] = { camera.position.x, camera.position.y, camera.position.z };
     if (ImGui::InputFloat3("camera position", camera_pos))
     {
         camera.position = glm::vec3(camera_pos[0], camera_pos[1], camera_pos[2]);
+        cameraChanged = true;
     }
-    float camera_pitch_yaw[2] = { camera.pitch, camera.yaw};
+    float camera_pitch_yaw[2] = { camera.pitch, camera.yaw };
     if (ImGui::InputFloat2("camera rotation", camera_pitch_yaw))
     {
         camera.pitch = camera_pitch_yaw[0];
         camera.yaw = camera_pitch_yaw[1];
+        cameraChanged = true;
     }
+    if (cameraChanged)
+        camera.calculate_view_matrix();
 
     if (lightManager.is_sun_active())
     {
-        bool bSunChangedValue = false;
+        bool sunChanged = false;
         lightManager.update_sun_light([&](glm::vec3& direction, glm::vec3& color) {
-            bSunChangedValue |= ImGui::gizmo3D("##sunDir", direction, 100, imguiGizmo::modeDirection);
-
-            float sun_direction[4] = { direction.x, direction.y, direction.z, 1.f };
-            if (ImGui::InputFloat3("sun direction", sun_direction))
-            {
-                bSunChangedValue |= 1;
-                direction = vec3(sun_direction[0], sun_direction[1], sun_direction[2]);
-            }
-            float col1[3] = { color.x, color.y, color.z };
-            if (ImGui::ColorEdit3("sun color", col1))
-            {
-                bSunChangedValue |= 1;
-                color = vec3(col1[0], col1[1], col1[2]);
-            }
-         });
-
-        if (bSunChangedValue)
+            sunChanged |= ImGui::gizmo3D("##sunDir", direction, 100, imguiGizmo::modeDirection);
+            sunChanged |= ImGui::InputFloat3("sun direction", &direction.x);
+            sunChanged |= ImGui::ColorEdit3("sun color", &color.x);
+            if (glm::dot(direction, direction) > 1e-10f)
+                direction = glm::normalize(direction);
+            else
+                direction = glm::vec3(0.0f, -1.0f, 0.0f);
+        });
+        if (sunChanged)
+        {
+            // The light buffer is shared by both frames in flight.
+            const VkResult waitResult = vkDeviceWaitIdle(engine._device);
+            assert(waitResult == VK_SUCCESS);
             lightManager.update_light_buffer();
-
-        bChangedValue |= bSunChangedValue;
+            settingsChanged = true;
+        }
     }
+    if (settingsChanged)
+        giGP.reset_accumulation();
 
-    if (bChangedValue)
-    {
-        bChangedValue = false;
-        if (bResetAccumulation)
-            giGP.reset_accumulation();
-        giParams.prevProjView = prevCameraMatrix;
-    }
-  
-    giGP.copy_global_uniform_data(giParams, current_frame_index);
+    typename T::GlobalGIParams giParams{};
+    giParams.numRays = static_cast<uint32_t>(numRays);
+    giParams.frameCount = static_cast<uint32_t>(engine._frameNumber);
+    giParams.camPos = glm::vec4(camera.position, 1.0f);
+    giParams.projView = camera.get_projection_matrix() * camera.get_view_matrix();
+    giParams.viewInverse = glm::inverse(camera.get_view_matrix());
+    giParams.projInverse = glm::inverse(camera.get_projection_matrix());
+    giParams.prevProjView = camera.get_prev_projection_matrix() * camera.get_prev_view_matrix();
+    giParams.lightsCount = static_cast<uint32_t>(lightManager.get_lights().size());
+    giParams.sunIndex = lightManager.get_sun_index();
+    giParams.gridMax = glm::vec4(lightManager.get_grid_max(), 1.0f);
+    giParams.gridMin = glm::vec4(lightManager.get_grid_min(), 1.0f);
+    // Frame accumulation is performed once, in the shared output pass.
+    giParams.enableAccumulation = 0;
+    giGP.copy_global_uniform_data(giParams, engine.get_current_frame_index());
     ImGui::End();
 }
-
 static void ShowVkMenu(VulkanEngine& engine)
 {
     ImguiAppLog::ShowFPSLog(engine._stats);
     if (engine.get_mode() == ERenderMode::ReSTIR || engine.get_mode() == ERenderMode::ReSTIR_NRC)
     {
-        ImguiAppLog::EditGI<VulkanGIShadowsRaytracingGraphicsPipeline>(engine._lightManager, engine._camera, engine._giRtGraphicsPipeline, engine.get_current_frame_index(), engine._frameNumber);
+        ImguiAppLog::EditGI<VulkanGIShadowsRaytracingGraphicsPipeline>(engine, engine._giRtGraphicsPipeline);
     }
     if (engine.get_mode() == ERenderMode::Pathtracer)
     {
-        ImguiAppLog::EditGI<VulkanPTRef>(engine._lightManager, engine._camera, engine._ptReference, engine.get_current_frame_index(), engine._frameNumber);
+        ImguiAppLog::EditGI<VulkanPTRef>(engine, engine._ptReference);
     }
 }
 

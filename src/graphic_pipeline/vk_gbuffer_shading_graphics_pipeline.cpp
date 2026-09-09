@@ -8,11 +8,11 @@
 #include <vk_shaders.h>
 #include <vk_initializers.h>
 
-void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine,const Texture& gi)
+void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const Texture& gi, const Texture* denoised)
 {
 	_engine = engine;
 
-	init_description_set(gi);
+	init_description_set(gi, denoised);
 
 	{
 		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::GBufferShading,
@@ -26,6 +26,14 @@ void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine,const Textu
 				GraphicPipelineBuilder pipelineBuilder;
 
 				pipelineBuilder.setShaders(&defaultEffect);
+				const uint32_t outputIsSrgb = engine->_swapchainImageFormat == VK_FORMAT_B8G8R8A8_SRGB
+					|| engine->_swapchainImageFormat == VK_FORMAT_R8G8B8A8_SRGB
+					|| engine->_swapchainImageFormat == VK_FORMAT_A8B8G8R8_SRGB_PACK32;
+				VkSpecializationMapEntry outputEncodingEntry{0, 0, sizeof(outputIsSrgb)};
+				VkSpecializationInfo outputEncoding{1, &outputEncodingEntry, sizeof(outputIsSrgb), &outputIsSrgb};
+				for (auto& stage : pipelineBuilder._shaderStages)
+					if (stage.stage == VK_SHADER_STAGE_FRAGMENT_BIT)
+						stage.pSpecializationInfo = &outputEncoding;
 
 				VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
 				std::vector<VkDescriptorSetLayout> setLayout = { _gBufDescSetLayout };
@@ -87,19 +95,25 @@ void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine,const Textu
 
 void VulkanGbufferShadingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
+	const VkDescriptorSet input = _hasDenoisedInput && _engine->_denoiserEnabled
+		? _denoisedDescSet[current_frame_index] : _gBufDescSet[current_frame_index];
 	cmd->draw_quad([&](VkCommandBuffer cmd) {
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::GBufferShading));
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::GBufferShading), 0,
-			1, &_gBufDescSet[current_frame_index], 0, nullptr);
+			1, &input, 0, nullptr);
 		}); 
 }
 
-void VulkanGbufferShadingGraphicsPipeline::init_description_set(const Texture& gi)
+void VulkanGbufferShadingGraphicsPipeline::init_description_set(const Texture& gi, const Texture* denoised)
 {
+	_hasDenoisedInput = denoised != nullptr;
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
 	VkSampler sampler;
-	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
+	VK_CHECK(vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler));
+	_engine->_mainDeletionQueue.push_function([device = _engine->_device, sampler]() {
+		vkDestroySampler(device, sampler, nullptr);
+	});
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
@@ -111,6 +125,13 @@ void VulkanGbufferShadingGraphicsPipeline::init_description_set(const Texture& g
 		vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 			.bind_image(0, &giImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 			.build(_gBufDescSet[i], _gBufDescSetLayout);
+		if (denoised)
+		{
+			giImageBufferInfo.imageView = denoised->imageView;
+			vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+				.bind_image(0, &giImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+				.build(_denoisedDescSet[i], _gBufDescSetLayout);
+		}
 	}
 }
 

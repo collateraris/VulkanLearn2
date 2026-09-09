@@ -144,6 +144,7 @@ Texture& VulkanPTRef::get_tex(ETextureResourceNames name) const
 void VulkanPTRef::reset_accumulation()
 {
 	bResetAccumulation = true;
+	_engine->_accumulationGP.reset_accumulation();
 }
 
 void VulkanPTRef::init_description_set_global_buffer()
@@ -157,6 +158,9 @@ void VulkanPTRef::init_description_set_global_buffer()
 	{
 
 		_globalUniformsBuffer[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanPTRef::GlobalGIParams), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		_engine->_mainDeletionQueue.push_function([engine = _engine, buffer = _globalUniformsBuffer[i]]() mutable {
+			engine->destroy_buffer(engine->_allocator, buffer);
+		});
 
 		VkDescriptorBufferInfo globalUniformsInfo;
 		globalUniformsInfo.buffer = _globalUniformsBuffer[i]._buffer;
@@ -191,6 +195,8 @@ void VulkanPTRef::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 
 void VulkanPTRef::copy_global_uniform_data(VulkanPTRef::GlobalGIParams& giData, int current_frame_index)
 {
+	giData.widthScreen = _imageExtent.width;
+	giData.heightScreen = _imageExtent.height;
 	_engine->map_buffer(_engine->_allocator, _globalUniformsBuffer[current_frame_index]._allocation, [&](void*& data) {
 		memcpy(data, &giData, sizeof(VulkanPTRef::GlobalGIParams));
 		});

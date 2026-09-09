@@ -374,6 +374,8 @@ struct SceneConfig
 {
 	std::string fileName;
 	std::string hdrCubemapPath;
+	float environmentIntensity = 0.f;
+	float indirectSunScale = 1.f / 64.f;
 	float scaleFactor = 1.;
 	glm::mat4 model = glm::mat4(1.0);
 	LightConfig lightConfig;

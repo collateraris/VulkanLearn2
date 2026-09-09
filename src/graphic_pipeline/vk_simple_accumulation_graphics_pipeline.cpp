@@ -9,10 +9,17 @@
 #include <vk_raytracer_builder.h>
 #include <vk_initializers.h>
 #include <vk_camera.h>
+#include <cstdlib>
+#include <cstring>
 
 void VulkanSimpleAccumulationGraphicsPipeline::init(VulkanEngine* engine, const Texture& currentTex)
 {
     _engine = engine;
+	if (const char* setting = std::getenv("RESTIR_ACCUMULATION"))
+		_engine->_frameAccumulationEnabled = std::strcmp(setting, "0") != 0;
+	_accumulationEnabled = _engine->_frameAccumulationEnabled;
+	_imagesInitialized = false;
+	reset_accumulation();
 
 	_imageExtent = {
 	_engine->_windowExtent.width,
@@ -35,7 +42,7 @@ void VulkanSimpleAccumulationGraphicsPipeline::init(VulkanEngine* engine, const 
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
 		_lastFrameTexture = texBuilder.start()
-			.make_img_info(_lastFrameFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
+			.make_img_info(_lastFrameFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, _imageExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_lastFrameFormat, VK_IMAGE_ASPECT_COLOR_BIT)
@@ -125,16 +132,31 @@ Texture& VulkanSimpleAccumulationGraphicsPipeline::get_tex(ETextureResourceNames
 
 void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index, ERenderMode mode/* = ERenderMode::ReSTIR*/)
 {
-	if (_counter.accumCount == 0)
-	{
-			VkClearValue clear_value = { 0., 0., 0., 1. };
+	const bool accumulationEnabled = _engine->_frameAccumulationEnabled;
+	if (!accumulationEnabled || accumulationEnabled != _accumulationEnabled)
+		reset_accumulation();
+	_accumulationEnabled = accumulationEnabled;
 
-			cmd->clear_image(_lastFrameTexture, clear_value);
+	if (!_imagesInitialized)
+	{
+		// The render pass expects COLOR_ATTACHMENT_OPTIMAL on entry. History
+		// also needs a valid descriptor layout even though the first draw skips it.
+		std::array<VkImageMemoryBarrier, 2> barriers = {
+			vkinit::image_barrier(_outputTexture.image._image, 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+			vkinit::image_barrier(_lastFrameTexture.image._image, 0, VK_ACCESS_SHADER_READ_BIT,
+				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+		};
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			0, 0, nullptr, 0, nullptr, uint32_t(barriers.size()), barriers.data());
+		_imagesInitialized = true;
 	}
 
 
 	_engine->map_buffer(_engine->_allocator, _perFrameCount[current_frame_index]._allocation, [&](void*& data) {
 		memcpy(data, &_counter, sizeof(VulkanSimpleAccumulationGraphicsPipeline::PerFrameCB));
+		vmaFlushAllocation(_engine->_allocator, _perFrameCount[current_frame_index]._allocation, 0, sizeof(PerFrameCB));
 		});
 
 	//make a clear-color from frame number. This will flash with a 120*pi frame period.
@@ -191,15 +213,20 @@ void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, in
 
 		std::array<VkImageMemoryBarrier, 1> lastFrameBarriers =
 		{
-			vkinit::image_barrier(_lastFrameTexture.image._image,  VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_2_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+			vkinit::image_barrier(_lastFrameTexture.image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
 		};
 
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, lastFrameBarriers.size(), lastFrameBarriers.data());
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, lastFrameBarriers.size(), lastFrameBarriers.data());
 	}
 
-	cmd->blit_image(_lastFrameTexture, _outputTexture, 
-		{ 0, 0, 0 }, { (int)_imageExtent.width, (int)_imageExtent.height , 1 },
-		{ 0, 0, 0 }, { (int)_imageExtent.width, (int)_imageExtent.height , 1 }, 0, 0);
+	// Identical formats and extents permit an exact copy, without another
+	// floating-point conversion or a filtered history resample.
+	VkImageCopy copy{};
+	copy.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+	copy.dstSubresource = copy.srcSubresource;
+	copy.extent = _imageExtent;
+	vkCmdCopyImage(cmd->get_cmd(), _outputTexture.image._image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+		_lastFrameTexture.image._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 
 	{
 		std::array<VkImageMemoryBarrier, 1> outputBarriers =
@@ -211,29 +238,33 @@ void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, in
 
 		std::array<VkImageMemoryBarrier, 1> lastFrameBarriers =
 		{
-			vkinit::image_barrier(_lastFrameTexture.image._image, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_2_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
+			vkinit::image_barrier(_lastFrameTexture.image._image, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
 		};
 
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, lastFrameBarriers.size(), lastFrameBarriers.data());
+		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, lastFrameBarriers.size(), lastFrameBarriers.data());
 	}
 
-	_counter.accumCount++;
+	// Keep count + 1 exactly representable in the shader and prevent uint wrap.
+	if (_counter.accumCount < (1u << 24) - 1u)
+		_counter.accumCount++;
 	_counter.initLastFrame = 1;
 }
 
 void VulkanSimpleAccumulationGraphicsPipeline::try_reset_accumulation(PlayerCamera& camera)
 {
-	auto view = camera.get_view_matrix();
-	if (_lastViewMatrix != view)
+	const auto view = camera.get_view_matrix();
+	const auto projection = camera.get_projection_matrix(false);
+	if (_lastViewMatrix != view || _lastProjectionMatrix != projection)
 	{
 		_lastViewMatrix = view;
-		_counter.accumCount = 0;
+		_lastProjectionMatrix = projection;
+		reset_accumulation();
 	}
 }
 
 void VulkanSimpleAccumulationGraphicsPipeline::reset_accumulation()
 {
-	_counter.accumCount = 0;
+	_counter = {};
 }
 
 const Texture& VulkanSimpleAccumulationGraphicsPipeline::get_output() const
@@ -277,6 +308,9 @@ void VulkanSimpleAccumulationGraphicsPipeline::init_render_pass()
 		fb_info.pAttachments = attachments;
 		fb_info.attachmentCount = 1;
 		vkCreateFramebuffer(_engine->_device, &fb_info, nullptr, &_simpleAccumFramebuffer);
+		_engine->_mainDeletionQueue.push_function([device = _engine->_device, framebuffer = _simpleAccumFramebuffer]() {
+			vkDestroyFramebuffer(device, framebuffer, nullptr);
+		});
 	}
 }
 
@@ -286,6 +320,9 @@ void VulkanSimpleAccumulationGraphicsPipeline::init_description_set(const Textur
 
 	VkSampler sampler;
 	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &sampler);
+	_engine->_mainDeletionQueue.push_function([device = _engine->_device, sampler]() {
+		vkDestroySampler(device, sampler, nullptr);
+	});
 
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
@@ -305,6 +342,9 @@ void VulkanSimpleAccumulationGraphicsPipeline::init_description_set(const Textur
 			.build(_imageDescSet[i], _imageDescSetLayout);
 
 		_perFrameCount[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanSimpleAccumulationGraphicsPipeline::PerFrameCB), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		_engine->_mainDeletionQueue.push_function([engine = _engine, buffer = _perFrameCount[i]]() mutable {
+			engine->destroy_buffer(engine->_allocator, buffer);
+		});
 
 		VkDescriptorBufferInfo globalUniformsInfo;
 		globalUniformsInfo.buffer = _perFrameCount[i]._buffer;

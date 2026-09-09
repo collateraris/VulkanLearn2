@@ -39,7 +39,12 @@ public:
 		uint32_t heightScreen = 0;
 		glm::vec4 gridMax = glm::vec4(1);
 		glm::vec4 gridMin = glm::vec4(1);
+		uint32_t historyValid = 0;
+		uint32_t historyPadding0 = 0;
+		uint32_t historyPadding1 = 0;
+		uint32_t historyPadding2 = 0;
 	};
+	static_assert(sizeof(GlobalGIParams) == 352);
 
 	VulkanPTRef() = default;
 	void init(VulkanEngine* engine);

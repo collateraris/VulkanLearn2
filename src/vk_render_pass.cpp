@@ -95,7 +95,9 @@ void VulkanRenderPass::init(VulkanEngine* engine, const RenderPassInfo& info)
 			if (attachment.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
 				attachment.initialLayout = image.createInfo.initialLayout;
 			else
-				attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+				// The acquired image is cleared, including its first use. Let the
+				// render pass transition every swapchain image before drawing.
+				attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 			attachment.finalLayout = image.createInfo.initialLayout;
 		}

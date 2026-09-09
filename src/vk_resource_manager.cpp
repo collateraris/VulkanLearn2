@@ -3,6 +3,9 @@
 #include <vk_light_manager.h>
 
 #include <vk_engine.h>
+#include <algorithm>
+#include <array>
+#include <stdexcept>
 
 uint32_t ResourceManager::store_texture(std::string& name)
 {
@@ -109,23 +112,44 @@ void ResourceManager::load_images(VulkanEngine* _engine, const std::unordered_ma
 	for (auto& [path, texPtr] : textureCache)
 	{
 		Texture* tex = texPtr.get();
-		VkFormat image_format;
-		if (vkutil::load_image_from_file(*_engine, path, *tex, image_format))
+		const bool isNormalMap = std::any_of(_engine->_resManager.matDescList.begin(), _engine->_resManager.matDescList.end(),
+			[&](const auto& material) { return material->normalTexture == path; });
+		const std::array<uint8_t, 4> fallback = isNormalMap
+			? std::array<uint8_t, 4>{128, 128, 255, 255}
+			: std::array<uint8_t, 4>{255, 255, 255, 255};
+		VkFormat image_format = VK_FORMAT_UNDEFINED;
+		const bool isEnvironment = (tex->flags & ETexFlags::HDR_CUBEMAP) != 0;
+		const bool loaded = vkutil::load_image_from_file(*_engine, path, *tex, image_format,
+			isEnvironment ? nullptr : fallback.data());
+		if (!loaded && isEnvironment)
+			throw std::runtime_error("Failed to load enabled HDR environment: " + path);
+		if (loaded)
 		{
 			VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(image_format, tex->image._image, VK_IMAGE_ASPECT_COLOR_BIT);
 			imageinfo.subresourceRange.levelCount = tex->mipLevels;
-			vkCreateImageView(_engine->_device, &imageinfo, nullptr, &tex->imageView);
+			if (vkCreateImageView(_engine->_device, &imageinfo, nullptr, &tex->imageView) != VK_SUCCESS)
+				throw std::runtime_error("Failed to create texture image view: " + path);
+			_engine->_mainDeletionQueue.push_function([device = _engine->_device, view = tex->imageView]() {
+				vkDestroyImageView(device, view, nullptr);
+			});
 		}
 	}
 }
 
 void ResourceManager::init_samplers(VulkanEngine* _engine, ResourceManager& resManager)
 {
+	const auto queue_sampler_cleanup = [engine = _engine](VkSampler sampler) {
+		engine->_mainDeletionQueue.push_function([device = engine->_device, sampler]() {
+			vkDestroySampler(device, sampler, nullptr);
+		});
+	};
+
 	if (AllocatedSampler* alloc_sampler = resManager.create_engine_sampler(ESamplerType::NEAREST_REPEAT))
 	{
 		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
-		vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
+		VK_CHECK(vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &alloc_sampler->sampler));
+		queue_sampler_cleanup(alloc_sampler->sampler);
 		alloc_sampler->samplerType = ESamplerType::NEAREST_REPEAT;
 	}
 
@@ -133,7 +157,8 @@ void ResourceManager::init_samplers(VulkanEngine* _engine, ResourceManager& resM
 	{
 		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER);
 
-		vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
+		VK_CHECK(vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &alloc_sampler->sampler));
+		queue_sampler_cleanup(alloc_sampler->sampler);
 		alloc_sampler->samplerType = ESamplerType::NEAREST_CLAMP;
 	}
 
@@ -141,7 +166,8 @@ void ResourceManager::init_samplers(VulkanEngine* _engine, ResourceManager& resM
 	{
 		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT);
 
-		vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
+		VK_CHECK(vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &alloc_sampler->sampler));
+		queue_sampler_cleanup(alloc_sampler->sampler);
 		alloc_sampler->samplerType = ESamplerType::NEAREST_MIRRORED_REPEAT;
 	}
 
@@ -149,7 +175,8 @@ void ResourceManager::init_samplers(VulkanEngine* _engine, ResourceManager& resM
 	{
 		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 
-		vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
+		VK_CHECK(vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &alloc_sampler->sampler));
+		queue_sampler_cleanup(alloc_sampler->sampler);
 		alloc_sampler->samplerType = ESamplerType::LINEAR_REPEAT;
 	}
 
@@ -157,7 +184,8 @@ void ResourceManager::init_samplers(VulkanEngine* _engine, ResourceManager& resM
 	{
 		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER);
 
-		vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
+		VK_CHECK(vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &alloc_sampler->sampler));
+		queue_sampler_cleanup(alloc_sampler->sampler);
 		alloc_sampler->samplerType = ESamplerType::LINEAR_CLAMP;
 	}
 
@@ -165,7 +193,8 @@ void ResourceManager::init_samplers(VulkanEngine* _engine, ResourceManager& resM
 	{
 		VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT);
 
-		vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &alloc_sampler->sampler);
+		VK_CHECK(vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &alloc_sampler->sampler));
+		queue_sampler_cleanup(alloc_sampler->sampler);
 		alloc_sampler->samplerType = ESamplerType::LINEAR_MIRRORED_REPEAT;
 	}
 }
@@ -236,6 +265,23 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 				resManager.renderables.push_back(map);
 	resManager.indirectBatchRO = compact_draws(resManager.renderables.data(), resManager.renderables.size());
 
+	// NRC's position encoding and light-grid bounds must include transformed
+	// geometry, including scenes lit only by the directional sun.
+	resManager.minCube = glm::vec3(std::numeric_limits<float>::max());
+	resManager.maxCube = glm::vec3(std::numeric_limits<float>::lowest());
+	for (const RenderObject& object : resManager.renderables)
+		for (const auto& vertex : object.mesh->_vertices)
+		{
+			const glm::vec3 position = object.transformMatrix * glm::vec4(glm::vec3(vertex.positionXYZ_normalX), 1.f);
+			resManager.minCube = glm::min(resManager.minCube, position);
+			resManager.maxCube = glm::max(resManager.maxCube, position);
+		}
+	if (resManager.renderables.empty())
+	{
+		resManager.minCube = glm::vec3(-1.f);
+		resManager.maxCube = glm::vec3(1.f);
+	}
+
 	//candidate for emissive triangles
 	uint32_t objectId = -1;
 	for (RenderObject& object : resManager.renderables)
@@ -281,7 +327,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 		});
 	}
 
-	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(objectSSBO.size() * sizeof(GlobalObjectData));
+	size_t bufferSize = objectSSBO.size() * sizeof(GlobalObjectData);
 	resManager.globalObjectBuffer = _engine->create_buffer_n_copy_data(bufferSize, objectSSBO.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 	std::vector<GlobalMaterialData> matSSBO;
@@ -301,11 +347,11 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 		});
 	};
 
-	bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(matSSBO.size() * sizeof(GlobalMaterialData));
+	bufferSize = matSSBO.size() * sizeof(GlobalMaterialData);
 	resManager.globalMaterialBuffer = _engine->create_buffer_n_copy_data(bufferSize, matSSBO.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 	std::vector<Reservoir> reservoirArr(_engine->_windowExtent.width * _engine->_windowExtent.height);
-	bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(reservoirArr.size() * sizeof(Reservoir));
+	bufferSize = reservoirArr.size() * sizeof(Reservoir);
 
 	resManager.globalReservoirDIInitBuffer = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	resManager.globalReservoirDITemporalBuffer[0] = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -313,7 +359,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 	resManager.globalReservoirDISpacialBuffer = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
 	std::vector<ReservoirPT> reservoirArr1(_engine->_windowExtent.width * _engine->_windowExtent.height);
-	bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(reservoirArr1.size() * sizeof(ReservoirPT));
+	bufferSize = reservoirArr1.size() * sizeof(ReservoirPT);
 
 	resManager.globalReservoirPTInitBuffer = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr1.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	resManager.globalReservoirPTTemporalBuffer[0] = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr1.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -597,14 +643,14 @@ void ResourceManager::init_global_bindless_descriptor(VulkanEngine* _engine, Res
 
 	
 	vkutil::DescriptorBuilder::begin(_engine->_descriptorBindlessLayoutCache.get(), _engine->_descriptorBindlessAllocator.get())
-		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, vertexBufferInfoList.size())
+		.bind_buffer(verticesBinding, vertexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, vertexBufferInfoList.size())
 		.bind_image(textureBinding, imageInfoList.data(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, imageInfoList.size())
-		.bind_rt_as(tlasBinding, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
-		.bind_buffer(globalObjectBinding, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
+		.bind_rt_as(tlasBinding, &descASInfo, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
+		.bind_buffer(globalObjectBinding, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_MESH_BIT_NV | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT)
 		//.bind_buffer(meshletsBinding, meshletBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MESH_BIT_NV, meshletBufferInfoList.size())
 		//.bind_buffer(meshletsDataBinding, meshletdataBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MESH_BIT_NV, meshletdataBufferInfoList.size())
 		.bind_buffer(lightBufferBinding, &lightsInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_COMPUTE_BIT)
-		.bind_buffer(indicesBinding, indexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, indexBufferInfoList.size())
+		.bind_buffer(indicesBinding, indexBufferInfoList.data(), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_FRAGMENT_BIT, indexBufferInfoList.size())
 		//.bind_image(irradianceMapBinding, &irradMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		//.bind_image(prefilteredMapBinding, &prefilteredMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)
 		//.bind_image(brdfLUTBinding, &brdflutMapImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_RAYGEN_BIT_KHR)

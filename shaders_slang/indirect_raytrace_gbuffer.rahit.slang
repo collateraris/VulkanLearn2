@@ -29,13 +29,13 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
 
     SMaterialData mat = matBuffer[shadeData.materialIndex];
 
-    int index0 = indices[shadeData.meshIndex][PrimitiveIndex() * 3];
-    int index1 = indices[shadeData.meshIndex][PrimitiveIndex() * 3 + 1];
-    int index2 = indices[shadeData.meshIndex][PrimitiveIndex() * 3 + 2];
+    int index0 = indices[NonUniformResourceIndex(shadeData.meshIndex)][PrimitiveIndex() * 3];
+    int index1 = indices[NonUniformResourceIndex(shadeData.meshIndex)][PrimitiveIndex() * 3 + 1];
+    int index2 = indices[NonUniformResourceIndex(shadeData.meshIndex)][PrimitiveIndex() * 3 + 2];
     
-    SVertex v0 = vertices[shadeData.meshIndex][index0];
-    SVertex v1 = vertices[shadeData.meshIndex][index1];
-    SVertex v2 = vertices[shadeData.meshIndex][index2];
+    SVertex v0 = vertices[NonUniformResourceIndex(shadeData.meshIndex)][index0];
+    SVertex v1 = vertices[NonUniformResourceIndex(shadeData.meshIndex)][index1];
+    SVertex v2 = vertices[NonUniformResourceIndex(shadeData.meshIndex)][index2];
 
     const float3 barycentrics = float3(1.0 - attrib.baryCoord.x - attrib.baryCoord.y, attrib.baryCoord.x, attrib.baryCoord.y);
 
@@ -45,12 +45,12 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
 
     float2 texCoord = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
 
-    float opacity = texSet[mat.diffuseTexIndex].Sample(linearSampler, texCoord).a;
-
+    float opacity = 1.0f;
+    if (mat.diffuseTexIndex != 0xffffffffu)
+        opacity = texSet[NonUniformResourceIndex(mat.diffuseTexIndex)].SampleLevel(linearSampler, texCoord, 0).a;
+    if (mat.opacityTexIndex >= 0)
+        opacity = texSet[NonUniformResourceIndex(mat.opacityTexIndex)].SampleLevel(linearSampler, texCoord, 0).r;
     opacity *= mat.baseColorFactor.w;
-
-    if (mat.opacityTexIndex > 0)
-        opacity = texSet[mat.opacityTexIndex].Sample(linearSampler, texCoord).r;
 
     if (opacity < 0.5)
         IgnoreHit();

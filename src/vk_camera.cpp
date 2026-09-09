@@ -2,146 +2,130 @@
 #include "SDL.h"
 
 #include <glm/gtx/transform.hpp>
+
+namespace
+{
+// Preserve the existing logical key bindings while tracking aliases separately.
+SDL_Scancode movement_key(SDL_Keycode key)
+{
+	switch (key)
+	{
+	case SDLK_w: return SDL_SCANCODE_W;
+	case SDLK_s: return SDL_SCANCODE_S;
+	case SDLK_a: return SDL_SCANCODE_A;
+	case SDLK_d: return SDL_SCANCODE_D;
+	case SDLK_UP: return SDL_SCANCODE_UP;
+	case SDLK_DOWN: return SDL_SCANCODE_DOWN;
+	case SDLK_LEFT: return SDL_SCANCODE_LEFT;
+	case SDLK_RIGHT: return SDL_SCANCODE_RIGHT;
+	case SDLK_r: return SDL_SCANCODE_R;
+	case SDLK_f: return SDL_SCANCODE_F;
+	case SDLK_LSHIFT: return SDL_SCANCODE_LSHIFT;
+	default: return SDL_SCANCODE_UNKNOWN;
+	}
+}
+}
+
 void PlayerCamera::init()
 {
 	auto now = std::chrono::high_resolution_clock::now();
 	auto msTime = std::chrono::time_point_cast<std::chrono::milliseconds>(now);
 	rng = std::mt19937(uint32_t(msTime.time_since_epoch().count()));
+	clear_input_state();
+	_hasInputFocus = SDL_GetKeyboardFocus() != nullptr;
+	update_mouse_mode();
+}
+
+void PlayerCamera::clear_input_state()
+{
+	_heldKeys.fill(false);
+	inputAxis = glm::vec3(0.0f);
+	velocity = glm::vec3(0.0f);
+	bSprint = false;
+}
+
+void PlayerCamera::update_input_axes()
+{
+	inputAxis.x = float(_heldKeys[SDL_SCANCODE_S] || _heldKeys[SDL_SCANCODE_DOWN])
+		- float(_heldKeys[SDL_SCANCODE_W] || _heldKeys[SDL_SCANCODE_UP]);
+	inputAxis.y = float(_heldKeys[SDL_SCANCODE_D] || _heldKeys[SDL_SCANCODE_RIGHT])
+		- float(_heldKeys[SDL_SCANCODE_A] || _heldKeys[SDL_SCANCODE_LEFT]);
+	inputAxis.z = float(_heldKeys[SDL_SCANCODE_R]) - float(_heldKeys[SDL_SCANCODE_F]);
+	bSprint = _heldKeys[SDL_SCANCODE_LSHIFT];
+}
+
+void PlayerCamera::update_mouse_mode()
+{
+	const SDL_bool relative = bActiveCamera && _hasInputFocus ? SDL_TRUE : SDL_FALSE;
+	if (SDL_GetRelativeMouseMode() != relative)
+		SDL_SetRelativeMouseMode(relative);
 }
 
 void PlayerCamera::process_input_event(SDL_Event* ev)
 {
-	if (ev->type == SDL_KEYDOWN)
+	if (!bActiveCamera || !_hasInputFocus)
+		clear_input_state();
+
+	if (ev->type == SDL_WINDOWEVENT)
 	{
-		switch (ev->key.keysym.sym)
+		if (ev->window.event == SDL_WINDOWEVENT_FOCUS_LOST)
 		{
-		case SDLK_UP:
-		case SDLK_w:
-			if (bActiveCamera)
-				inputAxis.x -= 1.f;
-			break;
-		case SDLK_DOWN:
-		case SDLK_s:
-			if (bActiveCamera)
-				inputAxis.x += 1.f;
-			break;
-		case SDLK_LEFT:
-		case SDLK_a:
-			if (bActiveCamera)
-				inputAxis.y -= 1.f;
-			break;
-		case SDLK_RIGHT:
-		case SDLK_d:
-			if (bActiveCamera)
-				inputAxis.y += 1.f;
-			break;
-		case SDLK_f:
-			if (bActiveCamera)
-				inputAxis.z -= 1.f;
-			break;
-
-		case SDLK_r:
-			if (bActiveCamera)
-				inputAxis.z += 1.f;
-			break;
-		case SDLK_q:
-			if (bActiveCamera)
-				yaw += 0.1f;
-			break;
-
-		case SDLK_e:
-			if (bActiveCamera)
-				yaw -= 0.1f;
-			break;
-		case SDLK_z:
-			if (bActiveCamera)
-				pitch += 0.1f;
-			break;
-
-		case SDLK_x:
-			if (bActiveCamera)
-				pitch -= 0.1f;
-			break;
-		case SDLK_LSHIFT:
-			if (bActiveCamera)
-				bSprint = true;
-			break;
-		case SDLK_m: // m - menu
+			_hasInputFocus = false;
+			clear_input_state();
+		}
+		else if (ev->window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
+			_hasInputFocus = true;
+	}
+	else if (ev->type == SDL_KEYDOWN || ev->type == SDL_KEYUP)
+	{
+		const SDL_Keycode key = ev->key.keysym.sym;
+		const SDL_Scancode movement = movement_key(key);
+		const bool pressed = ev->type == SDL_KEYDOWN;
+		if (movement != SDL_SCANCODE_UNKNOWN)
+		{
+			// Releases always clear state, including while the UI owns input.
+			_heldKeys[movement] = pressed && bActiveCamera && _hasInputFocus;
+			update_input_axes();
+		}
+		if (pressed && key == SDLK_m && ev->key.repeat == 0 && _hasInputFocus)
+		{
 			bActiveCamera = !bActiveCamera;
-			break;
+			clear_input_state();
 		}
-	}
-	else if (ev->type == SDL_KEYUP)
-	{
-		switch (ev->key.keysym.sym)
+		else if (pressed && bActiveCamera && _hasInputFocus)
 		{
-		case SDLK_UP:
-		case SDLK_w:
-			if (bActiveCamera)
-				inputAxis.x += 1.f;
-			break;
-		case SDLK_DOWN:
-		case SDLK_s:
-			if (bActiveCamera)
-				inputAxis.x -= 1.f;
-			break;
-		case SDLK_LEFT:
-		case SDLK_a:
-			if (bActiveCamera)
-				inputAxis.y += 1.f;
-			break;
-		case SDLK_RIGHT:
-		case SDLK_d:
-			if (bActiveCamera)
-				inputAxis.y -= 1.f;
-			break;
-		case SDLK_f:
-			if (bActiveCamera)
-				inputAxis.z += 1.f;
-			break;
-
-		case SDLK_r:
-			if (bActiveCamera)
-				inputAxis.z -= 1.f;
-			break;
-		case SDLK_q:
-			if (bActiveCamera)
-				yaw += 0.1f;
-			break;
-
-		case SDLK_e:
-			if (bActiveCamera)
-				yaw -= 0.1f;
-			break;
-
-		case SDLK_z:
-			if (bActiveCamera)
-				pitch += 0.1f;
-			break;
-
-		case SDLK_x:
-			if (bActiveCamera)
-				pitch -= 0.1f;
-			break;
-		case SDLK_LSHIFT:
-			if (bActiveCamera)
-				bSprint = false;
-			break;
+			// Keep the original 0.1-radian keyboard steps, including key repeat.
+			// Releasing a rotation key must never add another angle step.
+			switch (key)
+			{
+			case SDLK_q: yaw += 0.1f; break;
+			case SDLK_e: yaw -= 0.1f; break;
+			case SDLK_z: pitch += 0.1f; break;
+			case SDLK_x: pitch -= 0.1f; break;
+			default: break;
+			}
 		}
 	}
-	else if (ev->type == SDL_MOUSEMOTION) {
-		if (bActiveCamera)
+	else if (ev->type == SDL_MOUSEMOTION)
+	{
+		if (bActiveCamera && _hasInputFocus)
 		{
 			pitch -= ev->motion.yrel * 0.003f;
 			yaw -= ev->motion.xrel * 0.003f;
 		}
 	}
 
-	inputAxis = glm::clamp(inputAxis, { -1.0,-1.0,-1.0 }, { 1.0,1.0,1.0 });
+	update_mouse_mode();
 }
 
 void PlayerCamera::update_camera(float deltaSeconds)
 {
+	// The engine passes milliseconds; preserve the project's movement speeds.
+	// Honor direct mode changes too (for example, deterministic diagnostics).
+	if (!bActiveCamera || !_hasInputFocus)
+		clear_input_state();
+	update_mouse_mode();
+
 	const float cam_vel = 0.001f + bSprint * 0.1;
 	glm::vec3 forward = { 0,0,cam_vel };
 	glm::vec3 right = { cam_vel,0,0 };
@@ -156,7 +140,8 @@ void PlayerCamera::update_camera(float deltaSeconds)
 
 	velocity *= 10 * deltaSeconds;
 
-	position += velocity;
+	if (bActiveCamera && _hasInputFocus)
+		position += velocity;
 
 	prevViewMatrix = currentViewMatrix;
 	prevProjMatrix = currentProjMatrix;
@@ -213,8 +198,9 @@ void PlayerCamera::calculate_view_matrix()
 
 void PlayerCamera::calculate_proj_matrix()
 {
-	currentProjMatrix = glm::perspective(glm::radians(FOV), 1700.f / 900.f, nearDistance, farDistance);
+	currentProjMatrix = glm::perspective(glm::radians(FOV), aspectRatio, nearDistance, farDistance);
 	currentProjMatrix[1][1] *= -1;
+	currentProjWithJitterMatrix = currentProjMatrix;
 
 	if (bUseJitter)
 	{

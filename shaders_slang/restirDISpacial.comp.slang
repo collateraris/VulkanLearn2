@@ -1,6 +1,15 @@
 #include "gi_pathtrace.h"
 #include "brdf.h"
 
+[[vk::binding(0, 0)]]
+StructuredBuffer<SVertex> vertices[] : register(t0);
+[[vk::binding(2, 0)]]
+RaytracingAccelerationStructure topLevelAS : register(t2);
+[[vk::binding(3, 0)]]
+StructuredBuffer<SObjectData> objectBuffer : register(t3);
+[[vk::binding(5, 0)]]
+StructuredBuffer<int> indices[] : register(t5);
+
 [[vk::binding(1, 0)]]
 Texture2D<float4> texSet[] : register(t1);
 
@@ -37,186 +46,59 @@ RWTexture2D<float4> ptNormalOutput : register(u3);
 [[vk::binding(3, 2)]]
 RWTexture2D<float4> ptWposObjectIdOutput : register(u4);
 
+#include "restir_lighting.h"
+#include "restir_visibility.h"
+#include "restir_di_target.h"
+
 [shader("compute")]
 [numthreads(16, 16, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
-    if (dispatchThreadId.x >= giParams.widthScreen ||  dispatchThreadId.y >= giParams.heightScreen)
+    uint2 pixel = dispatchThreadId.xy;
+    uint2 size = uint2(giParams.widthScreen, giParams.heightScreen);
+    if (any(pixel >= size)) return;
+    const uint outputIndex = pixel.y * size.x + pixel.x;
+    uint current = (giParams.frameCount + 1) % 2;
+    SReservoir center = reservoirTemporalBuffer[current][outputIndex];
+    float4 position = ptWposObjectIdOutput[pixel];
+    if (position.w < 0.0f || !restirValidLight(center))
     {
+        reservoirSpacialBuffer[outputIndex] = center;
         return;
-    };
-
-    float4 wposObjectId = ptWposObjectIdOutput[dispatchThreadId.xy];
-    uint curTemporalIndx = (giParams.frameCount + 1) % 2;
-    uint reservoirIndx = dispatchThreadId.y * (giParams.widthScreen + 1) + dispatchThreadId.x;
-
-    SReservoir reservoirTemporal = reservoirTemporalBuffer[curTemporalIndx][reservoirIndx];
-
-    if (wposObjectId.w < 0.f || reservoirTemporal.lightSampler < 0)
-    {
-        reservoirSpacialBuffer[reservoirIndx] = reservoirTemporal;
-        return;
-    };
-
-    float4 albedoMetalness = ptAlbedoMetalnessOutput[dispatchThreadId.xy];
-    float4 emissiveRoughtness = ptEmissionRoughnessOutput[dispatchThreadId.xy];
-    float4 normalEncode = ptNormalOutput[dispatchThreadId.xy];
-    
-    MaterialProperties material = (MaterialProperties) 0;
-    material.baseColor = albedoMetalness.xyz;
-    material.metalness = albedoMetalness.w;
-    material.emissive = emissiveRoughtness.xyz;
-    material.roughness = emissiveRoughtness.w;
-
-    float3 geometryNormal;
-    float3 shadingNormal;
-    decodeNormals(normalEncode, geometryNormal, shadingNormal);
-
-    uint2 LaunchIndex = dispatchThreadId.xy;
-	uint2 LaunchDimensions = uint2(giParams.widthScreen,giParams.heightScreen);
-    float2 pixelCenter = float2(LaunchIndex) + float2(0.5);
-    float2 inUV = pixelCenter/float2(LaunchDimensions);
-    float2 d = inUV * 2.0 - 1.0;
-
-    float4 origin    = mul(giParams.viewInverse , float4(0, 0, 0, 1));
-    float4 target    = mul(giParams.projInverse , float4(d.x, d.y, 1, 1));
-    float4 direction = mul(giParams.viewInverse , float4(normalize(target.xyz), 0));
-
-	float3 rayDir = normalize(direction.xyz);
-    float3 V = -rayDir;
-
-    // Prepare data needed to evaluate the light
-    float3 lightVector;
-    float lightDistance;
-    SLight light = lightsBuffer[reservoirTemporal.lightSampler];
-    uint type = uint(light.color_type.w);
-    if (type == EMISSION_LIGHT)
-    {
-        float2 bary = reservoirTemporal.bary__.xy;
-        light.position_radius.xyz = (1.0f - bary.x - bary.y) * light.position_radius.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
-        float2 texCoord = (1.0f - bary.x - bary.y) * light.uv0_uv1.xy + bary.x * light.uv0_uv1.zw + bary.y * light.uv2_objectId_.xy;
-        SMaterialData mat = matBuffer[uint(light.uv2_objectId_.z)];
-        light.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
-        light.color_type.xyz = float3(light.color_type.x * mat.emissiveFactorMult_emissiveStrength.x, light.color_type.y * mat.emissiveFactorMult_emissiveStrength.y, light.color_type.z * mat.emissiveFactorMult_emissiveStrength.z);
     }
-    getLightData(light, wposObjectId.xyz, lightVector, lightDistance);
-    float3 L = normalize(lightVector);
-
-    float target_pdf = luminance(evalCombinedBRDF(shadingNormal, L, V, material) * getLightIntensityAtPoint(light, lightDistance));
-
-    // Initialize random numbers generator
-	RngStateType rngState = initRNG(LaunchIndex, LaunchDimensions, giParams.frameCount);
-
-    SReservoir reservoirNew = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
-    reservoirNew.updateReservoir(rngState, reservoirTemporal, target_pdf * reservoirTemporal.finalWeight * reservoirTemporal.samplesNumber);
-
-    uint lightSamplesCount = reservoirTemporal.samplesNumber;
-
-    int2 neighborOffset;
-    int2	neighborIndex;
-    SReservoir neighborReservoir = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
-
-    int neighborsCount = 7;
-    int neighborsRange = 2; // Want to sample neighbors within [-neighborsRange, neighborsRange] offset
-
-    const float dist_threshold = 0.01f;
-    const float angle_threshold = 25.f * M_PI / 180.f;
-
-    for (int i = 0; i < neighborsCount; i++)
+    MaterialProperties material = restirMaterial(ptAlbedoMetalnessOutput[pixel], ptEmissionRoughnessOutput[pixel]);
+    float3 geometryNormal, shadingNormal;
+    decodeNormals(ptNormalOutput[pixel], geometryNormal, shadingNormal);
+    float3 V = restirViewDirection(pixel);
+    RngStateType rng = initRNG(pixel, size, giParams.frameCount);
+    rng.z ^= 0x165667b1u;
+    SReservoir result = SReservoir(0.0f, -1, 0, 0.0f, float4(0.0f));
+    float target = restirDirectTarget(center, position.xyz, material, geometryNormal, shadingNormal, V);
+    result.updateReservoir(rng, center, target * center.finalWeight * center.samplesNumber);
+    uint sampleCount = center.samplesNumber;
+    [loop]
+    for (int i = 0; i < 7; ++i)
     {
-        // Generate a random number from range [0, 2 * neighborsRange] then offset in negative direction 
-        // by spatialNeighborCount to get range [-neighborsRange, neighborsRange]. 
-        // Need to take care of out of bound case hence the max and min
-        neighborOffset.x = int(rand(rngState) * float(neighborsRange * 2)) - neighborsRange;
-        neighborOffset.y = int(rand(rngState) * float(neighborsRange * 2)) - neighborsRange;
-        
-        neighborIndex.x = max(0, min(giParams.widthScreen - 1, dispatchThreadId.x + neighborOffset.x));
-		neighborIndex.y = max(0, min(giParams.heightScreen - 1, dispatchThreadId.y + neighborOffset.y));
-
-        float4 wposObjectId1 = ptWposObjectIdOutput[neighborIndex];
-        reservoirIndx = neighborIndex.y * (giParams.widthScreen + 1) + neighborIndex.x;
-        neighborReservoir = reservoirTemporalBuffer[curTemporalIndx][reservoirIndx];
-
-        if (wposObjectId1.w < 0.f || neighborReservoir.lightSampler < 0)
-            continue;
-
-        albedoMetalness = ptAlbedoMetalnessOutput[neighborIndex];
-        emissiveRoughtness = ptEmissionRoughnessOutput[neighborIndex];
-        normalEncode = ptNormalOutput[neighborIndex];
-        
-        MaterialProperties material1 = (MaterialProperties) 0;
-        material1.baseColor = albedoMetalness.xyz;
-        material1.metalness = albedoMetalness.w;
-        material1.emissive = emissiveRoughtness.xyz;
-        material1.roughness = emissiveRoughtness.w;
-
-        float3 geometryNormal1;
-        float3 shadingNormal1;
-        decodeNormals(normalEncode, geometryNormal1, shadingNormal1);
-
-        // Geometric similarity
-        float dist = dot(wposObjectId1.xyz - wposObjectId.xyz, wposObjectId1.xyz - wposObjectId.xyz);
-        if (dist > dist_threshold ||
-            (dot(shadingNormal1.xyz, shadingNormal.xyz)) < cos(angle_threshold)) {
-                continue;
-        }
-
-        pixelCenter = float2(neighborIndex) + float2(0.5);
-        inUV = pixelCenter/float2(LaunchDimensions);
-        d = inUV * 2.0 - 1.0;
-
-        target    = mul(giParams.projInverse , float4(d.x, d.y, 1, 1));
-        direction = mul(giParams.viewInverse , float4(normalize(target.xyz), 0));
-        rayDir = normalize(direction.xyz);
-        float3 V1 = -rayDir;
-
-        // Prepare data needed to evaluate the light
-        light = lightsBuffer[neighborReservoir.lightSampler];
-        uint type = uint(light.color_type.w);
-        if (type == EMISSION_LIGHT)
-        {
-            float2 bary = neighborReservoir.bary__.xy;
-            light.position_radius.xyz = (1.0f - bary.x - bary.y) * light.position_radius.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
-            float2 texCoord = (1.0f - bary.x - bary.y) * light.uv0_uv1.xy + bary.x * light.uv0_uv1.zw + bary.y * light.uv2_objectId_.xy;
-            SMaterialData mat = matBuffer[uint(light.uv2_objectId_.z)];
-            light.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
-            light.color_type.xyz = float3(light.color_type.x * mat.emissiveFactorMult_emissiveStrength.x, light.color_type.y * mat.emissiveFactorMult_emissiveStrength.y, light.color_type.z * mat.emissiveFactorMult_emissiveStrength.z);
-        }
-        getLightData(light, wposObjectId1.xyz, lightVector, lightDistance);
-        L = normalize(lightVector);
-
-        target_pdf = luminance(evalCombinedBRDF(shadingNormal1, L, V1, material1) * getLightIntensityAtPoint(light, lightDistance) );
-
-        reservoirNew.updateReservoir(rngState, neighborReservoir, target_pdf * neighborReservoir.finalWeight * neighborReservoir.samplesNumber);
-
-        lightSamplesCount += neighborReservoir.samplesNumber;
-    };
-
-    reservoirNew.samplesNumber = lightSamplesCount;
-    if (reservoirNew.lightSampler > -1)
-    {
-        light = lightsBuffer[reservoirNew.lightSampler];
-        type = uint(light.color_type.w);
-        if (type == EMISSION_LIGHT)
-        {
-            float2 bary = reservoirNew.bary__.xy;
-            light.position_radius.xyz = (1.0f - bary.x - bary.y) * light.position_radius.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
-            float2 texCoord = (1.0f - bary.x - bary.y) * light.uv0_uv1.xy + bary.x * light.uv0_uv1.zw + bary.y * light.uv2_objectId_.xy;
-            SMaterialData mat = matBuffer[uint(light.uv2_objectId_.z)];
-            light.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
-            light.color_type.xyz = float3(light.color_type.x * mat.emissiveFactorMult_emissiveStrength.x, light.color_type.y * mat.emissiveFactorMult_emissiveStrength.y, light.color_type.z * mat.emissiveFactorMult_emissiveStrength.z);
-        }
-        getLightData(light, wposObjectId.xyz, lightVector, lightDistance);
-        L = normalize(lightVector);
-
-        target_pdf = luminance(evalCombinedBRDF(shadingNormal, L, V, material) * getLightIntensityAtPoint(light, lightDistance) );
-        reservoirNew.finalWeight = target_pdf * reservoirNew.samplesNumber  == 0.f ? 0.f :  reservoirNew.weightSum / (target_pdf * reservoirNew.samplesNumber);
+        int2 offset = int2(rand(rng) * 5.0f, rand(rng) * 5.0f) - 2;
+        int2 neighborPixel = int2(pixel) + offset;
+        if (all(offset == 0) || any(neighborPixel < 0) || any(neighborPixel >= int2(size))) continue;
+        float4 neighborPosition = ptWposObjectIdOutput[neighborPixel];
+        if (neighborPosition.w < 0.0f || restirLightCellIndex(neighborPosition.xyz) != restirLightCellIndex(position.xyz)) continue;
+        float3 neighborGeometry, neighborNormal;
+        decodeNormals(ptNormalOutput[neighborPixel], neighborGeometry, neighborNormal);
+        float3 delta = neighborPosition.xyz - position.xyz;
+        if (dot(delta, delta) > 0.01f || dot(shadingNormal, neighborNormal) < cos(25.0f * M_PI / 180.0f)) continue;
+        uint neighborIndex = uint(neighborPixel.y) * size.x + uint(neighborPixel.x);
+        SReservoir candidate = reservoirTemporalBuffer[current][neighborIndex];
+        if (!restirValidLight(candidate) || candidate.samplesNumber == 0) continue;
+        // Evaluate the neighbor's sample using the CENTER material, view and
+        // position. Reusing the neighbor's own target blurs lighting across edges.
+        target = restirDirectTarget(candidate, position.xyz, material, geometryNormal, shadingNormal, V);
+        result.updateReservoir(rng, candidate, target * candidate.finalWeight * candidate.samplesNumber);
+        sampleCount += candidate.samplesNumber;
     }
-    else
-    {
-        reservoirNew.finalWeight = 0;
-    }
-
-    reservoirSpacialBuffer[reservoirIndx] = reservoirNew;
-    //reservoirSpacialBuffer[reservoirIndx] = reservoirTemporal;
+    result.samplesNumber = sampleCount;
+    target = restirDirectTarget(result, position.xyz, material, geometryNormal, shadingNormal, V);
+    result.finalWeight = restirFinalWeight(result.weightSum, sampleCount, target);
+    reservoirSpacialBuffer[outputIndex] = result;
 }

@@ -15,12 +15,15 @@ public:
 
     glm::uvec4 m_weightOffsets[NUM_TRANSITIONS_ALIGN4];
     glm::uvec4 m_biasOffsets[NUM_TRANSITIONS_ALIGN4];
+    glm::uvec4 m_gradientWeightOffsets[NUM_TRANSITIONS_ALIGN4];
+    glm::uvec4 m_gradientBiasOffsets[NUM_TRANSITIONS_ALIGN4];
 
     AllocatedBuffer m_trainingConstantBuffer;
     AllocatedBuffer m_mlpHostBuffer;
     AllocatedBuffer m_mlpDeviceBuffer;
     AllocatedBuffer m_mlpParamsBuffer32;
     AllocatedBuffer m_mlpGradientsBuffer;
+    AllocatedBuffer m_gradientIndexMapBuffer;
     AllocatedBuffer m_mlpMoments1Buffer;
     AllocatedBuffer m_mlpMoments2Buffer;
 
@@ -32,6 +35,7 @@ public:
     std::shared_ptr<rtxns::NetworkUtilities> m_networkUtils;
     std::unique_ptr<rtxns::HostNetwork> m_neuralNetwork;
     rtxns::NetworkLayout m_deviceNetworkLayout;
+    rtxns::NetworkLayout m_deviceGradientLayout;
 
     rtxns::NetworkArchitecture m_netArch = {
         .numHiddenLayers = NUM_HIDDEN_LAYERS,
@@ -45,6 +49,7 @@ public:
 private:
 
     void create_mlp_buffers();
+    std::vector<uint32_t> create_gradient_index_map();
 
     VulkanEngine* _engine = nullptr;
 };

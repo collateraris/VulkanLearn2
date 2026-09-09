@@ -30,13 +30,13 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
 
   SMaterialData mat = matBuffer[shadeData.materialIndex];
 
-    int index0 = indices[shadeData.meshIndex][PrimitiveIndex() * 3];
-    int index1 = indices[shadeData.meshIndex][PrimitiveIndex() * 3 + 1];
-    int index2 = indices[shadeData.meshIndex][PrimitiveIndex() * 3 + 2];
+    int index0 = indices[NonUniformResourceIndex(shadeData.meshIndex)][PrimitiveIndex() * 3];
+    int index1 = indices[NonUniformResourceIndex(shadeData.meshIndex)][PrimitiveIndex() * 3 + 1];
+    int index2 = indices[NonUniformResourceIndex(shadeData.meshIndex)][PrimitiveIndex() * 3 + 2];
 
-    SVertex v0 = vertices[shadeData.meshIndex][index0];
-    SVertex v1 = vertices[shadeData.meshIndex][index1];
-    SVertex v2 = vertices[shadeData.meshIndex][index2];
+    SVertex v0 = vertices[NonUniformResourceIndex(shadeData.meshIndex)][index0];
+    SVertex v1 = vertices[NonUniformResourceIndex(shadeData.meshIndex)][index1];
+    SVertex v2 = vertices[NonUniformResourceIndex(shadeData.meshIndex)][index2];
 
   const float3 barycentrics = float3(1.0 - attrib.baryCoord.x - attrib.baryCoord.y, attrib.baryCoord.x, attrib.baryCoord.y);
 
@@ -87,23 +87,31 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
   float3 worldBitangent = normalize(cross(worldNormal, worldTangent));
   float3x3 TBN = float3x3(worldTangent, worldBitangent, worldNormal);
 
-  indirectRpl.albedo_metalness.xyz = texSet[mat.diffuseTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
+  // Textureless materials use their constant factor. The unsigned descriptor
+  // index reserves UINT_MAX for the CPU's missing-texture (-1) sentinel.
+  float3 diffuseSample = float3(1.0f);
+  if (mat.diffuseTexIndex != 0xffffffffu)
+      diffuseSample = texSet[NonUniformResourceIndex(mat.diffuseTexIndex)].SampleLevel(linearSampler, texCoord, 0).rgb;
+  indirectRpl.albedo_metalness.xyz = diffuseSample * mat.baseColorFactor.xyz;
 
-  indirectRpl.emission_roughness.xyz = float3(0., 0., 0);
-  if (mat.emissionTexIndex > 0)
+  // Keep the original visible-emitter power, matching ReSTIR DI. The imported
+  // strength controls the light proposal/radius and secondary point proxies;
+  // multiplying it here would also amplify visible and reflected lamps.
+  indirectRpl.emission_roughness.xyz = float3(0.0f);
+  if (mat.emissionTexIndex >= 0)
   {
-      indirectRpl.emission_roughness.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb; 
-      indirectRpl.emission_roughness.xyz = float3(indirectRpl.emission_roughness.x * mat.emissiveFactorMult_emissiveStrength.x, indirectRpl.emission_roughness.y * mat.emissiveFactorMult_emissiveStrength.y, indirectRpl.emission_roughness.z * mat.emissiveFactorMult_emissiveStrength.z);
+      indirectRpl.emission_roughness.xyz = texSet[NonUniformResourceIndex(mat.emissionTexIndex)].SampleLevel(linearSampler, texCoord, 0).rgb
+          * mat.emissiveFactorMult_emissiveStrength.xyz;
   } 
 
-  indirectRpl.albedo_metalness.w = 0.;
-  if (mat.metalnessTexIndex > 0)
-      indirectRpl.albedo_metalness.w = texSet[mat.metalnessTexIndex].SampleLevel(linearSampler, texCoord, 0).b; 
+  indirectRpl.albedo_metalness.w = 1.;
+  if (mat.metalnessTexIndex >= 0)
+      indirectRpl.albedo_metalness.w = texSet[NonUniformResourceIndex(mat.metalnessTexIndex)].SampleLevel(linearSampler, texCoord, 0).b;
   indirectRpl.albedo_metalness.w *= mat.metallicFactor_roughnessFactor_transparent_.x;
 
   indirectRpl.emission_roughness.w = 1.;
-  if (mat.roughnessTexIndex > 0)
-      indirectRpl.emission_roughness.w = texSet[mat.roughnessTexIndex].SampleLevel(linearSampler, texCoord, 0).g;
+  if (mat.roughnessTexIndex >= 0)
+      indirectRpl.emission_roughness.w = texSet[NonUniformResourceIndex(mat.roughnessTexIndex)].SampleLevel(linearSampler, texCoord, 0).g;
   indirectRpl.emission_roughness.w *= mat.metallicFactor_roughnessFactor_transparent_.y;
       
   float3 shadingNormal = worldNormal;

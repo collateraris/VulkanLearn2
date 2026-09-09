@@ -228,14 +228,12 @@ void VulkanDepthReduceRenderPass::init_descriptors(const std::vector<DescriptorI
 
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-
-	createInfoReduction.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
-
-	samplerInfo.pNext = &createInfoReduction;
-
-	_depthSampler;
-	vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &_depthSampler);
+	// depthreduce.comp gathers the four texels and computes min explicitly.
+	// A reduction sampler is unnecessary and requires samplerFilterMinmax.
+	VK_CHECK(vkCreateSampler(_engine->_device, &samplerInfo, nullptr, &_depthSampler));
+	_engine->_mainDeletionQueue.push_function([device = _engine->_device, sampler = _depthSampler]() {
+		vkDestroySampler(device, sampler, nullptr);
+	});
 
 	_depthDescInfo = descInfo[0].imageInfo;
 	_depthDescInfo.sampler = _depthSampler;

@@ -67,6 +67,8 @@ void VulkanRaytracerBuilder::build_blas(VulkanEngine& engine, const std::vector<
     {
         _blas.emplace_back(b.as);
     }
+    // Every batch was submitted synchronously; scratch is no longer in use.
+    engine.destroy_buffer(engine._allocator, scratchBuffer);
 }
 
 void VulkanRaytracerBuilder::build_tlas(VulkanEngine& engine, std::vector<VkAccelerationStructureInstanceKHR>& instances, VkBuildAccelerationStructureFlagsKHR flags, bool update)
@@ -134,6 +136,7 @@ void VulkanRaytracerBuilder::build_tlas(VulkanEngine& engine, std::vector<VkAcce
         engine.immediate_submit([&](VkCommandBuffer cmd) {
             vkCmdBuildAccelerationStructuresKHR(cmd, 1, &buildInfo, &pBuildOffsetInfo);
             });
+        engine.destroy_buffer(engine._allocator, scratchBuffer);
     }
 }
 
@@ -181,6 +184,13 @@ AccelerationStruct VulkanRaytracerBuilder::create_acceleration(VulkanEngine& eng
     accel_.buffer = resultAccel.buffer._buffer;
     // Create the acceleration structure
     vkCreateAccelerationStructureKHR(engine._device, &accel_, nullptr, &resultAccel.accel);
+
+    // TLAS is created after BLAS, so reverse-order teardown releases it first.
+    // Destroy the acceleration structure before freeing its backing storage.
+    engine._mainDeletionQueue.push_function([owner = &engine, resultAccel]() mutable {
+        vkDestroyAccelerationStructureKHR(owner->_device, resultAccel.accel, nullptr);
+        owner->destroy_buffer(owner->_allocator, resultAccel.buffer);
+    });
 
     return resultAccel;
 }
@@ -260,5 +270,8 @@ AllocatedBuffer VulkanRaytracerBuilder::create_SBTBuffer(VulkanEngine* engine, u
 
     });
 
+    engine->_mainDeletionQueue.push_function([engine, rtSBTBuffer]() mutable {
+        engine->destroy_buffer(engine->_allocator, rtSBTBuffer);
+    });
     return rtSBTBuffer;
 }

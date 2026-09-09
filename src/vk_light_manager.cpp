@@ -3,6 +3,8 @@
 #include <vk_engine.h>
 #include <time.h>
 #include <vk_initializers.h>
+#include <cmath>
+#include <cstdlib>
 
 glm::vec4 computeFaceNormalAndAreaW(glm::vec4& position, glm::vec4& position1, glm::vec4& position2)
 {
@@ -64,6 +66,9 @@ void VulkanLightManager::create_cpu_host_visible_light_buffer()
 
 	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(_lightsOnScene.size() * sizeof(VulkanLightManager::Light));
 	_lightsBuffer = _engine->create_cpu_to_gpu_buffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+	_engine->_mainDeletionQueue.push_function([engine = _engine, buffer = _lightsBuffer]() mutable {
+		engine->destroy_buffer(engine->_allocator, buffer);
+	});
 
 	update_light_buffer();
 }
@@ -72,6 +77,9 @@ void VulkanLightManager::generate_lights_cell_grid()
 {
 	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(GRID_SIZE * GRID_SIZE * GRID_SIZE * sizeof(VulkanLightManager::SCell));
 	_lightsCellGrid = _engine->create_cpu_to_gpu_buffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	_engine->_mainDeletionQueue.push_function([engine = _engine, buffer = _lightsCellGrid]() mutable {
+		engine->destroy_buffer(engine->_allocator, buffer);
+	});
 }
 
 
@@ -127,7 +135,7 @@ std::vector<VulkanLightManager::SAliasTable> create_alias_table(const std::vecto
 	std::vector<uint32_t> highIdx(weightsCount, 0xFFFFFFFFu);
 
 	// Sum element weights, use double to minimize precision issues
-	float weightSum = 0.0;
+	double weightSum = 0.0;
 	for (float f : weights) weightSum += f;
 
 	// Find the average weight
@@ -195,8 +203,8 @@ std::vector<VulkanLightManager::SAliasTable> create_alias_table(const std::vecto
 
 void VulkanLightManager::update_lights_alias_table()
 {
-	_gridMax = { std::numeric_limits<float>::min(), std::numeric_limits<float>::min(), std::numeric_limits<float>::min() };
-	_gridMin = { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
+	_gridMin = _engine->_resManager.minCube;
+	_gridMax = glm::max(_engine->_resManager.maxCube, _gridMin + glm::vec3(1.f));
 	for (int lightIndex = 0; lightIndex < _lightsOnScene.size() && lightIndex < VULKAN_MAX_LIGHT_COUNT; lightIndex++)
 	{
 		glm::vec3 lightPos = glm::vec3(1);
@@ -266,13 +274,18 @@ void VulkanLightManager::update_lights_alias_table()
 					continue;
 
 				std::vector<float> lightsWeights = {};
-				float weightsSum = 0;
+				double weightsSum = 0.0;
 				for (size_t x = 0; x < lightsIndices.size(); x++)
 				{
-					float w = _lightsWeights[lightsIndices[x]];
+					const float flux = _lightsWeights[lightsIndices[x]];
+					const float w = std::isfinite(flux) && flux > 0.f ? flux : 0.f;
 					weightsSum += w;
 					lightsWeights.push_back(w);
 				}
+				// Empty/zero-flux cells have no sampling distribution. Preserve
+				// their invalid startIndex instead of creating zero-PDF entries.
+				if (!(weightsSum > 0.0) || weightsSum > std::numeric_limits<float>::max())
+					continue;
 
 				std::vector<SAliasTable> table = create_alias_table(lightsWeights, lightsIndices);
 
@@ -283,7 +296,7 @@ void VulkanLightManager::update_lights_alias_table()
 					bigAliasTable.push_back(t);
 				}
 
-				cell.weightsSum = weightsSum;
+				cell.weightsSum = static_cast<float>(weightsSum);
 				cell.startIndex = startIndex;
 				cell.numLights = lightsIndices.size();
 			}
@@ -292,13 +305,19 @@ void VulkanLightManager::update_lights_alias_table()
 
 	_grid.clear();
 
+	// Vulkan buffers must have nonzero size even if every cell is invalid.
+	// No cell references this dummy entry.
+	if (bigAliasTable.empty()) bigAliasTable.emplace_back();
 
 	uint32_t bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(bigAliasTable.size() * sizeof(VulkanLightManager::SAliasTable));
 	_lightsAliasTable = _engine->create_cpu_to_gpu_buffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	_engine->_mainDeletionQueue.push_function([engine = _engine, buffer = _lightsAliasTable]() mutable {
+		engine->destroy_buffer(engine->_allocator, buffer);
+	});
 
 	_engine->map_buffer(_engine->_allocator, _lightsAliasTable._allocation, [&](void*& data) {
 		SAliasTable* tableItem = (SAliasTable*)data;
-		for (int i = 0; i < bigAliasTable.size() && i < VULKAN_MAX_LIGHT_COUNT; i++)
+		for (size_t i = 0; i < bigAliasTable.size(); i++)
 		{
 			const SAliasTable& object = bigAliasTable[i];
 			tableItem[i].threshold = object.threshold;
@@ -310,10 +329,13 @@ void VulkanLightManager::update_lights_alias_table()
 
 	bufferSize = _engine->padSizeToMinStorageBufferOffsetAlignment(cellTable.size() * sizeof(VulkanLightManager::SCell));
 	_lightsCellGrid = _engine->create_cpu_to_gpu_buffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	_engine->_mainDeletionQueue.push_function([engine = _engine, buffer = _lightsCellGrid]() mutable {
+		engine->destroy_buffer(engine->_allocator, buffer);
+	});
 
 	_engine->map_buffer(_engine->_allocator, _lightsCellGrid._allocation, [&](void*& data) {
 		SCell* tableItem = (SCell*)data;
-		for (int i = 0; i < cellTable.size() && i < VULKAN_MAX_LIGHT_COUNT; i++)
+		for (size_t i = 0; i < cellTable.size(); i++)
 		{
 			const SCell& object = cellTable[i];
 			tableItem[i].startIndex = object.startIndex;
@@ -349,6 +371,8 @@ void VulkanLightManager::update_light_data_from_gpu()
 		});
 
 	_lightsWeights.resize(_lightsOnScene.size());
+	const VkResult invalidateResult = vmaInvalidateAllocation(_engine->_allocator, staggingBuffer._allocation, 0, VK_WHOLE_SIZE);
+	assert(invalidateResult == VK_SUCCESS);
 
 	_engine->map_buffer(_engine->_allocator, staggingBuffer._allocation, [&](void*& data) {
 		VulkanLightManager::Light* lightSSBO = (VulkanLightManager::Light*)data;
@@ -468,11 +492,22 @@ void VulkanLightManager::generate_uniform_grid(glm::vec3 maxCube, glm::vec3 minC
 	float stepY = std::abs(maxCube.y - minCube.y) / static_cast<float>(lightNumber);
 	float stepZ = std::abs(maxCube.z - minCube.z) / static_cast<float>(lightNumber);
 
-	// Random seed
-	std::random_device rd;
-
-	// Initialize Mersenne Twister pseudo-random number generator
-	std::mt19937 gen(rd());
+	// Keep diagnostic scene lighting repeatable as well as camera jitter.
+	// Interactive runs retain the original randomly coloured point-light grid.
+	const char* diagnosticFrames = std::getenv("RESTIR_DIAGNOSTICS_FRAMES");
+	const char* diagnosticLimit = std::getenv("RESTIR_DIAGNOSTICS_MAX_FRAMES");
+	const bool diagnosticRun = (diagnosticFrames && *diagnosticFrames) || (diagnosticLimit && *diagnosticLimit);
+	std::mt19937 gen;
+	if (diagnosticRun)
+	{
+		gen.seed(0u);
+		_engine->_logger.debug_log("Diagnostic point-light seed: 0\n");
+	}
+	else
+	{
+		std::random_device rd;
+		gen.seed(rd());
+	}
 
 	// Generate pseudo-random numbers
 	// uniformly distributed in range (1, 100)

@@ -3,18 +3,16 @@
 #include <vk_engine.h>
 #include <vk_initializers.h>
 
-VulkanCommandPool::~VulkanCommandPool()
-{
-	vkFreeCommandBuffers(_engine->_device, _pool, _cmdList.size(), _cmdList.data());
-
-	vkDestroyCommandPool(_engine->_device, _pool, nullptr);
-}
-
 void VulkanCommandPool::init(VulkanEngine* engine, const VkCommandPoolCreateInfo& commandPoolInfo)
 {
 	_engine = engine;
 
 	vkCreateCommandPool(_engine->_device, &commandPoolInfo, nullptr, &_pool);
+	// Destroying a pool also frees every command buffer allocated from it.
+	// Queue this before the VkDevice is destroyed, rather than in member teardown.
+	_engine->_mainDeletionQueue.push_function([device = engine->_device, pool = _pool]() {
+		vkDestroyCommandPool(device, pool, nullptr);
+	});
 }
 
 VkCommandBuffer VulkanCommandPool::request_command_buffer()

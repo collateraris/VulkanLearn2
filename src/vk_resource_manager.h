@@ -15,7 +15,7 @@ struct MaterialDesc
 {
 	std::string matName = {};
 	std::string diffuseTexture = {};
-	uint32_t diffuseTextureIndex;
+	uint32_t diffuseTextureIndex = uint32_t(-1);
 	std::string normalTexture = {};
 	int32_t normalTextureIndex = -1;
 	std::string metalnessTexture = {};
@@ -61,17 +61,17 @@ struct Reservoir
 	float weightSum = 0;
 	int32_t lightSampler = -1;
 	uint32_t samplesNumber = 0;
-	uint32_t finalWeight = 0;
-	vec4 bary__;
+	float finalWeight = 0;
+	vec4 bary__{0.0f};
 };
 
 struct ReservoirPT
 {
 	glm::ivec4 randomSeed = glm::ivec4(0, 0, 0, 0);
-	glm::vec4 radiance = glm::vec4(1., 0., 1., 1.);
+	glm::vec4 radiance = glm::vec4(0.0f);
 	float weightSum = 0;
 	uint32_t samplesNumber = 0;
-	float finalWeight = 1;
+	float finalWeight = 0;
 	float pad0 = 0;
 };
 
@@ -86,6 +86,9 @@ public:
 	std::vector<std::unique_ptr<Mesh>> meshList;
 	std::vector<std::unique_ptr<MaterialDesc>> matDescList; 
 	std::vector<Texture*> textureList;
+	int32_t environmentTextureIndex = -1;
+	float environmentIntensity = 0.f;
+	float indirectSunScale = 1.f / 64.f;
 
 	//default array of renderable objects
 	std::vector<RenderObject> renderables;

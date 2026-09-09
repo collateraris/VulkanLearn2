@@ -51,286 +51,72 @@ RWTexture2D<float4> ptNormalOutput : register(u2);
 RWTexture2D<float4> ptWposObjectIdOutput : register(u3);
 
 
-IndirectGbufferRayPayload shootRay(float3 orig, float3 dir, float max)
-{
-	IndirectGbufferRayPayload payload;
-	RayDesc ray;
-	ray.Origin = orig;
-	ray.Direction = dir;
-	ray.TMin = 0.f;
-	ray.TMax = max;
-
-	TraceRay(
-		topLevelAS,
-		RAY_FLAG_NONE,
-		0xFF,
-		STANDARD_RAY_INDEX,
-		0,
-		STANDARD_RAY_INDEX,
-		ray,
-		payload);  
-
-	// Return the color we got from our ray
-	return payload;
-};
-
-// Casts a shadow ray and returns true if light is unoccluded
-// Note that we use dedicated hit group with simpler shaders for shadow rays
-bool castShadowRay(float3 hitPosition, float3 surfaceNormal, float3 directionToLight, float TMax)
-{
-	RayDesc ray;
-	ray.Origin = offsetRay(hitPosition, surfaceNormal);
-	ray.Direction = directionToLight;
-	ray.TMin = 0.0f;
-	ray.TMax = TMax;
-
-	ShadowHitInfo payload;
-	payload.hasHit = true; //< Initialize hit flag to true, it will be set to false on a miss
-
-	// Trace the ray
-	TraceRay(
-		topLevelAS,
-		RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
-		0xFF,
-		SHADOW_RAY_INDEX,
-		0,
-		SHADOW_RAY_INDEX,
-		ray,
-		payload);
-
-	return !payload.hasHit;
-}
-
-MaterialProperties loadMaterialProperties(IndirectGbufferRayPayload payload)
-{
-    MaterialProperties result = (MaterialProperties) 0;
-    result.baseColor = payload.albedo_metalness.xyz;
-    result.metalness = payload.albedo_metalness.w;
-    result.emissive = payload.emission_roughness.xyz;
-    result.roughness = payload.emission_roughness.w;
-
-    return result;
-}
-
-// Samples a random light from the pool of all lights using simplest uniform distirbution
-bool sampleLightUniform(inout RngStateType rngState, float3 hitPosition, float3 surfaceNormal, out SLight light, out float lightSampleWeight, out uint selectLightIndex) {
-
-	if (giParams.lightsCount == 0) return false;
-
-	float3 gridCoord = (hitPosition - giParams.gridMin.xyz) / (giParams.gridMax.xyz - giParams.gridMin.xyz);
-    uint3 cellIdx = clamp(uint3(gridCoord * GRID_SIZE), uint3(0), GRID_SIZE - uint3(1));
-
-	uint linearIdx = cellIdx.x * GRID_SIZE*GRID_SIZE + cellIdx.y * GRID_SIZE + cellIdx.z;
-	SCell cell = cellGridData[linearIdx];
-
-	if (cell.startIndex == -1) return false;
-	
-	uint randomLightIndex = min(cell.numLights - 1, uint(rand(rngState) * cell.numLights));
-
-	SAliasTable alias = aliasTable[cell.startIndex + randomLightIndex];
-	uint lightIndex = alias.sample(rngState);
-	light = lightsBuffer[lightIndex];
-
-	float weight = light.direction_flux.w;
-	lightSampleWeight = cell.weightsSum / weight;
-
-	// PDF of uniform distribution is (1/light count). Reciprocal of that PDF (simply a light count) is a weight of this sample
-	//lightSampleWeight = float(giParams.lightsCount);
-
-	selectLightIndex = lightIndex;
-
-	return true;
-};
-
-// Samples a random light from the pool of all lights using RIS (Resampled Importance Sampling)
-bool sampleLightRIS(inout RngStateType rngState, float3 hitPosition, float3 surfaceNormal, out SLight selectedSample, out float lightSampleWeight, MaterialProperties material, float3 shadingNormal, float3 V, out SReservoir reservoir) {
-	
-	if (giParams.lightsCount == 0) return false;
-
-	selectedSample = (SLight) 0;
-	float totalWeights = 0.0f;
-	float samplePdfG = 0.0f;
-	uint candidateLightIndex = -1;
-	uint selectLightIndex = -1;
-	float2 candidateBary;
-	float2 selectBary;
-
-	[unroll]
-	for (int i = 0; i < RIS_CANDIDATES_LIGHTS; i++) {
-
-		float candidateWeight;
-		SLight candidate;
-		if (sampleLightUniform(rngState, hitPosition, surfaceNormal, candidate, candidateWeight, candidateLightIndex)) {
-
-			uint type = uint(candidate.color_type.w);
-			if (type == EMISSION_LIGHT)
-			{
-				float2 uv = float2(rand(rngState), rand(rngState));
-				float2 bary = UniformSampleTriangle(uv);
-				candidateBary = bary;
-				candidate.position_radius.xyz = (1.0f - bary.x - bary.y) * candidate.position_radius.xyz + bary.x * candidate.position1.xyz + bary.y * candidate.position2.xyz;
-				float2 texCoord = (1.0f - bary.x - bary.y) * candidate.uv0_uv1.xy + bary.x * candidate.uv0_uv1.zw + bary.y * candidate.uv2_objectId_.xy;
-				SMaterialData mat = matBuffer[uint(candidate.uv2_objectId_.z)];
-				candidate.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
-				candidate.color_type.xyz = float3(candidate.color_type.x * mat.emissiveFactorMult_emissiveStrength.x, candidate.color_type.y * mat.emissiveFactorMult_emissiveStrength.y, candidate.color_type.z * mat.emissiveFactorMult_emissiveStrength.z);
-				candidate.color_type.xyz *= mat.emissiveFactorMult_emissiveStrength.w;
-			}
-			float3	lightVector;
-			float lightDistance;
-			getLightData(candidate, hitPosition, lightVector, lightDistance);
-
-			float3 L = normalize(lightVector);
-			float candidatePdfG =  luminance(evalCombinedBRDF(shadingNormal, L, V, material) * getLightIntensityAtPoint(candidate, length(lightVector)));
-			const float candidateRISWeight = candidatePdfG * candidateWeight; 
-
-			totalWeights += candidateRISWeight;
-			if (rand(rngState) < (candidateRISWeight / totalWeights)) 
-			{
-				selectedSample = candidate;
-				samplePdfG = candidatePdfG;
-				selectLightIndex = candidateLightIndex;
-				selectBary = candidateBary;
-			}
-		}
-	}
-
-	if (totalWeights == 0.0f) {
-		return false;
-	} else {
-		lightSampleWeight = (totalWeights / float(RIS_CANDIDATES_LIGHTS)) / samplePdfG;
-		reservoir.weightSum = totalWeights;
-		reservoir.lightSampler = selectLightIndex;
-		reservoir.samplesNumber = RIS_CANDIDATES_LIGHTS;
-		reservoir.finalWeight = lightSampleWeight;
-		reservoir.bary__.xy = selectBary;
-		return true;
-	}
-};
-
-// Calculates probability of selecting BRDF (specular or diffuse) using the approximate Fresnel term
-float getBrdfProbability(MaterialProperties material, float3 V, float3 shadingNormal) {
-	
-	// Evaluate Fresnel term using the shading normal
-	// Note: we use the shading normal instead of the microfacet normal (half-vector) for Fresnel term here. That's suboptimal for rough surfaces at grazing angles, but half-vector is yet unknown at this point
-	float specularF0 = luminance(baseColorToSpecularF0(material.baseColor, material.metalness));
-	float diffuseReflectance = luminance(baseColorToDiffuseReflectance(material.baseColor, material.metalness));
-	float Fresnel = saturate(luminance(evalFresnel(specularF0, shadowedF90(specularF0), max(0.0f, dot(V, shadingNormal)))));
-
-	// Approximate relative contribution of BRDFs using the Fresnel term
-	float specular = Fresnel;
-	float diffuse = diffuseReflectance * (1.0f - Fresnel); //< If diffuse term is weighted by Fresnel, apply it here as well
-
-	// Return probability of selecting specular BRDF over diffuse BRDF
-	float p = (specular / max(0.0001f, (specular + diffuse)));
-
-	// Clamp probability to avoid undersampling of less prominent BRDF
-	return clamp(p, 0.1f, 0.9f);
-};
-
+#include "restir_pathtrace.h"
+#define RESTIR_DI_RAYGEN 1
+#include "restir_di_target.h"
 
 [shader("raygeneration")]
-void main() 
+void main()
 {
-	uint2 LaunchIndex = DispatchRaysIndex().xy;
-	uint2 LaunchDimensions = DispatchRaysDimensions().xy;
-    const float2 pixelCenter = float2(LaunchIndex) + float2(0.5);
-    const float2 inUV = pixelCenter/float2(LaunchDimensions);
-    float2 d = inUV * 2.0 - 1.0;
+    uint2 pixel = DispatchRaysIndex().xy;
+    uint2 size = uint2(giParams.widthScreen, giParams.heightScreen);
+    uint index = pixel.y * size.x + pixel.x;
+    SReservoir reservoir = SReservoir(0.0f, -1, 0, 0.0f, float4(0.0f));
+    float3 V = restirViewDirection(pixel);
+    float3 origin = mul(giParams.viewInverse, float4(0.0f, 0.0f, 0.0f, 1.0f)).xyz;
+    IndirectGbufferRayPayload payload = restirTraceRay(origin, -V);
+    ptAlbedoMetalnessOutput[pixel] = float4(0.0f);
+    ptEmissionRoughnessOutput[pixel] = float4(0.0f);
+    ptNormalOutput[pixel] = float4(0.0f);
+    ptWposObjectIdOutput[pixel] = float4(0.0f, 0.0f, 0.0f, -1.0f);
 
-	float4 origin    = mul(giParams.viewInverse , float4(0, 0, 0, 1));
-    float4 target    = mul(giParams.projInverse , float4(d.x, d.y, 1, 1));
-    float4 direction = mul(giParams.viewInverse , float4(normalize(target.xyz), 0));
+    if (payload.hasHit())
+    {
+        MaterialProperties material = restirMaterial(payload.albedo_metalness, payload.emission_roughness);
+        float3 geometryNormal, shadingNormal;
+        decodeNormals(payload.normal_, geometryNormal, shadingNormal);
+        restirOrientNormals(V, geometryNormal, shadingNormal);
+        ptAlbedoMetalnessOutput[pixel] = float4(material.baseColor, material.metalness);
+        ptEmissionRoughnessOutput[pixel] = float4(material.emissive, material.roughness);
+        ptNormalOutput[pixel] = encodeNormals(geometryNormal, shadingNormal);
+        ptWposObjectIdOutput[pixel] = payload.position_objectID;
 
-	float3 rayDir = normalize(direction.xyz);
-	float3 rayOri = origin.xyz;
-
-	// Initialize random numbers generator
-	RngStateType rngState = initRNG(LaunchIndex, LaunchDimensions, giParams.frameCount);
-
-	// Initialize path tracing data
-	float3 radiance = float3(0.0f, 0.0f, 0.0f);
-	float3 throughput = float3(1.0f, 1.0f, 1.0f);
-
-	float4 albedoMetalnessOutput = float4(0., 0., 0., 0.);
-	float4 emissionRoughnessOutput = float4(0., 0., 0., 0.);
-	float4 normalOutput = float4(0., 0., 0., 0.);
-	float4 wposObjectIdOutput = float4(0., 0., 0., -1);
-
-	SReservoir DI_RISreservoir = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
-
-	IndirectGbufferRayPayload payload = shootRay(rayOri, rayDir, FLT_MAX);
-
-	[branch]
-	if (!payload.hasHit())
-	{
-		radiance += throughput * float3(0., 0., 0.);
-	}
-	else
-	{
-
-		// Load material properties at the hit point
-		MaterialProperties material = loadMaterialProperties(payload);
-
-		float3 geometryNormal;
-		float3 shadingNormal;
-		decodeNormals(payload.normal_, geometryNormal, shadingNormal);
-
-		float3 V = -rayDir;
-		if (dot(geometryNormal, V) < 0.0f) geometryNormal = -geometryNormal;
-		if (dot(geometryNormal, shadingNormal) < 0.0f) shadingNormal = -shadingNormal;
-
-		// Neighborhood around surface point (approximated by tangent plane from geometry normal) is visible, 
-		// yet camera would be behind the tangent plane formed by bumped normal -- this can cause black spots 
-		// as brdf evaluates to 0 in these regions. To mitigate the issue, rotate the bumped normal towards
-		// wo until their dot product becomes greater than zero:
-		//
-		// 1. Project bumped normal onto plane formed by normal vector wo
-		// 2. Slightly rotate the projection towards wo so that their dot product becomes greater than zero
-	#if 1
-		if(dot(V, geometryNormal) > 0 && dot(V, shadingNormal) < 0)
-		{
-			V = normalize(V);
-			shadingNormal = shadingNormal - dot(shadingNormal, V) * V;
-			shadingNormal = 1e-4f * V + shadingNormal;
-			shadingNormal = normalize(shadingNormal);
-		}
-	#endif	
-		radiance += throughput * material.emissive;
-
-		// Evaluate direct light (next event estimation), start by sampling one light 
-		SLight light;
-		float lightWeight = -1;
-		SReservoir candidateReservoir = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
-		if (sampleLightRIS(rngState, payload.position_objectID.xyz, geometryNormal, light, lightWeight, material, shadingNormal, V, candidateReservoir)) {
-
-			// Prepare data needed to evaluate the light
-			float3 lightVector;
-			float lightDistance;
-			getLightData(light, payload.position_objectID.xyz, lightVector, lightDistance);
-			float3 L = normalize(lightVector);
-			
-			// If light is not in shadow, evaluate BRDF and accumulate its contribution into radiance
-			if (castShadowRay(payload.position_objectID.xyz, geometryNormal, L, lightDistance))
-			{
-				radiance += throughput * evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * lightWeight);
-			}
-			else
-			{
-				candidateReservoir.finalWeight = 0;
-			}
-		}
-
-		albedoMetalnessOutput = float4(material.baseColor, material.metalness);
-		emissionRoughnessOutput = float4(material.emissive, material.roughness);
-		normalOutput = payload.normal_;
-		wposObjectIdOutput = payload.position_objectID;
-		DI_RISreservoir = candidateReservoir;
-	}
-
-	ptAlbedoMetalnessOutput[LaunchIndex] = albedoMetalnessOutput;
-	ptEmissionRoughnessOutput[LaunchIndex] = emissionRoughnessOutput;
-	ptNormalOutput[LaunchIndex] = normalOutput;
-	ptWposObjectIdOutput[LaunchIndex] = wposObjectIdOutput;
-	
-	reservoirInitBuffer[LaunchIndex.y * (LaunchDimensions.x + 1) + LaunchIndex.x] = DI_RISreservoir;
-};
+        if (giParams.lightsCount > 0)
+        {
+            RngStateType rng = initRNG(pixel, size, giParams.frameCount);
+            rng.z ^= 0xc2b2ae35u;
+            const uint candidatesPerGroup = 8;
+            uint sampleCount = 0;
+            [loop]
+            for (uint first = 0; first < RIS_CANDIDATES_LIGHTS; first += candidatesPerGroup)
+            {
+                // First resample a small group without visibility, then trace
+                // only its representative. The second RIS level uses the
+                // group's inverse PDF and sample count, preserving its energy.
+                SReservoir group = SReservoir(0.0f, -1, 0, 0.0f, float4(0.0f));
+                [loop]
+                for (uint i = first; i < min(first + candidatesPerGroup, uint(RIS_CANDIDATES_LIGHTS)); ++i)
+                {
+                    SReservoir candidate = restirSampleLight(rng, payload.position_objectID.xyz, aliasTable, cellGridData);
+                    float target = restirTarget(restirEvaluateDirect(candidate, payload.position_objectID.xyz,
+                        material, geometryNormal, shadingNormal, V));
+                    group.updateReservoir(rng, candidate, target * candidate.finalWeight);
+                }
+                float groupTarget = restirTarget(restirEvaluateDirect(group, payload.position_objectID.xyz,
+                    material, geometryNormal, shadingNormal, V));
+                group.finalWeight = restirFinalWeight(group.weightSum, group.samplesNumber, groupTarget);
+                float target = restirDirectTarget(group, payload.position_objectID.xyz,
+                    material, geometryNormal, shadingNormal, V);
+                reservoir.updateReservoir(rng, group, target * group.finalWeight * group.samplesNumber);
+                sampleCount += group.samplesNumber;
+            }
+            reservoir.samplesNumber = sampleCount;
+            float target = restirDirectTarget(reservoir, payload.position_objectID.xyz,
+                material, geometryNormal, shadingNormal, V);
+            reservoir.finalWeight = restirFinalWeight(reservoir.weightSum, reservoir.samplesNumber, target);
+            // Visibility is part of the target, including its support floor;
+            // never zero the resulting reservoir weight after resampling.
+        }
+    }
+    reservoirInitBuffer[index] = reservoir;
+}

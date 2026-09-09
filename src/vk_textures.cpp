@@ -7,21 +7,35 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+namespace
+{
+bool supports_linear_mip_blits(VkPhysicalDevice physicalDevice, VkFormat format)
+{
+	VkFormatProperties properties{};
+	vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &properties);
+	constexpr VkFormatFeatureFlags required = VK_FORMAT_FEATURE_BLIT_SRC_BIT
+		| VK_FORMAT_FEATURE_BLIT_DST_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+	return (properties.optimalTilingFeatures & required) == required;
+}
+}
+
 void load_image_with_stbi(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight);
 void load_hdr_image_with_stbi(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight);
 
 void load_image_for_dds(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight);
 
-bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file, Texture& outImage, VkFormat& image_format)
+bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file, Texture& outImage, VkFormat& image_format,
+	const uint8_t* fallbackRGBA)
 {
 	void* pixel_ptr = nullptr;
 	VkDeviceSize imageSize = 0;
 	int texWidth = -1, texHeight = -1;
+	bool ownsPixels = true;
 
 	bool isDDS = file.substr(file.find_last_of(".") + 1).compare("dds") == 0;
 
 	if (outImage.flags & ETexFlags::HDR_CUBEMAP)
-		load_image_with_stbi(file.c_str(), pixel_ptr, image_format, imageSize, texWidth, texHeight);
+		load_hdr_image_with_stbi(file.c_str(), pixel_ptr, image_format, imageSize, texWidth, texHeight);
 	else if (isDDS)
 		load_image_for_dds(file.c_str(), pixel_ptr, image_format, imageSize, texWidth, texHeight);
 	else
@@ -29,11 +43,30 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file,
 
 	if (pixel_ptr == nullptr || imageSize <= 0 || texWidth <= 0 || texHeight <= 0)
 	{
-		engine._logger.debug_log(std::format("Failed to load texture file {}\n", file));
-		return false;
+		stbi_image_free(pixel_ptr);
+		if (!fallbackRGBA)
+		{
+			engine._logger.debug_log(std::format("Failed to load texture file {}\n", file));
+			return false;
+		}
+		// Keep every bindless descriptor valid even when an imported material
+		// refers to an unavailable file. Data maps use linear fallback values.
+		pixel_ptr = const_cast<uint8_t*>(fallbackRGBA);
+		ownsPixels = false;
+		image_format = VK_FORMAT_R8G8B8A8_UNORM;
+		texWidth = texHeight = 1;
+		imageSize = 4;
+		engine._logger.debug_log(std::format("Using a 1x1 fallback for missing texture {}\n", file));
 	}
 
 	outImage.mipLevels =  (outImage.flags & ETexFlags::NO_MIPS) ? 1 : static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
+	if (outImage.mipLevels > 1 && !supports_linear_mip_blits(engine._chosenPhysicalDeviceGPU, image_format))
+	{
+		// Compressed formats can support filtered sampling and blit sources
+		// without supporting blit destinations. Keep the uploaded base level.
+		outImage.mipLevels = 1;
+		engine._logger.debug_log(std::format("Using base texture level only; mipmap blits unsupported for {}\n", file));
+	}
 
 	//allocate temporary buffer for holding texture data to upload
 	AllocatedBuffer stagingBuffer = engine.create_staging_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
@@ -44,7 +77,8 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file,
 		});
 
 	//we no longer need the loaded data, so we can free the pixels as they are now in the staging buffer
-	stbi_image_free(pixel_ptr);
+	if (ownsPixels)
+		stbi_image_free(pixel_ptr);
 
 	VkExtent3D imageExtent;
 	imageExtent.width = static_cast<uint32_t>(texWidth);
@@ -134,23 +168,25 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file,
 		imageBarrier_toReadable.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
 		//barrier the image into the shader readable layout
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+			0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
 
 	});
 
 	outImage.image = newImage;
+	outImage.extend = imageExtent;
+	outImage.createInfo = dimg_info;
+	outImage.currImageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	outImage.currAccessFlag = VK_ACCESS_SHADER_READ_BIT;
 
 	return true;
 }
 
 void vkutil::generateMipmaps(VulkanEngine& engine, VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels)
 {
-	// Check if image format supports linear blitting
-	VkFormatProperties formatProperties;
-	vkGetPhysicalDeviceFormatProperties(engine._chosenPhysicalDeviceGPU, imageFormat, &formatProperties);
-
-	if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
-		throw std::runtime_error("texture image format does not support linear blitting!");
+	if (!supports_linear_mip_blits(engine._chosenPhysicalDeviceGPU, imageFormat)) {
+		throw std::runtime_error("Texture format does not support filtered mipmap blits (source, destination and linear filter required)");
 	}
 
 	engine.immediate_submit([&](VkCommandBuffer cmd) {
@@ -202,12 +238,13 @@ void vkutil::generateMipmaps(VulkanEngine& engine, VkImage image, VkFormat image
 				VK_FILTER_LINEAR);
 
 			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
 			barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
 			vkCmdPipelineBarrier(cmd,
-				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+				VK_PIPELINE_STAGE_TRANSFER_BIT,
+				VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0,
 				0, nullptr,
 				0, nullptr,
 				1, &barrier);
@@ -218,12 +255,13 @@ void vkutil::generateMipmaps(VulkanEngine& engine, VkImage image, VkFormat image
 
 		barrier.subresourceRange.baseMipLevel = mipLevels - 1;
 		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
 		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
 		vkCmdPipelineBarrier(cmd,
-			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0,
 			0, nullptr,
 			0, nullptr,
 			1, &barrier);
@@ -237,7 +275,7 @@ void load_hdr_image_with_stbi(const char* file, void*& pixel_ptr, VkFormat& imag
 
 	stbi_set_flip_vertically_on_load(true);
 
-	float* pixels = stbi_loadf(file, &texWidth, &texHeight, &texChannels, 0);
+	float* pixels = stbi_loadf(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
 	stbi_set_flip_vertically_on_load(false);
 
@@ -247,9 +285,11 @@ void load_hdr_image_with_stbi(const char* file, void*& pixel_ptr, VkFormat& imag
 	}
 
 	pixel_ptr = pixels;
-	imageSize = texWidth * texHeight * 2 * 3;
+	// stbi_loadf returns 32-bit components. Upload the same layout without
+	// truncating HDR values or interpreting float32 bytes as half floats.
+	imageSize = VkDeviceSize(texWidth) * VkDeviceSize(texHeight) * 4 * sizeof(float);
 
-	image_format = VK_FORMAT_R16G16B16_SFLOAT;
+	image_format = VK_FORMAT_R32G32B32A32_SFLOAT;
 }
 
 void load_image_with_stbi(const char* file, void*& pixel_ptr, VkFormat& image_format, VkDeviceSize& imageSize, int& texWidth, int& texHeight)
@@ -354,6 +394,8 @@ void load_image_for_dds(const char* file, void*& pixel_ptr, VkFormat& image_form
 		break;
 	default:
 		free(buffer);
+		pixel_ptr = nullptr;
+		imageSize = 0;
 		std::cout << "Failed to load Image: dds file format not supported (supported formats: DXT1, DXT3, DXT5)" << std::endl;
 		std::cout << "Texture failed to load at path: " << file << std::endl;
 		return;

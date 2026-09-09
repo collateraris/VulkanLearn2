@@ -69,7 +69,7 @@ VkConvertCooperativeVectorMatrixInfoNV GetVkConvertLayerDesc(
     info.numColumns = columns;
     info.srcComponentType = GetVkComponentType(precision);
     info.srcLayout = GetVkLayout(srcLayout);
-    info.srcStride = GetStride(MatrixLayout::RowMajor, rows, columns, GetSize(precision));
+    info.srcStride = GetStride(srcLayout, rows, columns, GetSize(precision));
     info.srcSize = srcSize;
     info.srcData.deviceAddress = srcData;
     info.dstComponentType = GetVkComponentType(precision);
@@ -119,16 +119,23 @@ void CoopVectorUtils_VK::ConvertDeviceMatrixLayout(
 
     // Convert weights
     std::vector<VkConvertCooperativeVectorMatrixInfoNV> convertInfos(srcLayout.networkLayers.size());
+    std::vector<size_t> dstLayerSizes(srcLayout.networkLayers.size());
     for (int i = 0; i < srcLayout.networkLayers.size(); i++)
     {
         // Weights
-        size_t dstLayerSize = dstLayout.networkLayers[i].weightSize;
+        dstLayerSizes[i] = dstLayout.networkLayers[i].weightSize;
         convertInfos[i] =
             GetVkConvertLayerDesc(srcLayout.networkLayers[i].outputs, srcLayout.networkLayers[i].inputs, srcLayout.matrixPrecision, srcLayout.matrixLayout, dstLayout.matrixLayout,
-                                  srcLayout.networkLayers[i].weightSize, &dstLayerSize, srcBufferVA + srcBufferOffset + srcLayout.networkLayers[i].weightOffset,
+                                  srcLayout.networkLayers[i].weightSize, &dstLayerSizes[i], srcBufferVA + srcBufferOffset + srcLayout.networkLayers[i].weightOffset,
                                   dstBufferVA + dstBufferOffset + dstLayout.networkLayers[i].weightOffset);
     }
     _engine->immediate_submit([&](VkCommandBuffer cmd) {
+        // Uploads must be visible to both the conversion and the bias copies.
+        VkMemoryBarrier uploadBarrier{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+        uploadBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        uploadBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0,
+            1, &uploadBarrier, 0, nullptr, 0, nullptr);
         vkCmdConvertCooperativeVectorMatrixNV(cmd, (uint32_t)convertInfos.size(), convertInfos.data());
 
         // Copy the bias
@@ -140,6 +147,11 @@ void CoopVectorUtils_VK::ConvertDeviceMatrixLayout(
             copyRegions[i].size = srcLayout.networkLayers[i].biasSize;
         }
         vkCmdCopyBuffer(cmd, vkSrcBuffer, vkDstBuffer, (uint32_t)copyRegions.size(), copyRegions.data());
+        VkMemoryBarrier conversionBarrier{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+        conversionBarrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+        conversionBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
+            1, &conversionBarrier, 0, nullptr, 0, nullptr);
     });
 }
 

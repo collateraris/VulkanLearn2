@@ -2,6 +2,8 @@
 #include <sys_config/vk_strings.h>
 
 #include <cassert>
+#include <cmath>
+#include <stdexcept>
 
 using namespace vk_utils;
 
@@ -55,6 +57,16 @@ SceneConfig vk_utils::Config::GetCurrentScene()
 
     config.fileName = vk_utils::ASSETS_PATH + sceneConfig.GetAttribute<std::string>("path");
     config.hdrCubemapPath = vk_utils::ASSETS_PATH + sceneConfig.GetAttribute<std::string>("hdr");
+    const auto nonnegativeAttribute = [&](const char* name, float fallback) {
+        float value = fallback;
+        const auto* element = sceneConfig.GetElement();
+        if ((element->Attribute(name) && element->QueryFloatAttribute(name, &value) != tinyxml2::XML_SUCCESS)
+            || !std::isfinite(value) || value < 0.f)
+            throw std::runtime_error(std::string("Invalid non-negative scene attribute: ") + name);
+        return value;
+    };
+    config.environmentIntensity = nonnegativeAttribute("environmentIntensity", config.environmentIntensity);
+    config.indirectSunScale = nonnegativeAttribute("indirectSunScale", config.indirectSunScale);
     config.scaleFactor = sceneConfig.GetAttribute<float>("scaleFactor");
     bool bNeedRotation = sceneConfig.GetAttribute<int>("needRotation");
 

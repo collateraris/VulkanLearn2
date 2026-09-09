@@ -86,6 +86,8 @@ add_executable(vulkan_guide
     graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.cpp
     graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h
     graphic_pipeline/vk_simple_accumulation_graphics_pipeline.cpp
+    graphic_pipeline/vk_spatial_denoiser_pass.h
+    graphic_pipeline/vk_spatial_denoiser_pass.cpp
     graphic_pipeline/vk_ibl_maps_generator_graphics_pipeline.h
     graphic_pipeline/vk_ibl_maps_generator_graphics_pipeline.cpp
     graphic_pipeline/vk_raytracer_denoiser_pass.h
@@ -143,5 +145,26 @@ set_property(TARGET streamline PROPERTY
              IMPORTED_IMPLIB "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/streamline/lib/x64/sl.interposer.lib")
 
 target_link_libraries(vulkan_guide sdl2 volk volk_headers meshoptimizer plog taskflow streamline streamline2) 
+
+if(WIN32)
+    # Resolve DLL names and paths from the selected build configuration.
+    # SDL2 is an interface target, so its bundled runtime is listed explicitly.
+    set(VULKAN_GUIDE_RUNTIME_DLLS
+        "${PROJECT_SOURCE_DIR}/third_party/SDL2-2.28.2/lib/x64/SDL2.dll"
+        "$<TARGET_FILE:streamline>")
+    foreach(runtime_target IN ITEMS assimp NRD)
+        get_target_property(runtime_type ${runtime_target} TYPE)
+        if(runtime_type STREQUAL "SHARED_LIBRARY")
+            list(APPEND VULKAN_GUIDE_RUNTIME_DLLS "$<TARGET_FILE:${runtime_target}>")
+        endif()
+    endforeach()
+
+    add_custom_command(TARGET vulkan_guide POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            ${VULKAN_GUIDE_RUNTIME_DLLS}
+            "$<TARGET_FILE_DIR:vulkan_guide>"
+        COMMENT "Copying runtime DLLs for $<CONFIG> beside vulkan_guide"
+        VERBATIM)
+endif()
 
 add_dependencies(vulkan_guide Shaders)

@@ -10,7 +10,8 @@ class VulkanRenderPipeline
 {
 public:
 	VulkanRenderPipeline() = default;
-	~VulkanRenderPipeline();
+	// GPU handles are released by the engine before VkDevice teardown.
+	~VulkanRenderPipeline() = default;
 
 	void init(VulkanEngine* engine, EPipelineType type, std::function<void(VkPipeline& pipeline, VkPipelineLayout& pipelineLayout)>&& func);
 

@@ -6,7 +6,7 @@
 
 struct ShaderModule {
 	std::vector<uint32_t> code;
-	VkShaderModule module;
+	VkShaderModule module = VK_NULL_HANDLE;
 };
 
 class ShaderLoader
@@ -35,7 +35,7 @@ struct ShaderEffect {
 	void reflect_layout(VkDevice device, ReflectionOverrides* overrides, int overrideCount);
 
 	void fill_stages(std::vector<VkPipelineShaderStageCreateInfo>& pipelineStages);
-	VkPipelineLayout builtLayout;
+	VkPipelineLayout builtLayout = VK_NULL_HANDLE;
 
 	struct ReflectedBinding {
 		uint32_t set;
@@ -43,8 +43,8 @@ struct ShaderEffect {
 		VkDescriptorType type;
 	};
 	std::unordered_map<std::string, ReflectedBinding> bindings;
-	std::array<VkDescriptorSetLayout, 4> setLayouts;
-	std::array<uint32_t, 4> setHashes;
+	std::array<VkDescriptorSetLayout, 4> setLayouts{};
+	std::array<uint32_t, 4> setHashes{};
 private:
 	struct ShaderStage {
 		ShaderModule* shaderModule;
@@ -105,9 +105,13 @@ class ShaderCache {
 public:
 
 	ShaderModule* get_shader(const std::string& path);
+	// Call while the device still exists; subsequent calls are harmless.
+	void cleanup();
+	// A pipeline takes ownership when it uses a layout produced by reflection.
+	void disown_reflected_pipeline_layout(VkPipelineLayout layout);
 
 	void init(VkDevice device) { _device = device; };
 private:
-	VkDevice _device;
+	VkDevice _device = VK_NULL_HANDLE;
 	std::unordered_map<std::string, std::unique_ptr<ShaderModule>> module_cache;
 };

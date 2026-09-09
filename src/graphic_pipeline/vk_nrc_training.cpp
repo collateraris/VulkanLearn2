@@ -73,7 +73,7 @@ Texture& VulkanNRC_TrainingPass::get_tex(ETextureResourceNames name) const
 void VulkanNRC_TrainingPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
 {
 	const NeuralRadianceCache& nrc = *_engine->_resManager.nrc_cache.get();
-	cmd->dispatch(_tileNumberWidth, _tileNumberHeight, 1, [&](VkCommandBuffer cmd)
+	cmd->dispatch(donut::math::div_ceil(nrc.m_batchSize, 256u), 1, 1, [&](VkCommandBuffer cmd)
 	{
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipeline(EPipelineType::NRC_Training));
 
@@ -97,6 +97,6 @@ void VulkanNRC_TrainingPass::draw(VulkanCommandBuffer* cmd, int current_frame_in
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Training), 3,
 			1, &_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP_Train_Inference)->set, 0, nullptr);
 
-		_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Inference), 4);
+		_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Training), 4);
 	});
 }

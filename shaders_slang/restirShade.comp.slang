@@ -52,82 +52,42 @@ RWTexture2D<float4> ptWposObjectIdOutput : register(u3);
 [[vk::binding(4, 2)]]
 RWTexture2D<float4> ptOutput : register(u4);
 
+[[vk::binding(0, 0)]]
+StructuredBuffer<SVertex> vertices[] : register(t0);
+[[vk::binding(2, 0)]]
+RaytracingAccelerationStructure topLevelAS : register(t2);
+[[vk::binding(3, 0)]]
+StructuredBuffer<SObjectData> objectBuffer : register(t3);
+[[vk::binding(5, 0)]]
+StructuredBuffer<int> indices[] : register(t5);
+
+#include "restir_lighting.h"
+#include "restir_visibility.h"
+
 [shader("compute")]
 [numthreads(16, 16, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
-    if (dispatchThreadId.x >= giParams.widthScreen ||  dispatchThreadId.y >= giParams.heightScreen)
+    uint2 pixel = dispatchThreadId.xy;
+    if (pixel.x >= giParams.widthScreen || pixel.y >= giParams.heightScreen) return;
+    uint index = pixel.y * giParams.widthScreen + pixel.x;
+    float4 position = ptWposObjectIdOutput[pixel];
+    if (position.w < 0.0f)
     {
+        ptOutput[pixel] = float4(min(restirEnvironment(-restirViewDirection(pixel)), float3(65504.0f)), 1.0f);
         return;
-    };
-
-    float4 wposObjectId = ptWposObjectIdOutput[dispatchThreadId.xy];
-    uint reservoirIndx = dispatchThreadId.y * (giParams.widthScreen + 1) + dispatchThreadId.x;
-
-    SReservoir reservoirSpacial = reservoirSpacialBuffer[reservoirIndx];
-    uint curTemporalIndx = (giParams.frameCount + 1) % 2;
-    //reservoirTemporalBuffer[curTemporalIndx][reservoirIndx] = reservoirSpacial;
-    //SReservoir reservoirSpacial = reservoirInitBuffer[reservoirIndx];
-    //SReservoir reservoirSpacial = reservoirTemporalBuffer[curTemporalIndx][reservoirIndx];
-
-    //SReservoirPT indirect = reservoirPTTemporalBuffer[curTemporalIndx][reservoirIndx];
-    SReservoirPT indirect = reservoirPTSpacialBuffer[reservoirIndx];
-    //SReservoirPT indirect = reservoirPTInitBuffer[reservoirIndx];
-    float4 indirectRadiance = float4(indirect.radiance.xyz * indirect.finalWeight, 1.);
-
-    if (wposObjectId.w < 0.f || reservoirSpacial.lightSampler < 0)
-    {
-        ptOutput[dispatchThreadId.xy] = indirectRadiance;
-        return;
-    };
-
-    float4 albedoMetalness = ptAlbedoMetalnessOutput[dispatchThreadId.xy];
-    float4 emissiveRoughtness = ptEmissionRoughnessOutput[dispatchThreadId.xy];
-    float4 normalEncode = ptNormalOutput[dispatchThreadId.xy];
-    
-    MaterialProperties material = (MaterialProperties) 0;
-    material.baseColor = albedoMetalness.xyz;
-    material.metalness = albedoMetalness.w;
-    material.emissive = emissiveRoughtness.xyz;
-    material.roughness = emissiveRoughtness.w;
-
-    float3 geometryNormal;
-    float3 shadingNormal;
-    decodeNormals(normalEncode, geometryNormal, shadingNormal);
-
-    uint2 LaunchIndex = dispatchThreadId.xy;
-	uint2 LaunchDimensions = uint2(giParams.widthScreen,giParams.heightScreen);
-    const float2 pixelCenter = float2(LaunchIndex) + float2(0.5);
-    const float2 inUV = pixelCenter/float2(LaunchDimensions);
-    float2 d = inUV * 2.0 - 1.0;
-
-    float4 origin    = mul(giParams.viewInverse , float4(0, 0, 0, 1));
-    float4 target    = mul(giParams.projInverse , float4(d.x, d.y, 1, 1));
-    float4 direction = mul(giParams.viewInverse , float4(normalize(target.xyz), 0));
-
-	float3 rayDir = normalize(direction.xyz);
-    float3 V = -rayDir;
-
-    // Prepare data needed to evaluate the light
-    float3 lightVector;
-    float lightDistance;
-    SLight light = lightsBuffer[reservoirSpacial.lightSampler];
-    uint type = uint(light.color_type.w);
-    if (type == EMISSION_LIGHT)
-    {
-        float2 bary = reservoirSpacial.bary__.xy;
-        light.position_radius.xyz = (1.0f - bary.x - bary.y) * light.position_radius.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
-        float2 texCoord = (1.0f - bary.x - bary.y) * light.uv0_uv1.xy + bary.x * light.uv0_uv1.zw + bary.y * light.uv2_objectId_.xy;
-        SMaterialData mat = matBuffer[uint(light.uv2_objectId_.z)];
-        light.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
-        light.color_type.xyz = float3(light.color_type.x * mat.emissiveFactorMult_emissiveStrength.x, light.color_type.y * mat.emissiveFactorMult_emissiveStrength.y, light.color_type.z * mat.emissiveFactorMult_emissiveStrength.z);
     }
-    getLightData(light, wposObjectId.xyz, lightVector, lightDistance);
-    float3 L = normalize(lightVector);
-
-    float3 radiance = material.emissive + evalCombinedBRDF(shadingNormal, L, V, material) * (getLightIntensityAtPoint(light, lightDistance) * reservoirSpacial.finalWeight);
-
-    ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f) + indirectRadiance;
-    //ptOutput[dispatchThreadId.xy] = indirectRadiance;
-    //ptOutput[dispatchThreadId.xy] = float4(radiance, 1.f);
+    MaterialProperties material = restirMaterial(ptAlbedoMetalnessOutput[pixel], ptEmissionRoughnessOutput[pixel]);
+    float3 geometryNormal, shadingNormal;
+    decodeNormals(ptNormalOutput[pixel], geometryNormal, shadingNormal);
+    float3 V = restirViewDirection(pixel);
+    restirOrientNormals(V, geometryNormal, shadingNormal);
+    SReservoir light = reservoirSpacialBuffer[index];
+    float3 direct = restirEvaluateDirect(light, position.xyz, material, geometryNormal, shadingNormal, V);
+    if (!any(direct > 0.0f) || !restirLightVisible(light, position.xyz, geometryNormal)) direct = float3(0.0f);
+    SReservoirPT indirect = reservoirPTSpacialBuffer[index];
+    float3 radiance = material.emissive + restirFiniteRadiance(direct * light.finalWeight)
+        + restirFiniteRadiance(indirect.radiance.xyz * indirect.finalWeight);
+    // The output image is RGBA16F; finite float32 values can still overflow it.
+    ptOutput[pixel] = float4(min(restirFiniteRadiance(radiance), float3(65504.0f)), 1.0f);
 }

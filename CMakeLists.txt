@@ -36,6 +36,12 @@ find_program(GLSLC "glslc.exe" $ENV{VULKAN_SDK}/Bin/)
 find_program(DXC "dxc.exe" ${PROJECT_SOURCE_DIR}/third_party/dxc/)
 find_program(SLANG "slangc.exe" ${VULKAN_SDK}/Include/slang)
 
+# Shared declarations affect the shader ABI even when the entry point is unchanged.
+file(GLOB GLSL_HEADER_FILES "${PROJECT_SOURCE_DIR}/shaders/*.h")
+file(GLOB SLANG_DEPENDENCY_FILES
+    "${PROJECT_SOURCE_DIR}/shaders_slang/*.h"
+    "${PROJECT_SOURCE_DIR}/shaders_slang/*.slang")
+
 ## find all the shader files under the shaders folder
 file(GLOB_RECURSE GLSL_SOURCE_FILES
     "${PROJECT_SOURCE_DIR}/shaders/*.frag"
@@ -58,7 +64,8 @@ foreach(GLSL_SRC ${GLSL_SOURCE_FILES})
   add_custom_command(
     OUTPUT ${SPIRV}
     COMMAND ${GLSLC} --target-spv=spv1.6 ${GLSL_SRC} -o ${SPIRV}
-    DEPENDS ${GLSL_SRC})
+    DEPENDS ${GLSL_SRC} ${GLSL_HEADER_FILES}
+    VERBATIM)
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(GLSL_SRC)
 
@@ -85,7 +92,8 @@ foreach(SLANG_SRC ${SLANG_SOURCE_FILES})
   add_custom_command(
     OUTPUT ${SPIRV}
     COMMAND ${SLANG}  ${SLANG_SRC} -profile glsl_460 -capability spvCooperativeVectorNV -target spirv -entry main -o ${SPIRV}
-    DEPENDS ${SLANG_SRC})
+    DEPENDS ${SLANG_SRC} ${SLANG_DEPENDENCY_FILES}
+    VERBATIM)
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(SLANG_SRC)    
 

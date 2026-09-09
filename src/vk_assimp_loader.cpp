@@ -6,6 +6,7 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <assimp/Importer.hpp>
+#include <algorithm>
 
 glm::mat4 toMat4(const aiMatrix4x4& from);
 
@@ -230,8 +231,12 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 	ProcessMeshLoadMaterialTextures(amat, aiTextureType_METALNESS, lastDirectory, newMatDesc, resManager);
 	ProcessMeshLoadMaterialTextures(amat, aiTextureType_DIFFUSE_ROUGHNESS, lastDirectory, newMatDesc, resManager);
 
-	aiColor4D color(0.f, 0.f, 0.f, 0.f);
-	if (amat->Get(AI_MATKEY_GLTF_PBRMETALLICROUGHNESS_BASE_COLOR_FACTOR, color) == aiReturn_SUCCESS)
+	aiColor4D color(1.f, 1.f, 1.f, 1.f);
+	// glTF supplies BASE_COLOR, whereas OBJ/MTL supplies COLOR_DIFFUSE (Kd).
+	// Prefer the PBR factor when both are present; Assimp mirrors glTF values
+	// into the legacy property, so multiplying both would apply the factor twice.
+	if (amat->Get(AI_MATKEY_BASE_COLOR, color) == aiReturn_SUCCESS ||
+		amat->Get(AI_MATKEY_COLOR_DIFFUSE, color) == aiReturn_SUCCESS)
 	{
 		newMatDesc->baseColorFactor = glm::vec4(color.r, color.g, color.b, color.a);
 	}
@@ -248,38 +253,41 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 		newMatDesc->metallicFactor_roughnessFactor_transparent_.z = std::strcmp(alphaMode.C_Str(),"OPAQUE") ? 0. : 1.;
 	}
 
-	aiColor3D emissiveFactor(1., 1., 1.);  
+	// A texture without a supplied multiplier uses white. A material with
+	// neither an emissive color nor texture must remain non-emissive.
+	const float defaultEmission = newMatDesc->emissionTextureIndex >= 0 ? 1.f : 0.f;
+	aiColor3D emissiveFactor(defaultEmission, defaultEmission, defaultEmission);
 	if (amat->Get(AI_MATKEY_COLOR_EMISSIVE, emissiveFactor) == aiReturn_SUCCESS)
 	{
 		newMatDesc->emissiveFactorMult_emissiveStrength = glm::vec4(emissiveFactor.r, emissiveFactor.g, emissiveFactor.b, 1);
 	}
 	else
 	{
-		newMatDesc->emissiveFactorMult_emissiveStrength = glm::vec4(1, 1, 1, 1);
+		newMatDesc->emissiveFactorMult_emissiveStrength = glm::vec4(defaultEmission, defaultEmission, defaultEmission, 1.f);
 	}
 
 	float emissiveStrenght(1.f);
 	if (amat->Get(AI_MATKEY_EMISSIVE_INTENSITY, emissiveStrenght) == aiReturn_SUCCESS)
 	{
-		//emissiveStrenght *= 1000;
-		newMatDesc->emissiveFactorMult_emissiveStrength.w *= emissiveStrenght;
-	}
-	else
-	{
-		//emissiveStrenght = 1000;
-		newMatDesc->emissiveFactorMult_emissiveStrength.w *= emissiveStrenght;
+		newMatDesc->emissiveFactorMult_emissiveStrength.w = std::max(0.f, emissiveStrenght);
 	}
 
+	// Legacy OBJ/Phong materials do not provide a metallic factor. They are
+	// dielectrics, not pure metals. A metalness map still needs a unit multiplier.
+	// Assimp's glTF importer always writes METALLIC_FACTOR, including glTF's
+	// default value of one, so the explicit-property branch preserves that default.
+	newMatDesc->metallicFactor_roughnessFactor_transparent_.x = newMatDesc->metalnessTextureIndex >= 0 ? 1.f : 0.f;
 	float metallicFactor(0.f);
 	if (amat->Get(AI_MATKEY_METALLIC_FACTOR, metallicFactor) == aiReturn_SUCCESS)
 	{
-		newMatDesc->metallicFactor_roughnessFactor_transparent_.x *= metallicFactor;
+		newMatDesc->metallicFactor_roughnessFactor_transparent_.x = std::clamp(metallicFactor, 0.f, 1.f);
 	}
 
-	float roughnessFactor(0.);
+	newMatDesc->metallicFactor_roughnessFactor_transparent_.y = 1.f;
+	float roughnessFactor(1.f);
 	if (amat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughnessFactor) == aiReturn_SUCCESS)
 	{
-		newMatDesc->metallicFactor_roughnessFactor_transparent_.y *= roughnessFactor;
+		newMatDesc->metallicFactor_roughnessFactor_transparent_.y = std::clamp(roughnessFactor, 0.f, 1.f);
 	}
 
 }

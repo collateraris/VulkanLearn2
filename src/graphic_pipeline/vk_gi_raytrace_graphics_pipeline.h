@@ -16,6 +16,7 @@
 #include <graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.h>
 #include <graphic_pipeline/vk_raytrace_reflection.h>
 #include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
+#include <graphic_pipeline/vk_spatial_denoiser_pass.h>
 #include <graphic_pipeline/vk_raytracer_denoiser_pass.h>
 #include <graphic_pipeline/vk_nrc_training.h>
 #include <graphic_pipeline/vk_nrc_optimize.h>
@@ -47,7 +48,12 @@ public:
 		uint32_t heightScreen = 0;
 		glm::vec4 gridMax = glm::vec4(1);
 		glm::vec4 gridMin = glm::vec4(1);
+		uint32_t historyValid = 0;
+		int32_t environmentTextureIndex = -1;
+		float environmentIntensity = 0.0f;
+		float indirectSunScale = 1.0f / 64.0f;
 	};
+	static_assert(sizeof(GlobalGIParams) == 352);
 	VulkanGIShadowsRaytracingGraphicsPipeline() = default;
 	void init_textures(VulkanEngine* engine);
 	void init(VulkanEngine* engine);
@@ -55,6 +61,8 @@ public:
 	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
 
 	const Texture& get_output() const;
+	const Texture& get_denoised_output() const;
+	const Texture& get_display_output() const;
 
 	void reset_accumulation();
 	void try_reset_accumulation(PlayerCamera& camera);
@@ -84,12 +92,17 @@ private:
 	std::unique_ptr<VulkanReSTIRUpdateReservoirPlusShadePass> _restirUpdateShadeGP;
 	std::unique_ptr<VulkanRaytrace_ReflectionPass> _raytraceReflection;
 	std::unique_ptr<VulkanSimpleAccumulationGraphicsPipeline> _accumulationGP;
+	std::unique_ptr<VulkanSpatialDenoiserPass> _spatialDenoiser;
 
 	std::unique_ptr<VulkanNRC_TrainingPass> _nrcTrainGP;
 	std::unique_ptr<VulkanNRC_OptimizePass> _nrcOptimizeGP;
 	std::unique_ptr<VulkanNRC_InferencePass> _nrcInferenceGP;
 
 	std::unique_ptr<VulkanRaytracerDenoiserPass> _denoiserPass;
+	bool _historyValid = false;
+	bool _resetNrcTraining = false;
+	glm::mat4 _historyView{1.0f};
+	glm::mat4 _historyProjection{1.0f};
 };
 
 

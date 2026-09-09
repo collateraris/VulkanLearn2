@@ -20,14 +20,14 @@ void VulkanNRC_InferencePass::init(VulkanEngine* engine)
 		1
 	};
 
-	_tileNumberWidth = _engine->_windowExtent.width / _tileSize + 1;
-	_tileNumberHeight = _engine->_windowExtent.height / _tileSize + 1;
+	_tileNumberWidth = (_engine->_windowExtent.width + _tileSize - 1) / _tileSize;
+	_tileNumberHeight = (_engine->_windowExtent.height + _tileSize - 1) / _tileSize;
 
 	{
 		VulkanTextureBuilder texBuilder;
 		texBuilder.init(_engine);
 		_outputTex = texBuilder.start()
-			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, _imageExtent)
+			.make_img_info(_colorFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
 			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)

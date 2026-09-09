@@ -1,6 +1,15 @@
 #include "gi_pathtrace.h"
 #include "brdf.h"
 
+[[vk::binding(0, 0)]]
+StructuredBuffer<SVertex> vertices[] : register(t0);
+[[vk::binding(2, 0)]]
+RaytracingAccelerationStructure topLevelAS : register(t2);
+[[vk::binding(3, 0)]]
+StructuredBuffer<SObjectData> objectBuffer : register(t3);
+[[vk::binding(5, 0)]]
+StructuredBuffer<int> indices[] : register(t5);
+
 [[vk::binding(1, 0)]]
 Texture2D<float4> texSet[] : register(t1);
 
@@ -37,132 +46,41 @@ RWTexture2D<float4> ptNormalOutput : register(u3);
 [[vk::binding(3, 2)]]
 RWTexture2D<float4> ptWposObjectIdOutput : register(u4);
 
+#include "restir_lighting.h"
+#include "restir_visibility.h"
+#include "restir_di_target.h"
+
 [shader("compute")]
 [numthreads(16, 16, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
-    if (dispatchThreadId.x >= giParams.widthScreen ||  dispatchThreadId.y >= giParams.heightScreen)
+    uint2 pixel = dispatchThreadId.xy;
+    uint2 size = uint2(giParams.widthScreen, giParams.heightScreen);
+    if (any(pixel >= size)) return;
+    uint index = pixel.y * size.x + pixel.x;
+    uint current = (giParams.frameCount + 1) % 2;
+    SReservoir initial = reservoirInitBuffer[index];
+    if (giParams.historyValid == 0 || !restirValidLight(initial) || ptWposObjectIdOutput[pixel].w < 0.0f)
     {
+        reservoirTemporalBuffer[current][index] = initial;
         return;
-    };
-
-    float4 wposObjectId = ptWposObjectIdOutput[dispatchThreadId.xy];
-    uint curTemporalIndx = (giParams.frameCount + 1) % 2;
-    uint reservoirIndx = dispatchThreadId.y * (giParams.widthScreen + 1) + dispatchThreadId.x;
-
-    SReservoir reservoirInit = reservoirInitBuffer[reservoirIndx];
-
-    if (wposObjectId.w < 0.f || reservoirInit.lightSampler < 0)
-    {
-        reservoirTemporalBuffer[curTemporalIndx][reservoirIndx] = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
-        return;
-    };
-
-    uint prevTemporalIndx = giParams.frameCount % 2;
-
-    float4 albedoMetalness = ptAlbedoMetalnessOutput[dispatchThreadId.xy];
-    float4 emissiveRoughtness = ptEmissionRoughnessOutput[dispatchThreadId.xy];
-    float4 normalEncode = ptNormalOutput[dispatchThreadId.xy];
-    
-    MaterialProperties material = (MaterialProperties) 0;
-    material.baseColor = albedoMetalness.xyz;
-    material.metalness = albedoMetalness.w;
-    material.emissive = emissiveRoughtness.xyz;
-    material.roughness = emissiveRoughtness.w;
-
-    float3 geometryNormal;
-    float3 shadingNormal;
-    decodeNormals(normalEncode, geometryNormal, shadingNormal);
-
-    uint2 LaunchIndex = dispatchThreadId.xy;
-	uint2 LaunchDimensions = uint2(giParams.widthScreen, giParams.heightScreen);
-    const float2 pixelCenter = float2(LaunchIndex) + float2(0.5);
-    const float2 inUV = pixelCenter/float2(LaunchDimensions);
-    float2 d = inUV * 2.0 - 1.0;
-
-    float4 origin    = mul(giParams.viewInverse , float4(0, 0, 0, 1));
-    float4 target    = mul(giParams.projInverse , float4(d.x, d.y, 1, 1));
-    float4 direction = mul(giParams.viewInverse , float4(normalize(target.xyz), 0));
-
-	float3 rayDir = normalize(direction.xyz);
-    float3 V = -rayDir;
-
-    // Prepare data needed to evaluate the light
-    float3 lightVector;
-    float lightDistance;
-    SLight light = lightsBuffer[reservoirInit.lightSampler];
-    uint type = uint(light.color_type.w);
-    if (type == EMISSION_LIGHT)
-    {
-        float2 bary = reservoirInit.bary__.xy;
-        light.position_radius.xyz = (1.0f - bary.x - bary.y) * light.position_radius.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
-        float2 texCoord = (1.0f - bary.x - bary.y) * light.uv0_uv1.xy + bary.x * light.uv0_uv1.zw + bary.y * light.uv2_objectId_.xy;
-        SMaterialData mat = matBuffer[uint(light.uv2_objectId_.z)];
-        light.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
-        light.color_type.xyz = float3(light.color_type.x * mat.emissiveFactorMult_emissiveStrength.x, light.color_type.y * mat.emissiveFactorMult_emissiveStrength.y, light.color_type.z * mat.emissiveFactorMult_emissiveStrength.z);
     }
-    getLightData(light, wposObjectId.xyz, lightVector, lightDistance);
-    float3 L = normalize(lightVector);
-
-    float target_pdf = luminance(evalCombinedBRDF(shadingNormal, L, V, material) * getLightIntensityAtPoint(light, lightDistance));
-
-    // Initialize random numbers generator
-	RngStateType rngState = initRNG(LaunchIndex, LaunchDimensions, giParams.frameCount);
-
-    SReservoir temporalReservoir = SReservoir(0.f, -1, 0.f, 0.f, float4(0., 0., 0., 0.));
-    temporalReservoir.updateReservoir(rngState, reservoirInit, target_pdf * reservoirInit.finalWeight * reservoirInit.samplesNumber);
-
-    SReservoir prevTemporalReservoir = reservoirTemporalBuffer[prevTemporalIndx][reservoirIndx];
-    if (prevTemporalReservoir.lightSampler > -1)
-    {
-        light = lightsBuffer[prevTemporalReservoir.lightSampler];
-        type = uint(light.color_type.w);
-        if (type == EMISSION_LIGHT)
-        {
-            float2 bary = prevTemporalReservoir.bary__.xy;
-            light.position_radius.xyz = (1.0f - bary.x - bary.y) * light.position_radius.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
-            float2 texCoord = (1.0f - bary.x - bary.y) * light.uv0_uv1.xy + bary.x * light.uv0_uv1.zw + bary.y * light.uv2_objectId_.xy;
-            SMaterialData mat = matBuffer[uint(light.uv2_objectId_.z)];
-            light.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
-            light.color_type.xyz = float3(light.color_type.x * mat.emissiveFactorMult_emissiveStrength.x, light.color_type.y * mat.emissiveFactorMult_emissiveStrength.y, light.color_type.z * mat.emissiveFactorMult_emissiveStrength.z);
-        }
-        getLightData(light, wposObjectId.xyz, lightVector, lightDistance);
-        L = normalize(lightVector);
-        target_pdf = luminance(evalCombinedBRDF(shadingNormal, L, V, material) * getLightIntensityAtPoint(light, lightDistance));
-    }
-    else
-    {
-        target_pdf = 0;
-    };
-
-    prevTemporalReservoir.samplesNumber = min(reservoirInit.samplesNumber, prevTemporalReservoir.samplesNumber);
-
-    temporalReservoir.updateReservoir(rngState, prevTemporalReservoir, target_pdf * prevTemporalReservoir.finalWeight * prevTemporalReservoir.samplesNumber);
-
-    temporalReservoir.samplesNumber = reservoirInit.samplesNumber + prevTemporalReservoir.samplesNumber;
-    if (temporalReservoir.lightSampler > -1)
-    {
-        light = lightsBuffer[temporalReservoir.lightSampler];
-        type = uint(light.color_type.w);
-        if (type == EMISSION_LIGHT)
-        {
-            float2 bary = temporalReservoir.bary__.xy;
-            light.position_radius.xyz = (1.0f - bary.x - bary.y) * light.position_radius.xyz + bary.x * light.position1.xyz + bary.y * light.position2.xyz;
-            float2 texCoord = (1.0f - bary.x - bary.y) * light.uv0_uv1.xy + bary.x * light.uv0_uv1.zw + bary.y * light.uv2_objectId_.xy;
-            SMaterialData mat = matBuffer[uint(light.uv2_objectId_.z)];
-            light.color_type.xyz = texSet[mat.emissionTexIndex].SampleLevel(linearSampler, texCoord, 0).rgb;
-            light.color_type.xyz = float3(light.color_type.x * mat.emissiveFactorMult_emissiveStrength.x, light.color_type.y * mat.emissiveFactorMult_emissiveStrength.y, light.color_type.z * mat.emissiveFactorMult_emissiveStrength.z);
-        }
-        getLightData(light, wposObjectId.xyz, lightVector, lightDistance);
-        L = normalize(lightVector);
-        target_pdf = luminance(evalCombinedBRDF(shadingNormal, L, V, material) * getLightIntensityAtPoint(light, lightDistance));
-    }
-    else
-    {
-        target_pdf = 0;
-    };
-
-    temporalReservoir.finalWeight = target_pdf * temporalReservoir.samplesNumber  == 0.f ? 0.f :  temporalReservoir.weightSum / (target_pdf * temporalReservoir.samplesNumber);
-
-    reservoirTemporalBuffer[curTemporalIndx][reservoirIndx] = temporalReservoir;
+    MaterialProperties material = restirMaterial(ptAlbedoMetalnessOutput[pixel], ptEmissionRoughnessOutput[pixel]);
+    float3 geometryNormal, shadingNormal;
+    decodeNormals(ptNormalOutput[pixel], geometryNormal, shadingNormal);
+    float3 V = restirViewDirection(pixel);
+    float3 position = ptWposObjectIdOutput[pixel].xyz;
+    SReservoir previous = reservoirTemporalBuffer[giParams.frameCount % 2][index];
+    previous.samplesNumber = restirValidLight(previous) && uint(previous.bary__.z) == restirLightCellIndex(position) ? min(previous.samplesNumber, 10u * initial.samplesNumber) : 0;
+    RngStateType rng = initRNG(pixel, size, giParams.frameCount);
+    rng.z ^= 0x27d4eb2fu;
+    SReservoir result = SReservoir(0.0f, -1, 0, 0.0f, float4(0.0f));
+    float target = restirDirectTarget(initial, position, material, geometryNormal, shadingNormal, V);
+    result.updateReservoir(rng, initial, target * initial.finalWeight * initial.samplesNumber);
+    target = restirDirectTarget(previous, position, material, geometryNormal, shadingNormal, V);
+    result.updateReservoir(rng, previous, target * previous.finalWeight * previous.samplesNumber);
+    result.samplesNumber = initial.samplesNumber + previous.samplesNumber;
+    target = restirDirectTarget(result, position, material, geometryNormal, shadingNormal, V);
+    result.finalWeight = restirFinalWeight(result.weightSum, result.samplesNumber, target);
+    reservoirTemporalBuffer[current][index] = result;
 }

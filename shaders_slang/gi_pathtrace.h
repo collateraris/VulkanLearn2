@@ -25,6 +25,10 @@ struct SGlobalGIParams
 	uint heightScreen;
 	float4 gridMax;
 	float4 gridMin;
+	uint historyValid;
+	int environmentTextureIndex;
+	float environmentIntensity;
+	float indirectSunScale;
 };
 
 struct STemporalReservoirInfo
@@ -44,12 +48,12 @@ struct IndirectGbufferRayPayload
 
     bool hasHit()
     {
-        return (position_objectID.w > 1e-3);
+        return (position_objectID.w >= 0.0f);
     }
 
 	bool hasEmissive()
 	{
-		return (dot(emission_roughness.xyz, emission_roughness.xyz));
+		return dot(emission_roughness.xyz, emission_roughness.xyz) > 0.0f;
 	}
 };
 
@@ -243,9 +247,10 @@ struct SReservoir
 
 	[mutating]
 	void updateReservoir(inout RngStateType randSeed, SReservoir res, float weight) {
-		weightSum = weightSum + weight; // r.w_sum
 		samplesNumber = samplesNumber + 1; // r.M
-		if (rand(randSeed) < weight / (weightSum + 1e-6)) {
+		if (!(weight > 0.0f) || !isfinite(weight) || !isfinite(weightSum + weight)) return;
+		weightSum += weight;
+		if (rand(randSeed) < weight / weightSum) {
 			lightSampler = res.lightSampler; // r.y
 			bary__ = res.bary__;
 		}
@@ -263,9 +268,10 @@ struct SReservoirPT
 
 	[mutating]
 	void updateReservoir(inout RngStateType randSeed, SReservoirPT res, float weight) {
-		weightSum = weightSum + weight; // r.w_sum
 		samplesNumber = samplesNumber + 1; // r.M
-		if (rand(randSeed) < weight / (weightSum + 1e-6)) {
+		if (!(weight > 0.0f) || !isfinite(weight) || !isfinite(weightSum + weight)) return;
+		weightSum += weight;
+		if (rand(randSeed) < weight / weightSum) {
 			radiance = res.radiance; // r.y
 			randomSeed = res.randomSeed;
 		}
@@ -323,7 +329,7 @@ float3 getCosHemisphereSample(inout RngStateType randSeed, float3 hitNorm)
 	float2 randVal = float2(rand(randSeed), rand(randSeed));
 
 	// Cosine weighted hemisphere sample from RNG
-	float3 bitangent = getPerpendicularVector(hitNorm);
+	float3 bitangent = normalize(getPerpendicularVector(hitNorm));
 	float3 tangent = cross(bitangent, hitNorm);
 	float r = sqrt(randVal.x);
 	float phi = 2.0f * 3.14159265f * randVal.y;
