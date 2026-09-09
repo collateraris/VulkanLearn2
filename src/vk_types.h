@@ -119,6 +119,7 @@ struct Texture {
 	uint32_t flags = 0;
 	uint32_t mipLevels = 0; 
 	bool bIsSwapChainImage = false;
+	bool hasCutoutAlpha = false;
 	ESamplerType samplerType = ESamplerType::NEAREST_REPEAT;
 	VkAccessFlagBits currAccessFlag = VK_ACCESS_NONE;
 	VkImageLayout currImageLayout = VK_IMAGE_LAYOUT_GENERAL;

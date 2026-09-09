@@ -83,6 +83,7 @@ python img/restir-pt/capture.py --scenes 2 --view view-2
 - **Reference path tracer:** NEE with RIS light selection, diffuse/specular BRDF sampling, emissive surfaces, shadow rays, and Russian roulette termination.
 - **Many-light sampling:** directional sunlight, point lights, and textured emissive triangles. ReSTIR selects lights through local flux-weighted alias tables in a `32³` spatial grid. DI uses 64 RIS candidates; indirect PT uses one NEE candidate per bounce. Emissive triangles retain the project's original softened point-light model and scene lighting conventions.
 - **PBR materials:** base color, metalness, roughness, normal maps, emission, and opacity handling in any-hit shaders. The shared BRDF code defaults to GGX microfacet specular and Frostbite diffuse.
+- **Foliage cutouts:** diffuse PNG alpha masks are detected during texture loading for materials without an explicit alpha mode. Camera, indirect, shadow and denoiser guide rays use the same cutout; explicit glTF `OPAQUE` materials retain their opaque classification.
 - **Scene loading:** Assimp-based import, with OBJ, glTF, and FBX scene configurations; scene transforms, camera placement, and lighting are configured through XML.
 - **Interactive inspection:** an SDL2 camera, Dear ImGui controls for indirect path depth and sunlight, and a statistics/log window with CPU frame timings. GPU frame and denoiser timestamps are read after the existing frame fence; diagnostic runs export `gpu-times.csv`.
 
@@ -188,16 +189,18 @@ The executable target is named **`vulkan_guide`**. With this generator, the exec
 
 The executable depends on the `Shaders` target, which compiles the project's GLSL and Slang sources to SPIR-V beside their source files. Rules track shared shader headers and Slang modules. Vendored NRD **4.17.3** uses its pinned ShaderMake/MathLib dependencies and DXC to compile embedded SPIR-V permutations; the Vulkan executor consumes this bytecode directly from the SDK. The first build includes substantial shader compilation; DXBC/DXIL are disabled for this Vulkan integration.
 
-### Render graph tests
+### CPU tests
 
 `RESTIR_BUILD_TESTS` defaults to `ON`. The [standalone tests](tests/render_graph_tests.cpp) use a mock command list and require no GPU at runtime. They check dependency ordering, resource aliases, initialization, cycles, reset/recompile behavior, and command execution. For a build configured in `win64`, run the following; replace `win64` with `build` if using the configuration above.
 
 ```powershell
-cmake --build win64 --config Release --target render_graph_tests config_save_tests
+cmake --build win64 --config Release --target render_graph_tests config_save_tests texture_alpha_cutout_tests
 ctest --test-dir win64 -C Release --output-on-failure
 ```
 
 [Configuration tests](tests/config_save_tests.cpp) also run without a GPU. They verify that **Apply** preserves lighting, camera and other scene edits made on disk after startup, and refuses to overwrite missing or malformed configuration files.
+
+[Alpha-cutout tests](tests/texture_alpha_cutout_tests.cpp) verify decoded PNG alpha, the 0.5 cutoff, and classification of opaque and masked materials sharing a mesh. They require no GPU.
 
 ### Runtime libraries
 

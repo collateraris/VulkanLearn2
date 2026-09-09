@@ -259,7 +259,11 @@ static void EditGI(VulkanEngine& engine, T& giGP)
         lightManager.update_sun_light([&](glm::vec3& direction, glm::vec3& color) {
             sunChanged |= ImGui::gizmo3D("##sunDir", direction, 100, imguiGizmo::modeDirection);
             sunChanged |= ImGui::InputFloat3("sun direction", &direction.x);
-            sunChanged |= ImGui::ColorEdit3("sun color", &color.x);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Direction in which sunlight travels. Negative Y points downward.");
+            // Sunlight is HDR radiance; editing it must not clamp it to 0..1.
+            sunChanged |= ImGui::ColorEdit3("sun color", &color.x,
+                ImGuiColorEditFlags_HDR | ImGuiColorEditFlags_Float);
             if (glm::dot(direction, direction) > 1e-10f)
                 direction = glm::normalize(direction);
             else

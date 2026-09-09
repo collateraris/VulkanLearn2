@@ -3,6 +3,7 @@
 #include <vk_engine.h>
 #include <vk_initializers.h>
 #include <vk_resource_manager.h>
+#include <texture_alpha_cutout.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -31,6 +32,7 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file,
 	VkDeviceSize imageSize = 0;
 	int texWidth = -1, texHeight = -1;
 	bool ownsPixels = true;
+	outImage.hasCutoutAlpha = false;
 
 	bool isDDS = file.substr(file.find_last_of(".") + 1).compare("dds") == 0;
 
@@ -58,6 +60,13 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const std::string& file,
 		imageSize = 4;
 		engine._logger.debug_log(std::format("Using a 1x1 fallback for missing texture {}\n", file));
 	}
+
+	// Inspect the existing decoded base level before it is freed. Compressed DDS
+	// and floating-point HDR data are not RGBA8 pixels and must not be scanned.
+	if (!isDDS && !(outImage.flags & ETexFlags::HDR_CUBEMAP) &&
+		(image_format == VK_FORMAT_R8G8B8A8_SRGB || image_format == VK_FORMAT_R8G8B8A8_UNORM))
+		outImage.hasCutoutAlpha = rgba8_has_alpha_cutout(static_cast<const uint8_t*>(pixel_ptr),
+			static_cast<size_t>(texWidth) * static_cast<size_t>(texHeight));
 
 	outImage.mipLevels =  (outImage.flags & ETexFlags::NO_MIPS) ? 1 : static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 	if (outImage.mipLevels > 1 && !supports_linear_mip_blits(engine._chosenPhysicalDeviceGPU, image_format))

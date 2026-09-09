@@ -26,6 +26,7 @@ struct MaterialDesc
 	int32_t emissionTextureIndex = -1;
 	std::string opacityTexture = {};
 	int32_t opacityTextureIndex = -1;
+	bool inferDiffuseAlpha = false;
 	glm::vec4 baseColorFactor = glm::vec4(1., 1., 1., 1.);
 	glm::vec4 emissiveFactorMult_emissiveStrength = glm::vec4(1., 1., 1., 1.);
 	glm::vec4 metallicFactor_roughnessFactor_transparent_ = glm::vec4(1., 1., 1., 1.);

@@ -149,6 +149,13 @@ struct SMaterialData
 	float4 metallicFactor_roughnessFactor_transparent_;
 };
 
+// A BLAS can be shared by opaque and cutout instances. Its geometry flag only
+// enables any-hit; the instance's material still decides whether alpha applies.
+bool materialUsesAlphaCutout(SMaterialData material)
+{
+	return material.opacityTexIndex >= 0 || material.metallicFactor_roughnessFactor_transparent_.z < 0.5f;
+}
+
 // -------------------------------------------------------------------------
 //    Random
 // -------------------------------------------------------------------------

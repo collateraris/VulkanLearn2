@@ -86,12 +86,15 @@ SLight restirLoadLight(SReservoir reservoir)
         // Applying it here changes the relative power of differently coloured
         // lamps (for example, subway tunnel lights versus ceiling lights).
         light.color_type.xyz = textureEmission * material.emissiveFactorMult_emissiveStrength.xyz;
-        float opacity = 1.0f;
-        if (material.diffuseTexIndex != 0xffffffffu)
-            opacity = texSet[NonUniformResourceIndex(material.diffuseTexIndex)].SampleLevel(linearSampler, uv, 0).a;
-        if (material.opacityTexIndex >= 0)
-            opacity = texSet[NonUniformResourceIndex(material.opacityTexIndex)].SampleLevel(linearSampler, uv, 0).r;
-        if (opacity * material.baseColorFactor.w < 0.5f) light.color_type.xyz = float3(0.0f);
+        if (materialUsesAlphaCutout(material))
+        {
+            float opacity = 1.0f;
+            if (material.diffuseTexIndex != 0xffffffffu)
+                opacity = texSet[NonUniformResourceIndex(material.diffuseTexIndex)].SampleLevel(linearSampler, uv, 0).a;
+            if (material.opacityTexIndex >= 0)
+                opacity = texSet[NonUniformResourceIndex(material.opacityTexIndex)].SampleLevel(linearSampler, uv, 0).r;
+            if (opacity * material.baseColorFactor.w < 0.5f) light.color_type.xyz = float3(0.0f);
+        }
     }
     return light;
 }

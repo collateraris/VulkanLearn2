@@ -248,7 +248,9 @@ void collectAIMaterialDescAndTexture(const aiMaterial* amat, ResourceManager& re
 	}
 
 	aiString alphaMode;
-	if (amat->Get(AI_MATKEY_GLTF_ALPHAMODE, alphaMode) == aiReturn_SUCCESS)
+	const bool hasExplicitAlphaMode = amat->Get(AI_MATKEY_GLTF_ALPHAMODE, alphaMode) == aiReturn_SUCCESS;
+	newMatDesc->inferDiffuseAlpha = !hasExplicitAlphaMode;
+	if (hasExplicitAlphaMode)
 	{
 		newMatDesc->metallicFactor_roughnessFactor_transparent_.z = std::strcmp(alphaMode.C_Str(),"OPAQUE") ? 0. : 1.;
 	}

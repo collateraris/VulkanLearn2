@@ -28,6 +28,7 @@ void main(inout IndirectGbufferRayPayload indirectRpl, BuiltInTriangleIntersecti
     SObjectData shadeData = objectBuffer[InstanceID()];
 
     SMaterialData mat = matBuffer[shadeData.materialIndex];
+    if (!materialUsesAlphaCutout(mat)) return;
 
     int index0 = indices[NonUniformResourceIndex(shadeData.meshIndex)][PrimitiveIndex() * 3];
     int index1 = indices[NonUniformResourceIndex(shadeData.meshIndex)][PrimitiveIndex() * 3 + 1];

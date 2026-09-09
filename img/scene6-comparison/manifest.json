@@ -1,0 +1,56 @@
+{
+  "image": "scene-6-restir-pt.png",
+  "image_sha256": "0594c971643990258f8cd477f1ec70b5cfe69cf9d5e121ec1e00072e643ce18c",
+  "scene": 6,
+  "asset": "san-miguel/san-miguel.obj",
+  "renderer": "ReSTIR PT",
+  "denoiser": "NVIDIA NRD REBLUR_DIFFUSE_SPECULAR 4.17.3",
+  "resolution": [
+    1280,
+    720
+  ],
+  "upscaling": "off (native)",
+  "completed_frame": 1011,
+  "frame_accumulation": true,
+  "nrd_history_note": "REBLUR uses its configured time-limited temporal history; 1011 is the completed renderer frame number.",
+  "indirect_segments": 3,
+  "camera": {
+    "x": 6.45,
+    "y": 8.169,
+    "z": 3.25,
+    "pitch": -0.14118,
+    "yaw": -0.92,
+    "fov": 50.0
+  },
+  "sun": {
+    "direction": [
+      0.7,
+      -0.55,
+      0.45
+    ],
+    "color": [
+      4.0,
+      3.8,
+      3.4
+    ]
+  },
+  "hdr_environment": "kloppenheim_06_puresky_2k.hdr",
+  "environment_intensity": 1.0,
+  "indirect_sun_scale": 1.0,
+  "reference_note": "Camera was approximated to match the supplied reference composition; it is not claimed to reproduce its exact pose or renderer.",
+  "image_processing": "Unedited capture PNG; no crop, resize, exposure adjustment, or retouch. HDR conversion uses the renderer display curve (Reinhard, gamma 1/2.2, sRGB).",
+  "source_png": "win64/scene6-check/cutout-after/final-matched-1011/capture/frame_001011.png",
+  "source_pfm": "win64/scene6-check/cutout-after/final-matched-1011/capture/frame_001011.pfm",
+  "source_pfm_sha256": "0b20b28c1c60280a0c2069ff1af4325d067a2845c97db8dbc7d3631107b66bc4",
+  "executable_sha256": "85c2a018a965068baebf79e37dd5ff4a14d3902a7348238c1bfe69ad19945ca0",
+  "runtime_hashes": "win64/scene6-check/cutout-after/runtime-sha256.json",
+  "source_hashes": "win64/scene6-check/cutout-after/source-sha256.json",
+  "isolated_config_sha256": "bdfb5fc74d19196886693b74684cb20d0cc59231ff00f2049cf167571528a1fc",
+  "restart_state": "2 1280 720 0 6.45 8.169 3.25 -0.14118 -0.92 50.0 0 1 1 1 0.7 -0.55 0.45 4.0 3.8 3.4 3 0 0",
+  "result": "win64/scene6-check/cutout-after/final-matched-1011/result.json",
+  "capture_validation_enabled": false,
+  "capture_status": "PASS",
+  "verification_summary": "win64/scene6-check/final-checks.json",
+  "shipping_executable_sha256": "3e7ebf29e010dc7cb8bcb9e8f0fb2c57ff929acb98d277bcc3d8b742299a1f61",
+  "shipping_shader_bytecode_identical_to_capture": true
+}

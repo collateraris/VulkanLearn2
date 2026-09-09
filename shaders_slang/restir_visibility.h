@@ -21,6 +21,11 @@ bool restirLightVisible(SReservoir sample, float3 worldPos, float3 geometryNorma
         {
             SObjectData object = objectBuffer[query.CandidateInstanceID()];
             SMaterialData material = matBuffer[object.materialIndex];
+            if (!materialUsesAlphaCutout(material))
+            {
+                query.CommitNonOpaqueTriangleHit();
+                continue;
+            }
             uint primitive = query.CandidatePrimitiveIndex();
             float2 bary = query.CandidateTriangleBarycentrics();
             float2 uv0 = vertices[NonUniformResourceIndex(object.meshIndex)][indices[NonUniformResourceIndex(object.meshIndex)][primitive * 3]].normalYZ_texCoordUV.zw;

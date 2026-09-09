@@ -62,6 +62,11 @@ float restirDenoiserGuideDistance(uint2 pixel, int lobe, float3 worldPos,
         {
             SObjectData object = objectBuffer[query.CandidateInstanceID()];
             SMaterialData hitMaterial = matBuffer[object.materialIndex];
+            if (!materialUsesAlphaCutout(hitMaterial))
+            {
+                query.CommitNonOpaqueTriangleHit();
+                continue;
+            }
             uint primitive = query.CandidatePrimitiveIndex();
             float2 bary = query.CandidateTriangleBarycentrics();
             float2 uv0 = vertices[NonUniformResourceIndex(object.meshIndex)][indices[NonUniformResourceIndex(object.meshIndex)][primitive * 3]].normalYZ_texCoordUV.zw;

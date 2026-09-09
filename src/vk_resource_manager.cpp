@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <stdexcept>
+#include <texture_alpha_cutout.h>
 
 uint32_t ResourceManager::store_texture(std::string& name)
 {
@@ -241,6 +242,23 @@ std::vector<IndirectBatch> ResourceManager::compact_draws(RenderObject* objects,
 void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resManager, Scene& scene)
 {
 	std::unordered_map<int, std::unordered_map<int, std::vector<RenderObject>>> renderablesMap;
+	for (auto& mesh : resManager.meshList)
+		mesh->is_transparent = false;
+	const auto hasDiffuseCutout = [&](const MaterialDesc& material) {
+		return material.diffuseTextureIndex < resManager.textureList.size() &&
+			resManager.textureList[material.diffuseTextureIndex] &&
+			resManager.textureList[material.diffuseTextureIndex]->hasCutoutAlpha;
+	};
+	uint32_t inferredCutoutMaterials = 0;
+	for (auto& material : resManager.matDescList) {
+		if (!material->inferDiffuseAlpha) continue;
+		const bool cutout = hasDiffuseCutout(*material);
+		// Reuse the existing per-material opaque flag, including when an opaque
+		// instance shares a nonopaque BLAS with an alpha-masked instance.
+		material->metallicFactor_roughnessFactor_transparent_.z = cutout ? 0.f : 1.f;
+		inferredCutoutMaterials += cutout;
+	}
+	std::cout << "Inferred diffuse alpha-cutout materials: " << inferredCutoutMaterials << '\n';
 
 	for (int nodeIndex = 1; nodeIndex < scene._hierarchy.size(); nodeIndex++)
 	{
@@ -251,7 +269,14 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 		map.meshIndex = scene._meshes[nodeIndex];
 		map.mesh = resManager.meshList[map.meshIndex].get();
 		map.matDescIndex = scene._matForNode[nodeIndex];
-		resManager.meshList[map.meshIndex].get()->is_transparent = resManager.matDescList[map.matDescIndex].get()->opacityTextureIndex != -1 || resManager.matDescList[map.matDescIndex].get()->metallicFactor_roughnessFactor_transparent_.z < 0.5;
+		const MaterialDesc& material = *resManager.matDescList[map.matDescIndex];
+		const bool diffuseHasCutoutAlpha = hasDiffuseCutout(material);
+		map.mesh->is_transparent = merge_mesh_alpha_cutout(map.mesh->is_transparent, {
+			.hasOpacityTexture = material.opacityTextureIndex >= 0,
+			.explicitlyNonOpaque = material.metallicFactor_roughnessFactor_transparent_.z < 0.5f,
+			.inferDiffuseAlpha = material.inferDiffuseAlpha,
+			.diffuseHasCutoutAlpha = diffuseHasCutoutAlpha,
+		});
 		const std::string& matName = resManager.matDescList[map.matDescIndex].get()->matName;
 		map.transformMatrix = scene._localTransforms[nodeIndex];
 

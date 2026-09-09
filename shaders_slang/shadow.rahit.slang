@@ -28,6 +28,11 @@ void main(inout ShadowHitInfo shadowPayload, BuiltInTriangleIntersectionAttribut
     SObjectData shadeData = objectBuffer[InstanceID()];
 
     SMaterialData mat = matBuffer[shadeData.materialIndex];
+    if (!materialUsesAlphaCutout(mat))
+    {
+        AcceptHitAndEndSearch();
+        return;
+    }
 
     int index0 = indices[NonUniformResourceIndex(shadeData.meshIndex)][PrimitiveIndex() * 3];
     int index1 = indices[NonUniformResourceIndex(shadeData.meshIndex)][PrimitiveIndex() * 3 + 1];
