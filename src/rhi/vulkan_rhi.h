@@ -12,6 +12,7 @@ namespace rhi {
 class VulkanDevice;
 class ResourceDevice;
 class VulkanResourceDevice;
+class StreamlineDlss;
 class VulkanCommandList final : public CommandList {
 public:
     explicit VulkanCommandList(VulkanDevice& device) : _device(device) {}
@@ -29,6 +30,7 @@ public:
     void begin_render_pass(RenderTarget, const ClearValues&) override;
     void end_render_pass() override;
     void timestamp(QueryPool, uint32_t, Stage) override;
+    bool evaluate_upscaler(const TemporalUpscaleDescription&) override;
 private:
     friend class VulkanDevice;
     VulkanDevice& _device;
@@ -45,6 +47,8 @@ public:
     void init_resources(VmaAllocator allocator);
     ResourceDevice& resources();
     VulkanResourceDevice& vulkan_resources();
+    void set_upscaler(StreamlineDlss* upscaler) { _upscaler = upscaler; }
+    uint64_t upscale_fallback_count() const { return _upscaleFallbackCount; }
     CommandList& begin_commands(VkCommandBuffer commandBuffer);
     Resource image(const Texture&, std::optional<ResourceState> initial = std::nullopt);
     Resource image(VkImage, VkImageAspectFlags, uint32_t levels, uint32_t layers, ResourceState initial);
@@ -67,6 +71,10 @@ private:
         VkImage image = VK_NULL_HANDLE;
         VkBuffer buffer = VK_NULL_HANDLE;
         VkImageSubresourceRange range{};
+        VkImageView view = VK_NULL_HANDLE;
+        VkFormat format = VK_FORMAT_UNDEFINED;
+        VkExtent2D extent{};
+        VkImageUsageFlags usage = 0;
         ResourceState state{};
         ResourceState lastWriter{Stage::None, Access::None, Layout::Undefined};
     };
@@ -76,6 +84,8 @@ private:
     VkDevice _device = VK_NULL_HANDLE;
     VulkanCommandList _commands;
     std::unique_ptr<VulkanResourceDevice> _resourceDevice;
+    StreamlineDlss* _upscaler = nullptr;
+    uint64_t _upscaleFallbackCount = 0;
     uint64_t _nextResource = 1;
     std::unordered_map<uint64_t, ResourceRecord> _resources;
     std::unordered_map<VkImage, Resource> _images;

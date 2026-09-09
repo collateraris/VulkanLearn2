@@ -350,7 +350,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 	bufferSize = matSSBO.size() * sizeof(GlobalMaterialData);
 	resManager.globalMaterialBuffer = _engine->create_buffer_n_copy_data(bufferSize, matSSBO.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-	std::vector<Reservoir> reservoirArr(_engine->_windowExtent.width * _engine->_windowExtent.height);
+	std::vector<Reservoir> reservoirArr(_engine->_renderExtent.width * _engine->_renderExtent.height);
 	bufferSize = reservoirArr.size() * sizeof(Reservoir);
 
 	resManager.globalReservoirDIInitBuffer = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -358,7 +358,7 @@ void ResourceManager::init_scene(VulkanEngine* _engine, ResourceManager& resMana
 	resManager.globalReservoirDITemporalBuffer[1] = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 	resManager.globalReservoirDISpacialBuffer = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-	std::vector<ReservoirPT> reservoirArr1(_engine->_windowExtent.width * _engine->_windowExtent.height);
+	std::vector<ReservoirPT> reservoirArr1(_engine->_renderExtent.width * _engine->_renderExtent.height);
 	bufferSize = reservoirArr1.size() * sizeof(ReservoirPT);
 
 	resManager.globalReservoirPTInitBuffer = _engine->create_buffer_n_copy_data(bufferSize, reservoirArr1.data(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);

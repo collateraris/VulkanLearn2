@@ -174,8 +174,8 @@ const Texture& VulkanPathTracerGraphicsPipeline::get_output() const
 void VulkanPathTracerGraphicsPipeline::init_tex()
 {
 	_texExtent = {
-		_engine->_windowExtent.width,
-		_engine->_windowExtent.height,
+		_engine->_renderExtent.width,
+		_engine->_renderExtent.height,
 		1
 	};
 

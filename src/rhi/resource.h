@@ -5,7 +5,7 @@
 #include <cstddef>
 
 namespace rhi {
-enum class Format : uint8_t { Rgba16Float, Rgba32Float };
+enum class Format : uint8_t { Rgba16Float, Rgba32Float, Rg16Float, R32Float };
 enum class ImageUsage : uint32_t {
     None = 0, Sampled = 1 << 0, Storage = 1 << 1,
     ColorAttachment = 1 << 2, TransferSource = 1 << 3, TransferDestination = 1 << 4

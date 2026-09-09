@@ -2,6 +2,7 @@
 
 #include <vk_types.h>
 #include  <sys_config/XPath.h>
+#include <render_settings.h>
 
 namespace vk_utils
 {
@@ -16,6 +17,8 @@ namespace vk_utils
         std::string GetTitle();
         uint32_t GetWindowWidth();
         uint32_t GetWindowHeight();
+        RenderSettings GetRenderSettings();
+        bool SaveRenderSettings(const RenderSettings& settings);
         ERenderMode GetRenderMode();
         SceneConfig GetCurrentScene();
         uint32_t GetEnvMapSize();

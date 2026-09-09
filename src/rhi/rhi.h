@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
 #include <type_traits>
 
 // The frame graph and command recording use this API. Native Vulkan objects
@@ -57,6 +58,23 @@ struct ShaderTableRegion { uint64_t address = 0, stride = 0, size = 0; };
 struct ShaderBindingTable { ShaderTableRegion raygen, miss, hit, callable; };
 struct ClearValues { float color[4] = {0, 0, 0, 1}; float depth = 1; uint32_t stencil = 0; };
 
+enum class UpscaleMode : uint32_t { Off = 0, Quality = 1, Balanced = 2, Performance = 3, UltraPerformance = 4, DLAA = 5 };
+struct TemporalUpscaleDescription {
+    Resource color, depth, motion, output;
+    UpscaleMode mode = UpscaleMode::Off;
+    uint32_t frameIndex = 0;
+    uint32_t renderWidth = 0, renderHeight = 0, outputWidth = 0, outputHeight = 0;
+    // Row-major, row-vector camera transforms without projection jitter.
+    std::array<float, 16> viewToClip{}, clipToView{}, clipToPrevClip{}, prevClipToClip{};
+    // Jitter is in render-resolution pixels; motion scales convert to UV units.
+    float jitterX = 0, jitterY = 0;
+    float motionScaleX = 1, motionScaleY = 1;
+    std::array<float, 3> cameraPosition{}, cameraUp{}, cameraRight{}, cameraForward{};
+    float cameraNear = 0.01f, cameraFar = 10000.f, cameraFov = 1.2217305f, cameraAspect = 1.7777778f;
+    float preExposure = 1.f;
+    bool reset = true, depthInverted = false;
+};
+
 class CommandList {
 public:
     virtual ~CommandList() = default;
@@ -74,5 +92,7 @@ public:
     virtual void begin_render_pass(RenderTarget target, const ClearValues& clear) = 0;
     virtual void end_render_pass() = 0;
     virtual void timestamp(QueryPool pool, uint32_t index, Stage stage = Stage::Bottom) = 0;
+    // Optional temporal upscaler. Backends without one return false.
+    virtual bool evaluate_upscaler(const TemporalUpscaleDescription&) { return false; }
 };
 } // namespace rhi

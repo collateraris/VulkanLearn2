@@ -23,8 +23,8 @@ void VulkanSimpleAccumulationGraphicsPipeline::init(VulkanEngine* engine, const 
 	reset_accumulation();
 
 	_imageExtent = {
-	_engine->_windowExtent.width,
-	_engine->_windowExtent.height,
+	_engine->_renderExtent.width,
+	_engine->_renderExtent.height,
 	1
 	};
 
@@ -74,13 +74,13 @@ void VulkanSimpleAccumulationGraphicsPipeline::init(VulkanEngine* engine, const 
 				//build viewport and scissor from the swapchain extents
 				pipelineBuilder._viewport.x = 0.0f;
 				pipelineBuilder._viewport.y = 0.0f;
-				pipelineBuilder._viewport.width = (float)engine->_windowExtent.width;
-				pipelineBuilder._viewport.height = (float)engine->_windowExtent.height;
+				pipelineBuilder._viewport.width = (float)engine->_renderExtent.width;
+				pipelineBuilder._viewport.height = (float)engine->_renderExtent.height;
 				pipelineBuilder._viewport.minDepth = 0.0f;
 				pipelineBuilder._viewport.maxDepth = 1.0f;
 
 				pipelineBuilder._scissor.offset = { 0, 0 };
-				pipelineBuilder._scissor.extent = engine->_windowExtent;
+				pipelineBuilder._scissor.extent = engine->_renderExtent;
 
 				//configure the rasterizer to draw filled triangles
 				pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);

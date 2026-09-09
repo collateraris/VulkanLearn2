@@ -47,7 +47,7 @@ void NeuralRadianceCache::create_mlp_buffers()
 
     // Every optimizer buffer indexes the converted layout, including its padding.
     m_totalParameterCount = uint32_t(m_deviceNetworkLayout.networkSize / sizeof(uint16_t));
-    m_batchSize = std::min(uint32_t(BATCH_SIZE), _engine->_windowExtent.width * _engine->_windowExtent.height);
+    m_batchSize = std::min(uint32_t(BATCH_SIZE), _engine->_renderExtent.width * _engine->_renderExtent.height);
 
     m_mlpHostBuffer = _engine->create_buffer_n_copy_data(params.size(), m_neuralNetwork->GetNetworkParams().data(),
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);

@@ -174,7 +174,7 @@ static void EditGI(VulkanEngine& engine, T& giGP)
     auto& lightManager = engine._lightManager;
     auto& camera = engine._camera;
     static bool p_open = true;
-    static int numRays = 3;
+    int& numRays = engine._indirectNumRays;
     bool settingsChanged = false;
     bool cameraChanged = false;
 
@@ -191,6 +191,37 @@ static void EditGI(VulkanEngine& engine, T& giGP)
     }
     settingsChanged |= ImGui::InputInt("Indirect numRays", &numRays);
     numRays = std::clamp(numRays, 0, 32);
+
+    if (ImGui::CollapsingHeader("Display / DLSS", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Text("Render: %u x %u | Output: %u x %u", engine._renderExtent.width,
+            engine._renderExtent.height, engine._windowExtent.width, engine._windowExtent.height);
+        ImGui::TextWrapped("%s", engine._dlss.status().c_str());
+        if (engine._dlssActive && !engine._dlssLastEvaluationSucceeded)
+            ImGui::TextColored(ImVec4(1.f, .6f, .2f, 1.f), "DLSS failed: showing spatial upscale fallback.");
+        int size[2] = {int(engine._pendingRenderSettings.outputWidth), int(engine._pendingRenderSettings.outputHeight)};
+        if (ImGui::InputInt2("Output resolution", size))
+        {
+            engine._pendingRenderSettings.outputWidth = uint32_t(std::clamp(size[0], 320, 7680));
+            engine._pendingRenderSettings.outputHeight = uint32_t(std::clamp(size[1], 200, 4320));
+        }
+        if (ImGui::Button("2560 x 1440"))
+        {
+            engine._pendingRenderSettings.outputWidth = 2560;
+            engine._pendingRenderSettings.outputHeight = 1440;
+        }
+        const bool supportedMode = engine.get_mode() == ERenderMode::ReSTIR || engine.get_mode() == ERenderMode::ReSTIR_NRC;
+        ImGui::BeginDisabled(!supportedMode);
+        ImGui::Combo("DLSS Super Resolution", &engine._pendingRenderSettings.dlssMode,
+            "Off (native)\0Quality\0Balanced\0Performance\0Ultra Performance\0DLAA (native)\0");
+        ImGui::EndDisabled();
+        if (!supportedMode) ImGui::TextWrapped("DLSS is available in ReSTIR and ReSTIR + NRC.");
+        else if (!engine._dlss.supported()) ImGui::TextWrapped("Applying DLSS checks RTX GPU and runtime support; unavailable systems render natively.");
+        if (ImGui::Button("Apply (reload renderer)")) engine.request_render_settings();
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Save display settings and reload the scene. Camera and lighting are preserved; histories restart.");
+        if (!engine._renderSettingsError.empty()) ImGui::TextWrapped("%s", engine._renderSettingsError.c_str());
+    }
 
     if (ImGui::CollapsingHeader("Render graph"))
     {
@@ -242,7 +273,10 @@ static void EditGI(VulkanEngine& engine, T& giGP)
         }
     }
     if (settingsChanged)
+    {
         giGP.reset_accumulation();
+        engine._dlssReset = true;
+    }
 
     typename T::GlobalGIParams giParams{};
     giParams.numRays = static_cast<uint32_t>(numRays);

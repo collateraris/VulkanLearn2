@@ -16,8 +16,8 @@ void VulkanPTGBuffer::init(VulkanEngine* engine)
 	_engine = engine;
 
 	_imageExtent = {
-		engine->_windowExtent.width,
-		engine->_windowExtent.height,
+		engine->_renderExtent.width,
+		engine->_renderExtent.height,
 		1
 	};
 

@@ -16,8 +16,8 @@ void VulkanReSTIR_GI_TemporalPass::init(VulkanEngine* engine)
 	_engine = engine;
 
 	_imageExtent = {
-		_engine->_windowExtent.width,
-		_engine->_windowExtent.height,
+		_engine->_renderExtent.width,
+		_engine->_renderExtent.height,
 		1
 	};
 

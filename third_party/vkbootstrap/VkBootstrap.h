@@ -209,6 +209,10 @@ struct Instance {
 
 void destroy_instance (Instance instance); // release instance resources
 
+// Refresh cached instance/device entry points when an optional Vulkan
+// interposer becomes available after native device creation.
+void set_instance_dispatch (VkInstance instance, PFN_vkGetInstanceProcAddr get_instance_proc_addr);
+
 class InstanceBuilder {
 	public:
 	// Default constructor, will load vulkan.

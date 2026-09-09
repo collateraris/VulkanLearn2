@@ -28,6 +28,38 @@ uint32_t vk_utils::Config::GetWindowHeight()
     return  windowConfig.GetAttribute<uint32_t>("height");
 }
 
+RenderSettings vk_utils::Config::GetRenderSettings()
+{
+    RenderSettings settings{GetWindowWidth(), GetWindowHeight(), 0};
+    const auto* upscaling = mDocument.FirstChildElement()->FirstChildElement("upscaling");
+    const char* mode = upscaling ? upscaling->Attribute("mode") : nullptr;
+    static const char* modes[] = {"off", "quality", "balanced", "performance", "ultra_performance", "dlaa"};
+    if (mode)
+    {
+        bool recognized = false;
+        for (int i = 0; i < 6; ++i)
+            if (std::string(mode) == modes[i]) { settings.dlssMode = i; recognized = true; break; }
+        if (!recognized) throw std::runtime_error("Invalid upscaling mode in config.xml");
+    }
+    return settings;
+}
+
+bool vk_utils::Config::SaveRenderSettings(const RenderSettings& settings)
+{
+    if (settings.outputWidth < 320 || settings.outputHeight < 200 ||
+        settings.outputWidth > 7680 || settings.outputHeight > 4320 ||
+        settings.dlssMode < 0 || settings.dlssMode > 5) return false;
+    auto* root = mDocument.FirstChildElement();
+    auto* window = root->FirstChildElement("window");
+    window->SetAttribute("width", settings.outputWidth);
+    window->SetAttribute("height", settings.outputHeight);
+    auto* upscaling = root->FirstChildElement("upscaling");
+    if (!upscaling) { upscaling = mDocument.NewElement("upscaling"); root->InsertEndChild(upscaling); }
+    static const char* modes[] = {"off", "quality", "balanced", "performance", "ultra_performance", "dlaa"};
+    upscaling->SetAttribute("mode", modes[settings.dlssMode]);
+    return mDocument.SaveFile(mFileName.c_str()) == tinyxml2::XML_SUCCESS;
+}
+
 ERenderMode vk_utils::Config::GetRenderMode()
 {
     static ERenderMode mode = ERenderMode::None;

@@ -21,6 +21,9 @@ void VK_CHECK(VkResult result);
 #include <vk_raytracer_builder.h>
 #include <vk_render_graph.h>
 #include <rhi/vulkan_rhi.h>
+#include <rhi/streamline_dlss.h>
+#include <render_settings.h>
+#include <graphic_pipeline/vk_dlss_prepare_pass.h>
 #include <vk_render_pass.h>
 #include <vk_command_pool.h>
 #include <vk_command_buffer.h>
@@ -215,8 +218,35 @@ public:
 	int _frameNumber {0};
 	bool _frameAccumulationEnabled{ true };
 	bool _denoiserEnabled{ false };
+	int _indirectNumRays = 3;
 
 	VkExtent2D _windowExtent{ 2500 , 1400 };
+	VkExtent2D _renderExtent{};
+	RenderSettings _renderSettings{};
+	RenderSettings _pendingRenderSettings{};
+	bool _reloadRequested = false;
+	bool _dlssActive = false;
+	bool _dlssReset = true;
+	bool _dlssLastEvaluationSucceeded = true;
+	std::string _renderSettingsError;
+	rhi::StreamlineDlss _dlss;
+	VulkanDlssPreparePass _dlssPrepare;
+	Texture _dlssOutput{};
+	struct ResumeState {
+		bool valid = false;
+		glm::vec3 position{};
+		float pitch = 0, yaw = 0, fov = 70;
+		bool activeCamera = false, accumulation = true, denoiser = false;
+		int numRays = 3;
+		bool hasSun = false;
+		glm::vec3 sunDirection{}, sunColor{};
+		bool hasGeneratedLightSeed = false;
+		uint32_t generatedLightSeed = 0;
+	} _resumeState;
+	ResumeState capture_resume_state() const;
+	void request_render_settings();
+	bool launch_renderer_restart();
+	static bool read_restart_state(RenderSettings& settings, ResumeState& resume);
 
 	struct SDL_Window* _window{ nullptr };
 
@@ -247,6 +277,7 @@ public:
 	rg::RenderGraph _rgraph;
 	rhi::VulkanDevice _rhi;
 	bool _debugUtilsEnabled = false;
+	PFN_vkGetInstanceProcAddr _nativeVulkanProc = nullptr;
 
 	//create material and add it to the map
 	Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
@@ -259,7 +290,7 @@ public:
 	void draw_objects(VkCommandBuffer cmd, RenderObject* first, int count);
 
 	//initializes everything in the engine
-	void init();
+	void init(RenderSettings settings = {});
 
 	//shuts down the engine
 	void cleanup();
@@ -307,6 +338,13 @@ public:
 	ERenderMode get_mode();
 
 private:
+	void init_upscaling();
+	void append_upscaling_passes(int frameSlot, const Texture& source);
+	void update_render_jitter();
+	bool _dlssLastAccumulation = true;
+	bool _dlssLastDenoiser = false;
+	glm::vec3 _dlssPreviousPosition{};
+	glm::vec3 _dlssPreviousForward{};
 
 	void init_vulkan();
 

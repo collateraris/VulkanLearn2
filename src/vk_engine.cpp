@@ -4,6 +4,7 @@
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
+#include <SDL_syswm.h>
 
 #include <vk_types.h>
 #include <vk_utils.h>
@@ -25,7 +26,6 @@
 #include <sys_config/ConfigManager.h>
 #include <sys_config/vk_strings.h>
 
-#include <sl_wrapper/SLWrapper.h>
 using namespace vk_utils;
 
 //we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
@@ -43,7 +43,7 @@ ERenderMode VulkanEngine::get_mode()
 	return vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetRenderMode();
 }
 
-void VulkanEngine::init()
+void VulkanEngine::init(RenderSettings settings)
 {
 	// We initialize SDL and create a window with it. 
 	SDL_Init(SDL_INIT_VIDEO);
@@ -53,8 +53,19 @@ void VulkanEngine::init()
 	SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN |
 		(diagnosticRun ? SDL_WINDOW_HIDDEN : 0));
 
-	_windowExtent.width = vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetWindowWidth();
-	_windowExtent.height = vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetWindowHeight();
+	if (!settings.outputWidth || !settings.outputHeight)
+		settings = vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetRenderSettings();
+	if (const char* mode = std::getenv("RESTIR_DLSS_MODE"))
+		settings.dlssMode = std::clamp(std::atoi(mode), 0, 5);
+	_renderSettings = _pendingRenderSettings = settings;
+	_windowExtent = {settings.outputWidth, settings.outputHeight};
+	_renderExtent = _windowExtent;
+	if (_resumeState.valid)
+	{
+		_frameAccumulationEnabled = _resumeState.accumulation;
+		_denoiserEnabled = _resumeState.denoiser;
+		_indirectNumRays = _resumeState.numRays;
+	}
 	
 	_window = SDL_CreateWindow(
 		vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetTitle().c_str(),
@@ -65,6 +76,11 @@ void VulkanEngine::init()
 		window_flags
 	);
 	SceneConfig config = vk_utils::ConfigManager::Get().GetConfig(vk_utils::MAIN_CONFIG_PATH).GetCurrentScene();
+	if (_resumeState.valid && _resumeState.hasSun)
+	{
+		config.lightConfig.sunDirection = _resumeState.sunDirection;
+		config.lightConfig.sunColor = _resumeState.sunColor;
+	}
 	AsimpLoader::processScene(config, _scene, _resManager, config.model);
 	if (get_mode() == ERenderMode::ReSTIR || get_mode() == ERenderMode::ReSTIR_NRC)
 	{
@@ -93,6 +109,19 @@ void VulkanEngine::init()
 
 	//create the swapchain
 	init_swapchain();
+	_rhi.set_upscaler(&_dlss);
+	_dlssActive = settings.dlssMode != 0 && _dlss.supported() &&
+		(get_mode() == ERenderMode::ReSTIR || get_mode() == ERenderMode::ReSTIR_NRC);
+	if (_dlssActive) _renderExtent = _dlss.optimal_extent(settings.dlssMode, _windowExtent);
+	// A failed optimal-settings query must retain a complete native pipeline.
+	_dlssActive = _dlssActive && _dlss.supported();
+	if (!_dlssActive) _renderExtent = _windowExtent;
+	// SR expects a denoised signal. Preserve explicit filter choices on Apply;
+	// RESTIR_DENOISER can still override this default when the pass initializes.
+	if (_dlssActive && !_resumeState.valid) _denoiserEnabled = true;
+	std::cout << "Rendering " << _renderExtent.width << "x" << _renderExtent.height
+		<< " -> " << _windowExtent.width << "x" << _windowExtent.height
+		<< (_dlssActive ? " (DLSS) " : " (native) ") << _dlss.status() << std::endl;
 
 	init_commands();
 
@@ -126,6 +155,8 @@ void VulkanEngine::init()
 	init_pipelines();
 
 	_lightManager.init(this);
+	if (_resumeState.valid && _resumeState.hasGeneratedLightSeed)
+		_lightManager.set_generated_light_seed(_resumeState.generatedLightSeed);
 	if (config.lightConfig.bUseSun) {
 		_lightManager.add_sun_light(std::move(config.lightConfig.sunDirection), std::move(config.lightConfig.sunColor));
 	}
@@ -172,7 +203,6 @@ void VulkanEngine::init()
 	{
 		_giRtGraphicsPipeline.init_textures(this);
 		_giRtGraphicsPipeline.init(this);
-		_gBufShadingGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output(), &_giRtGraphicsPipeline.get_denoised_output());
 	}
 
 
@@ -186,7 +216,6 @@ void VulkanEngine::init()
 	{
 		_ptReference.init(this);
 		_accumulationGP.init(this, _ptReference.get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT));
-		_gBufShadingGraphicsPipeline.init(this, _accumulationGP.get_output());
 	}
 
 	_camera = {};
@@ -200,11 +229,25 @@ void VulkanEngine::init()
 		_camera.pitch = config.camPith;
 		_camera.yaw = config.camYaw;
 	}
+	if (_resumeState.valid)
+	{
+		_camera.position = _resumeState.position;
+		_camera.pitch = _resumeState.pitch;
+		_camera.yaw = _resumeState.yaw;
+		_camera.FOV = _resumeState.fov;
+		_camera.bActiveCamera = _resumeState.activeCamera && !diagnosticRun;
+	}
 	_camera.calculate_view_matrix();
 	_camera.calculate_proj_matrix();
 	_camera.prevViewMatrix = _camera.currentViewMatrix;
 	_camera.prevProjMatrix = _camera.currentProjMatrix;
 	_camera.prevProjWithJitterMatrix = _camera.currentProjWithJitterMatrix;
+	init_upscaling();
+	if (get_mode() == ERenderMode::Pathtracer)
+		_gBufShadingGraphicsPipeline.init(this, _accumulationGP.get_output());
+	else if (get_mode() == ERenderMode::ReSTIR || get_mode() == ERenderMode::ReSTIR_NRC)
+		_gBufShadingGraphicsPipeline.init(this, _giRtGraphicsPipeline.get_output(),
+			&_giRtGraphicsPipeline.get_denoised_output(), _dlssActive ? &_dlssOutput : nullptr);
 	
 	//everything went fine
 	_isInitialized = true;
@@ -220,6 +263,13 @@ void VulkanEngine::cleanup()
 			vkWaitForFences(_device, 1, &frame._renderFence, true, 1000000000);
 		}
 
+		_dlss.shutdown();
+		// After plugin shutdown, destroy engine resources through the native
+		// loader. Streamline destruction proxies must not recreate its managers.
+		vkGetInstanceProcAddr = _nativeVulkanProc;
+		volkLoadInstance(_instance);
+		volkLoadDevice(_device);
+		vkb::set_instance_dispatch(_instance, _nativeVulkanProc);
 		_mainDeletionQueue.flush();
 		_rgraph.reset();
 		_rhi.reset();
@@ -233,15 +283,13 @@ void VulkanEngine::cleanup()
 		vmaDestroyAllocator(_allocator);
 		_allocator = VK_NULL_HANDLE;
 
-#if STREAMLINE_ON
-		SLWrapper::Get().Shutdown();
-#endif
-
 		vkDestroyDevice(_device, nullptr);
 		vkDestroySurfaceKHR(_instance, _surface, nullptr);
 		vkb::destroy_debug_utils_messenger(_instance, _debug_messenger);
 		vkDestroyInstance(_instance, nullptr);
+		volkFinalize();
 		SDL_DestroyWindow(_window);
+		_isInitialized = false;
 	}
 }
 
@@ -344,8 +392,10 @@ void VulkanEngine::draw()
 		using rhi::Stage;
 		using rhi::Access;
 		using rhi::Layout;
-		const Texture& display = get_mode() == ERenderMode::Pathtracer
+		const Texture& source = get_mode() == ERenderMode::Pathtracer
 			? _accumulationGP.get_output() : _giRtGraphicsPipeline.get_display_output();
+		if (_dlssActive) append_upscaling_passes(frameSlot, source);
+		const Texture& display = _dlssActive ? _dlssOutput : source;
 		const auto displayResource = _rhi.image(display);
 		const auto displayImage = _rgraph.import_resource("Display.HDR", displayResource);
 		const auto swapResource = _rhi.image(_swapchainTextures[swapchainImageIndex].image._image,
@@ -497,7 +547,7 @@ void VulkanEngine::run()
 		std::chrono::duration<float> elapsed_seconds = end - start;
 		float frametime = elapsed_seconds.count() * 1000.f;
 		_camera.update_camera(frametime);
-		_camera.update_jitter(_windowExtent.width, _windowExtent.height);
+		update_render_jitter();
 		_camera.calculate_proj_matrix();
 
 		start = std::chrono::steady_clock::now();
@@ -515,13 +565,14 @@ void VulkanEngine::run()
 		ImguiAppLog::ShowVkMenu(*this);
 
 		ImGui::Render();
+		if (_reloadRequested || bQuit) return;
 
 		draw();
 		if (diagnostics)
 		{
 			const Texture& output = get_mode() == ERenderMode::Pathtracer
 				? _accumulationGP.get_output() : (diagnostics->capture_raw_output()
-					? _giRtGraphicsPipeline.get_output() : _giRtGraphicsPipeline.get_display_output());
+					? _giRtGraphicsPipeline.get_output() : (_dlssActive ? _dlssOutput : _giRtGraphicsPipeline.get_display_output()));
 			if (diagnostics->after_frame(*this, output))
 				return;
 		}
@@ -531,6 +582,8 @@ void VulkanEngine::run()
 		{
 			std::chrono::duration<double> elapsed_seconds = frameCpuEnd - frameCpuStart;
 			_stats.frameCpuAvg = _stats.frameCpuAvg * 0.95 + elapsed_seconds / std::chrono::milliseconds(1) * 0.05;
+			if (diagnostics) diagnostics->record_cpu_time(uint32_t(_frameNumber),
+				elapsed_seconds / std::chrono::milliseconds(1));
 		}
 	}
 }
@@ -552,16 +605,35 @@ AllocateDescriptor* VulkanEngine::get_engine_descriptor(EDescriptorResourceNames
 
 void VulkanEngine::init_vulkan()
 {
-#if STREAMLINE_ON
-	SLWrapper::Get().Initialize_preDevice(this);
-#endif
 	VK_CHECK(volkInitialize());
+	_nativeVulkanProc = vkGetInstanceProcAddr;
 
-	vkb::InstanceBuilder builder;
+	const bool supportsDlss = get_mode() == ERenderMode::ReSTIR || get_mode() == ERenderMode::ReSTIR_NRC;
+	if (_renderSettings.dlssMode != 0 && !supportsDlss)
+		_dlss.disable("DLSS requires ReSTIR or ReSTIR + NRC; using native rendering");
+	bool enableDlss = supportsDlss && _renderSettings.dlssMode != 0 && _dlss.initialize_before_device();
+	const auto& dlssRequirements = _dlss.requirements();
 	uint32_t extensionCount = 0;
 	VK_CHECK(vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr));
 	std::vector<VkExtensionProperties> instanceExtensions(extensionCount);
 	VK_CHECK(vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, instanceExtensions.data()));
+	if (enableDlss) {
+		for (const auto& required : dlssRequirements.instanceExtensions) {
+			if (std::none_of(instanceExtensions.begin(), instanceExtensions.end(), [&](const auto& available) {
+				return required == available.extensionName;
+			})) {
+				_dlss.disable("DLSS unavailable: missing Vulkan instance extension " + required);
+				enableDlss = false;
+				break;
+			}
+		}
+	}
+
+	// Manual Streamline initialization requires native dispatch until the
+	// device exists and slSetVulkanInfo has initialized the interposer tables.
+	vkb::InstanceBuilder builder;
+	if (enableDlss)
+		for (const auto& extension : dlssRequirements.instanceExtensions) builder.enable_extension(extension.c_str());
 	_debugUtilsEnabled = std::any_of(instanceExtensions.begin(), instanceExtensions.end(), [](const auto& extension) {
 		return std::strcmp(extension.extensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0;
 	});
@@ -591,8 +663,22 @@ void VulkanEngine::init_vulkan()
 	//store the debug messenger
 	_debug_messenger = vkb_inst.debug_messenger;
 
-	// get the surface of the window we opened with SDL
-	SDL_Vulkan_CreateSurface(_window, _instance, &_surface);
+	// A provisional native surface lets device selection check presentation.
+	// After optional SDK initialization it is recreated through the interposer.
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+	SDL_SysWMinfo windowInfo{};
+	SDL_VERSION(&windowInfo.version);
+	if (!SDL_GetWindowWMInfo(_window, &windowInfo))
+		throw std::runtime_error(std::string("Cannot get SDL window handle: ") + SDL_GetError());
+	VkWin32SurfaceCreateInfoKHR surfaceInfo{VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR};
+	surfaceInfo.hinstance = windowInfo.info.win.hinstance;
+	surfaceInfo.hwnd = windowInfo.info.win.window;
+	const VkResult surfaceResult = vkCreateWin32SurfaceKHR(_instance, &surfaceInfo, nullptr, &_surface);
+	if (surfaceResult != VK_SUCCESS) throw std::runtime_error("Cannot create Vulkan window surface");
+#else
+	if (!SDL_Vulkan_CreateSurface(_window, _instance, &_surface))
+		throw std::runtime_error(std::string("Cannot create Vulkan window surface: ") + SDL_GetError());
+#endif
 
 	//use vkbootstrap to select a GPU.
 	//We want a GPU that can write to the SDL surface and supports Vulkan 1.1
@@ -618,7 +704,6 @@ void VulkanEngine::init_vulkan()
 		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
 		VK_NV_MESH_SHADER_EXTENSION_NAME,
 		VK_KHR_MAINTENANCE_4_EXTENSION_NAME,
-		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
 		VK_KHR_RAY_QUERY_EXTENSION_NAME,
 		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
@@ -631,6 +716,22 @@ void VulkanEngine::init_vulkan()
 		VK_NV_COOPERATIVE_VECTOR_EXTENSION_NAME,
 	};
 
+	const auto needsSdkExtension = [](const std::string& extension) {
+		// NGX lists the legacy EXT name as well as KHR BDA. This renderer uses
+		// core 1.2/KHR BDA; Vulkan forbids enabling EXT and KHR together.
+		// Descriptor indexing is core in the required Vulkan 1.4 device. Request
+		// its individual Vulkan12Features fields without the redundant EXT
+		// name, which would additionally require the descriptorIndexing umbrella.
+		return extension != VK_EXT_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME &&
+			extension != VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME;
+	};
+	if (enableDlss) {
+		for (const auto& extension : dlssRequirements.deviceExtensions) {
+			if (needsSdkExtension(extension) && std::none_of(extensions.begin(), extensions.end(),
+				[&](const char* rendererExtension) { return extension == rendererExtension; }))
+				selector.add_desired_extension(extension.c_str());
+		}
+	}
 	vkb::PhysicalDevice physicalDevice = selector
 		.set_minimum_version(1, 4)
 		.set_surface(_surface)
@@ -639,8 +740,78 @@ void VulkanEngine::init_vulkan()
 		.select()
 		.value();
 
+	const auto queueFamilies = physicalDevice.get_queue_families();
+	uint32_t graphicsFamily = 0;
+	while (graphicsFamily < queueFamilies.size() && !(queueFamilies[graphicsFamily].queueFlags & VK_QUEUE_GRAPHICS_BIT))
+		++graphicsFamily;
+	uint32_t dlssGraphicsStart = 0, dlssComputeStart = 0;
+	// Vulkan feature structures contain a contiguous range of VkBool32 fields.
+	// Copy values by byte offset to avoid aliasing or assumptions about padding
+	// in their sType/pNext prefix (and never include trailing struct padding).
+	const auto featuresSupported = [](const auto& requested, const auto& supported, size_t first, size_t last) {
+		for (size_t offset = first; offset <= last; offset += sizeof(VkBool32)) {
+			VkBool32 required = 0, available = 0;
+			std::memcpy(&required, reinterpret_cast<const char*>(&requested) + offset, sizeof(required));
+			std::memcpy(&available, reinterpret_cast<const char*>(&supported) + offset, sizeof(available));
+			if (required && !available) return false;
+		}
+		return true;
+	};
+	if (enableDlss) {
+		uint32_t count = 0;
+		VK_CHECK(vkEnumerateDeviceExtensionProperties(physicalDevice.physical_device, nullptr, &count, nullptr));
+		std::vector<VkExtensionProperties> available(count);
+		VK_CHECK(vkEnumerateDeviceExtensionProperties(physicalDevice.physical_device, nullptr, &count, available.data()));
+		for (const auto& required : dlssRequirements.deviceExtensions) {
+			if (!needsSdkExtension(required)) continue;
+			if (std::none_of(available.begin(), available.end(), [&](const auto& extension) { return required == extension.extensionName; })) {
+				_dlss.disable("DLSS unavailable: missing Vulkan device extension " + required);
+				enableDlss = false;
+				break;
+			}
+		}
+		VkPhysicalDeviceVulkan12Features supported12{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+		VkPhysicalDeviceVulkan13Features supported13{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+		VkPhysicalDeviceFeatures2 supported{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+		supported.pNext = &supported12;
+		supported12.pNext = &supported13;
+		vkGetPhysicalDeviceFeatures2(physicalDevice.physical_device, &supported);
+		if (enableDlss && (!featuresSupported(dlssRequirements.features12, supported12,
+			offsetof(VkPhysicalDeviceVulkan12Features, samplerMirrorClampToEdge), offsetof(VkPhysicalDeviceVulkan12Features, subgroupBroadcastDynamicId)) ||
+			!featuresSupported(dlssRequirements.features13, supported13,
+			offsetof(VkPhysicalDeviceVulkan13Features, robustImageAccess), offsetof(VkPhysicalDeviceVulkan13Features, maintenance4)))) {
+			_dlss.disable("DLSS unavailable: required Vulkan device features are unsupported");
+			enableDlss = false;
+		}
+		// The interposer creates a private-data slot, and the guide-preparation
+		// shader stores RG16F motion vectors. These application/integration
+		// requirements are not included in slGetFeatureRequirements for DLSS.
+		if (enableDlss && (!supported13.privateData || !supported.features.shaderStorageImageExtendedFormats)) {
+			_dlss.disable("DLSS unavailable: Vulkan privateData or extended storage-image formats are unsupported");
+			enableDlss = false;
+		}
+		const uint64_t requestedQueues = uint64_t(1) + dlssRequirements.graphicsQueues + dlssRequirements.computeQueues;
+		if (enableDlss && (graphicsFamily == queueFamilies.size() ||
+			requestedQueues > queueFamilies[graphicsFamily].queueCount ||
+			!(queueFamilies[graphicsFamily].queueFlags & VK_QUEUE_COMPUTE_BIT))) {
+			_dlss.disable("DLSS unavailable: insufficient graphics/compute queues");
+			enableDlss = false;
+		}
+	}
+
 	//create the final Vulkan device
+	if (enableDlss) physicalDevice.features.shaderStorageImageExtendedFormats = VK_TRUE;
 	vkb::DeviceBuilder deviceBuilder{ physicalDevice };
+	if (enableDlss) {
+		std::vector<vkb::CustomQueueDescription> queues;
+		for (uint32_t family = 0; family < queueFamilies.size(); ++family) {
+			const uint32_t count = family == graphicsFamily ? 1 + dlssRequirements.graphicsQueues + dlssRequirements.computeQueues : 1;
+			queues.emplace_back(family, count, std::vector<float>(count, 1.0f));
+		}
+		deviceBuilder.custom_queue_setup(std::move(queues));
+		dlssGraphicsStart = dlssRequirements.graphicsQueues ? 1 : 0;
+		dlssComputeStart = dlssRequirements.computeQueues ? 1 + dlssRequirements.graphicsQueues : 0;
+	}
 
 	VkPhysicalDeviceShaderDrawParametersFeatures shader_draw_parameters_features = {};
 	shader_draw_parameters_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
@@ -653,28 +824,28 @@ void VulkanEngine::init_vulkan()
 	featuresMesh.meshShader = true;
 	featuresMesh.taskShader = true;
 
-	VkPhysicalDeviceBufferDeviceAddressFeatures buffer_device_address_features = {};
-	buffer_device_address_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
-	buffer_device_address_features.pNext = nullptr;
-	buffer_device_address_features.bufferDeviceAddress = true;
+	// Use one Vulkan 1.2 structure for both renderer and optional SDK features.
+	// Combining it with the promoted individual feature structures is invalid.
+	VkPhysicalDeviceVulkan12Features vulkan12Features = enableDlss ? dlssRequirements.features12 : VkPhysicalDeviceVulkan12Features{};
+	vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+	vulkan12Features.pNext = nullptr;
+	vulkan12Features.bufferDeviceAddress = true;
+	vulkan12Features.shaderFloat16 = true;
+	vulkan12Features.shaderSampledImageArrayNonUniformIndexing = true;
+	vulkan12Features.descriptorBindingSampledImageUpdateAfterBind = true;
+	vulkan12Features.shaderUniformBufferArrayNonUniformIndexing = true;
+	vulkan12Features.shaderStorageBufferArrayNonUniformIndexing = true;
+	vulkan12Features.descriptorBindingUniformBufferUpdateAfterBind = true;
+	vulkan12Features.descriptorBindingStorageBufferUpdateAfterBind = true;
+	vulkan12Features.descriptorBindingVariableDescriptorCount = true;
+	vulkan12Features.descriptorBindingPartiallyBound = true;
+	vulkan12Features.runtimeDescriptorArray = true;
 
-	VkPhysicalDeviceDescriptorIndexingFeatures descriptor_indexing_features{};
-	descriptor_indexing_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-	descriptor_indexing_features.pNext = nullptr;
-	descriptor_indexing_features.shaderSampledImageArrayNonUniformIndexing = true;
-	descriptor_indexing_features.descriptorBindingSampledImageUpdateAfterBind = true;
-	descriptor_indexing_features.shaderUniformBufferArrayNonUniformIndexing = true;
-	descriptor_indexing_features.shaderStorageBufferArrayNonUniformIndexing = true;
-	descriptor_indexing_features.descriptorBindingUniformBufferUpdateAfterBind = true;
-	descriptor_indexing_features.shaderStorageBufferArrayNonUniformIndexing = true;
-	descriptor_indexing_features.descriptorBindingStorageBufferUpdateAfterBind = true;
-	descriptor_indexing_features.descriptorBindingVariableDescriptorCount = true;
-	descriptor_indexing_features.descriptorBindingPartiallyBound = true;
-	descriptor_indexing_features.runtimeDescriptorArray = true;
-
-	VkPhysicalDeviceVulkan13Features phys_dev_13_features{};
+	VkPhysicalDeviceVulkan13Features phys_dev_13_features = enableDlss ? dlssRequirements.features13 : VkPhysicalDeviceVulkan13Features{};
 	phys_dev_13_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+	phys_dev_13_features.pNext = nullptr;
 	phys_dev_13_features.maintenance4 = true;
+	phys_dev_13_features.privateData = enableDlss;
 
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_structure_features = {};
 	acceleration_structure_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
@@ -709,13 +880,6 @@ void VulkanEngine::init_vulkan()
 	coopVecFeatures2.cooperativeVector = true;
 	coopVecFeatures2.cooperativeVectorTraining = get_mode() == ERenderMode::ReSTIR_NRC;
 
-	// Do not combine Vulkan12Features with the separate descriptor-indexing and
-	// buffer-device-address feature structures already present in this chain.
-	VkPhysicalDeviceShaderFloat16Int8Features vulkan12Features = {};
-	vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES;
-	vulkan12Features.pNext = nullptr;
-	vulkan12Features.shaderFloat16 = true;
-
 	VkPhysicalDeviceShaderReplicatedCompositesFeaturesEXT shaderReplicatedFeatures = {};
 	shaderReplicatedFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_REPLICATED_COMPOSITES_FEATURES_EXT;
 	shaderReplicatedFeatures.pNext = nullptr;
@@ -730,8 +894,6 @@ void VulkanEngine::init_vulkan()
 
 	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features)
 		.add_pNext(&featuresMesh)
-		.add_pNext(&buffer_device_address_features)
-		.add_pNext(&descriptor_indexing_features)
 		.add_pNext(&phys_dev_13_features)
 		.add_pNext(&acceleration_structure_features)
 		.add_pNext(&rt_features)
@@ -749,6 +911,24 @@ void VulkanEngine::init_vulkan()
 	// Get the VkDevice handle used in the rest of a Vulkan application
 	_device = vkbDevice.device;
 	_chosenPhysicalDeviceGPU = physicalDevice.physical_device;
+	if (enableDlss && _dlss.initialize_device(_instance, _chosenPhysicalDeviceGPU, _device, graphicsFamily,
+		dlssGraphicsStart, graphicsFamily, dlssComputeStart)) {
+		const auto nativeDestroySurface = vkDestroySurfaceKHR;
+		// Both Volk and VkBootstrap must use the mandatory surface, swapchain,
+		// acquire, present and device-idle hooks. Keep Volk's native DLL ownership.
+		vkGetInstanceProcAddr = _dlss.instance_proc_addr();
+		volkLoadInstance(_instance);
+		vkGetDeviceProcAddr = _dlss.device_proc_addr();
+		vkb::set_instance_dispatch(_instance, vkGetInstanceProcAddr);
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+		nativeDestroySurface(_instance, _surface, nullptr);
+		_surface = VK_NULL_HANDLE;
+		if (vkCreateWin32SurfaceKHR(_instance, &surfaceInfo, nullptr, &_surface) != VK_SUCCESS)
+			throw std::runtime_error("Cannot create Streamline Vulkan window surface");
+		physicalDevice.surface = vkbDevice.surface = _surface;
+#endif
+	}
+	volkLoadDevice(_device);
 
 	vkGetPhysicalDeviceProperties(_chosenPhysicalDeviceGPU, &_physDevProp);
 
@@ -798,6 +978,7 @@ void VulkanEngine::init_swapchain()
 
 	//store swapchain and its related images
 	_swapchain = vkbSwapchain.swapchain;
+	_windowExtent = vkbSwapchain.extent;
 
 	std::vector<VkImage> swapchainImages = {};
 	std::vector<VkImageView> swapchainImageViews = {};
@@ -1640,8 +1821,10 @@ void VulkanEngine::init_imgui()
 	//add the destroy the imgui created structures
 	_mainDeletionQueue.push_function([=]() {
 
-		vkDestroyDescriptorPool(_device, imguiPool, nullptr);
 		ImGui_ImplVulkan_Shutdown();
+		ImGui_ImplSDL2_Shutdown();
+		ImGui::DestroyContext();
+		vkDestroyDescriptorPool(_device, imguiPool, nullptr);
 		});
 }
 

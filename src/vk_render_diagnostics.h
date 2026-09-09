@@ -68,6 +68,11 @@ public:
         _gpuTimes << frame << ',' << totalMs << ',' << denoiserMs << '\n';
     }
 
+    void record_cpu_time(uint32_t frame, double frameMs)
+    {
+        _cpuTimes << frame << ',' << frameMs << '\n';
+    }
+
     // Call immediately after engine.draw(): _frameNumber has already advanced.
     // The supplied image must be linear RGBA32F radiance in shader-read
     // layout, with TRANSFER_SRC usage. Returns true at the requested frame limit.
@@ -84,6 +89,8 @@ public:
         {
             // Also make a limit-only run safe for the engine's cleanup path.
             check(vkDeviceWaitIdle(engine._device));
+            std::cout << "Diagnostics DLSS fallbacks: " << engine._rhi.upscale_fallback_count() << std::endl;
+            std::cout << "Diagnostics completed: " << frame << " frames" << std::endl;
             return true;
         }
         return false;
@@ -142,16 +149,20 @@ private:
         _gpuTimes.open(_directory / "gpu-times.csv", std::ios::out | std::ios::trunc);
         if (!_gpuTimes) throw std::runtime_error("Cannot open diagnostics gpu-times.csv");
         _gpuTimes << "frame,total_ms,denoiser_ms\n" << std::setprecision(9);
+        _cpuTimes.open(_directory / "cpu-times.csv", std::ios::out | std::ios::trunc);
+        if (!_cpuTimes) throw std::runtime_error("Cannot open diagnostics cpu-times.csv");
+        _cpuTimes << "frame,frame_ms\n" << std::setprecision(9);
         _start = std::chrono::steady_clock::now();
     }
 
     void capture(VulkanEngine& engine, const Texture& image, uint32_t frame)
     {
-        if (image.createInfo.format != VK_FORMAT_R32G32B32A32_SFLOAT ||
+        const bool halfFloat = image.createInfo.format == VK_FORMAT_R16G16B16A16_SFLOAT;
+        if ((!halfFloat && image.createInfo.format != VK_FORMAT_R32G32B32A32_SFLOAT) ||
             !(image.createInfo.usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT))
-            throw std::runtime_error("Diagnostics require an RGBA32F accumulated image with TRANSFER_SRC usage");
+            throw std::runtime_error("Diagnostics require an RGBA16F/RGBA32F image with TRANSFER_SRC usage");
         const size_t pixelCount = size_t(image.extend.width) * image.extend.height;
-        const VkDeviceSize byteSize = VkDeviceSize(pixelCount) * 4 * sizeof(float);
+        const VkDeviceSize byteSize = VkDeviceSize(pixelCount) * 4 * (halfFloat ? sizeof(uint16_t) : sizeof(float));
         auto staging = engine.create_buffer(size_t(byteSize), VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT);
         void* mapped = nullptr;
@@ -196,7 +207,23 @@ private:
             // non-coherent host memory before inspecting the GPU's writes.
             check(vmaMapMemory(engine._allocator, staging._allocation, &mapped));
             check(vmaInvalidateAllocation(engine._allocator, staging._allocation, 0, byteSize));
-            save(static_cast<const float*>(mapped), image.extend.width, image.extend.height, frame);
+            if (halfFloat)
+            {
+                const auto* source = static_cast<const uint16_t*>(mapped);
+                std::vector<float> pixels(pixelCount * 4);
+                for (size_t i = 0; i < pixels.size(); ++i)
+                {
+                    const uint32_t h = source[i];
+                    const uint32_t exponent = (h >> 10) & 31u;
+                    const uint32_t mantissa = h & 1023u;
+                    float value = exponent == 0 ? std::ldexp(float(mantissa), -24) :
+                        (exponent == 31 ? (mantissa ? std::numeric_limits<float>::quiet_NaN() :
+                            std::numeric_limits<float>::infinity()) : std::ldexp(float(1024u + mantissa), int(exponent) - 25));
+                    pixels[i] = (h & 0x8000u) ? -value : value;
+                }
+                save(pixels.data(), image.extend.width, image.extend.height, frame);
+            }
+            else save(static_cast<const float*>(mapped), image.extend.width, image.extend.height, frame);
             vmaUnmapMemory(engine._allocator, staging._allocation);
             mapped = nullptr;
         }
@@ -275,5 +302,6 @@ private:
     std::filesystem::path _directory;
     std::ofstream _statistics;
     std::ofstream _gpuTimes;
+    std::ofstream _cpuTimes;
     std::chrono::steady_clock::time_point _start;
 };

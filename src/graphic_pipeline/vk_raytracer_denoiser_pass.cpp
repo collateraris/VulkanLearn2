@@ -161,7 +161,7 @@ void VulkanRaytracerDenoiserPass::init(VulkanEngine* engine)
 
 	const std::array<nrd::DenoiserDesc, 1> denoiserDescs =
 	{
-		{ m_Identifier, m_Denoiser, uint16_t(_engine->_windowExtent.width), uint16_t(_engine->_windowExtent.height)}
+		{ m_Identifier, m_Denoiser, uint16_t(_engine->_renderExtent.width), uint16_t(_engine->_renderExtent.height)}
 	};
 
 	nrd::InstanceCreationDesc instanceCreationDesc;
@@ -332,8 +332,8 @@ void VulkanRaytracerDenoiserPass::draw(VulkanCommandBuffer* cmd, int current_fra
 	glm::vec2 pixelOffset = _engine->_camera.get_current_jitter();
 	glm::vec2 prevPixelOffset = _engine->_camera.get_prev_jitter();
 	commonSettings.isMotionVectorInWorldSpace = false;
-	commonSettings.motionVectorScale[0] = (commonSettings.isMotionVectorInWorldSpace) ? (1.f) : (1.f / _engine->_windowExtent.width);
-	commonSettings.motionVectorScale[1] = (commonSettings.isMotionVectorInWorldSpace) ? (1.f) : (1.f / _engine->_windowExtent.height);
+	commonSettings.motionVectorScale[0] = (commonSettings.isMotionVectorInWorldSpace) ? (1.f) : (1.f / _engine->_renderExtent.width);
+	commonSettings.motionVectorScale[1] = (commonSettings.isMotionVectorInWorldSpace) ? (1.f) : (1.f / _engine->_renderExtent.height);
 	commonSettings.motionVectorScale[2] = 1.0f;
 	commonSettings.cameraJitter[0] = pixelOffset.x;
 	commonSettings.cameraJitter[1] = pixelOffset.y;
@@ -526,8 +526,8 @@ void VulkanRaytracerDenoiserPass::draw(VulkanCommandBuffer* cmd, int current_fra
 void VulkanRaytracerDenoiserPass::init_denoiser_textures()
 {
 	VkExtent3D imageExtent = {
-		_engine->_windowExtent.width, 
-		_engine->_windowExtent.height,
+		_engine->_renderExtent.width,
+		_engine->_renderExtent.height,
 		1
 	};
 

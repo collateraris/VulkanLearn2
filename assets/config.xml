@@ -1,23 +1,11 @@
 <?xml version="1.1" encoding="UTF-8" ?>
 <config>
-
-	<window
-		title="Vulkan Learning Game Engine"
-		width="1980"
-		height="1200"
-	></window>
-			
-	<current_scene
-		id="1"
-	></current_scene>
-
-	<render_mode name="RESTIR"></render_mode>
-
-	<env_map
-		size="512"
-	></env_map>
-
-	<irradiance_map
+    <window title="Vulkan Learning Game Engine" width="1980" height="1080"/>
+    <current_scene id="3"/>
+    <render_mode name="RESTIR"/>
+    <upscaling mode="performance"/>
+    <env_map size="512"/>
+<irradiance_map
 		size="64"
 	></irradiance_map>
 

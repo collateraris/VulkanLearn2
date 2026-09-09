@@ -14,13 +14,13 @@ void VulkanReSTIRSpaceReusePass::init(VulkanEngine* engine)
 	_engine = engine;
 
 	_imageExtent = {
-		_engine->_windowExtent.width,
-		_engine->_windowExtent.height,
+		_engine->_renderExtent.width,
+		_engine->_renderExtent.height,
 		1
 	};
 
-	_tileNumberWidth = _engine->_windowExtent.width / _tileSize + 1;
-	_tileNumberHeight = _engine->_windowExtent.height / _tileSize + 1;
+	_tileNumberWidth = _engine->_renderExtent.width / _tileSize + 1;
+	_tileNumberHeight = _engine->_renderExtent.height / _tileSize + 1;
 
 	{
 		init_description_set_global_buffer();

@@ -492,22 +492,18 @@ void VulkanLightManager::generate_uniform_grid(glm::vec3 maxCube, glm::vec3 minC
 	float stepY = std::abs(maxCube.y - minCube.y) / static_cast<float>(lightNumber);
 	float stepZ = std::abs(maxCube.z - minCube.z) / static_cast<float>(lightNumber);
 
-	// Keep diagnostic scene lighting repeatable as well as camera jitter.
-	// Interactive runs retain the original randomly coloured point-light grid.
+	// A fresh interactive launch chooses a seed once; a renderer restart
+	// restores that seed so changing output settings preserves the same lights.
+	// Fresh diagnostics retain the original fixed seed unless explicitly resumed.
 	const char* diagnosticFrames = std::getenv("RESTIR_DIAGNOSTICS_FRAMES");
 	const char* diagnosticLimit = std::getenv("RESTIR_DIAGNOSTICS_MAX_FRAMES");
 	const bool diagnosticRun = (diagnosticFrames && *diagnosticFrames) || (diagnosticLimit && *diagnosticLimit);
-	std::mt19937 gen;
-	if (diagnosticRun)
+	if (!_hasGeneratedLightSeed)
 	{
-		gen.seed(0u);
-		_engine->_logger.debug_log("Diagnostic point-light seed: 0\n");
+		set_generated_light_seed(diagnosticRun ? 0u : std::random_device{}());
 	}
-	else
-	{
-		std::random_device rd;
-		gen.seed(rd());
-	}
+	std::mt19937 gen(_generatedLightSeed);
+	_engine->_logger.debug_log("Generated point-light seed: " + std::to_string(_generatedLightSeed) + "\n");
 
 	// Generate pseudo-random numbers
 	// uniformly distributed in range (1, 100)

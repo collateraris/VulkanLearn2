@@ -16,6 +16,8 @@ VkFormat native_format(Format format) {
     switch (format) {
     case Format::Rgba16Float: return VK_FORMAT_R16G16B16A16_SFLOAT;
     case Format::Rgba32Float: return VK_FORMAT_R32G32B32A32_SFLOAT;
+    case Format::Rg16Float: return VK_FORMAT_R16G16_SFLOAT;
+    case Format::R32Float: return VK_FORMAT_R32_SFLOAT;
     }
     throw std::invalid_argument("RHI: unsupported image format");
 }

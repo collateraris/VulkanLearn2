@@ -152,6 +152,7 @@ class VulkanFunctions {
 	bool init_vulkan_funcs (PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr) {
 		std::lock_guard<std::mutex> lg (init_mutex);
 		if (!load_vulkan (fp_vkGetInstanceProcAddr)) return false;
+		instance = VK_NULL_HANDLE;
 		init_pre_instance_funcs ();
 		return true;
 	}
@@ -560,6 +561,11 @@ void destroy_instance (Instance instance) {
 	}
 }
 
+void set_instance_dispatch (VkInstance instance, PFN_vkGetInstanceProcAddr get_instance_proc_addr) {
+	detail::vulkan_functions ().init_vulkan_funcs (get_instance_proc_addr);
+	detail::vulkan_functions ().init_instance_funcs (instance);
+}
+
 InstanceBuilder::InstanceBuilder (PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr) {
 	info.fp_vkGetInstanceProcAddr = fp_vkGetInstanceProcAddr;
 }
@@ -567,7 +573,7 @@ InstanceBuilder::InstanceBuilder () {}
 
 detail::Result<Instance> InstanceBuilder::build () const {
 
-	auto sys_info_ret = SystemInfo::get_system_info ();
+	auto sys_info_ret = info.fp_vkGetInstanceProcAddr ? SystemInfo::get_system_info (info.fp_vkGetInstanceProcAddr) : SystemInfo::get_system_info ();
 	if (!sys_info_ret) return sys_info_ret.error ();
 	auto system = sys_info_ret.value ();
 

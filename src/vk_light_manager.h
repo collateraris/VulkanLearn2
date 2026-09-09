@@ -66,6 +66,9 @@ public:
 	void add_emission_light(glm::vec4& position, glm::vec4& position1, glm::vec4& position2, glm::vec2& uv0, glm::vec2& uv1, glm::vec2& uv2, uint32_t objectId);
 	void update_sun_light(std::function<void(glm::vec3& direction, glm::vec3& color)>&& func);
 	void generate_uniform_grid(glm::vec3 maxCube, glm::vec3 minCube, uint32_t lightNumber);
+	void set_generated_light_seed(uint32_t seed) { _generatedLightSeed = seed; _hasGeneratedLightSeed = true; }
+	bool has_generated_light_seed() const { return _hasGeneratedLightSeed; }
+	uint32_t get_generated_light_seed() const { return _generatedLightSeed; }
 
 	void update_light_buffer();
 	void create_light_buffer();
@@ -86,6 +89,8 @@ private:
 	int32_t sunIndex = -1;
 
 	VulkanEngine* _engine = nullptr;
+	bool _hasGeneratedLightSeed = false;
+	uint32_t _generatedLightSeed = 0;
 
 	std::vector<VulkanLightManager::Light> _lightsOnScene = {};
 	AllocatedBuffer _lightsBuffer;

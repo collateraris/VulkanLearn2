@@ -142,7 +142,7 @@ Some components are experimental, while others remain disabled in the current re
 | Frame accumulation | Enabled by default; toggle **Frame accumulation** in the UI or launch with `RESTIR_ACCUMULATION=0` to view unaveraged frames. Linear HDR radiance is averaged in FP32 using exact pixel reads. Camera, sunlight, or path-depth changes reset history; non-finite samples cannot poison later frames. The original display contrast curve is applied after averaging. |
 | Raster G-buffer / visibility buffer | Mesh/task shader pipelines, meshlet processing, and depth-pyramid culling code are present. `GBUFFER_ON` and `VBUFFER_ON` default to `0`. |
 | HDR / image-based lighting | `RESTIR` and `RESTIR_NRC` support optional FP32 equirectangular HDR environments through bindless textures. Primary misses show the environment; escaping BRDF rays contribute its lighting. The older environment/irradiance/prefiltered cubemap generator remains disabled. |
-| Streamline | SDK files and wrapper code are present; `STREAMLINE_ON` defaults to `0`. DLSS is not an active rendering feature. |
+| NVIDIA DLSS Super Resolution | Optional Streamline 2.14.1 Vulkan backend for `RESTIR` and `RESTIR_NRC`. The graph prepares linear HDR, device depth, and camera/sky motion vectors, evaluates DLSS at the selected output resolution, then applies the existing tone mapping and full-resolution ImGui. |
 
 This is a research and learning project. The gallery starts with reproducible captures of the current renderer and keeps older experiments below. Results depend on the scene, settings, and hardware.
 
@@ -150,7 +150,7 @@ This is a research and learning project. The gallery starts with reproducible ca
 
 ### Requirements
 
-The current build targets **Windows x64**. It uses bundled Windows SDL2 libraries, a Streamline import library, Win32 Vulkan definitions, and `.exe` shader compilers.
+The current build targets **Windows x64**. It uses bundled Windows SDL2 libraries, Win32 Vulkan definitions, and `.exe` shader compilers. Streamline is loaded dynamically when DLSS is requested.
 
 - **Visual Studio 2022** with Desktop development with C++ and a Windows SDK, including FXC for NRD's default shader build.
 - **CMake** with the `Visual Studio 17 2022` generator (3.21 or newer).
@@ -193,9 +193,47 @@ ctest --test-dir win64 -C Release --output-on-failure
 
 ### Runtime libraries
 
-CMake automatically copies SDL2, the Streamline interposer, and shared Assimp/NRD libraries beside `vulkan_guide.exe` after linking. Library paths come from the selected build configuration: Release receives `assimp-vc143-mt.dll` and `NRD.dll`, while Debug receives `assimp-vc143-mtd.dll` and `NRDd.dll` with the current MSVC toolset.
+CMake automatically copies SDL2 and shared Assimp/NRD libraries beside `vulkan_guide.exe` after linking. Library paths come from the selected build configuration: Release receives `assimp-vc143-mt.dll` and `NRD.dll`, while Debug receives `assimp-vc143-mtd.dll` and `NRDd.dll` with the current MSVC toolset. An enabled Streamline build also deploys its signed SR runtime DLLs, Vulkan low-latency helper, and licenses to the adjacent `streamline/` directory.
 
-Keep these DLLs together with the executable when moving a build. If files were removed from an existing output directory, rebuild the `vulkan_guide` target to restore them. CMake still links NRD and the Streamline import library even though their rendering integrations are inactive.
+Keep these DLLs and the `streamline/` directory together with the executable when moving a build. If files were removed from an existing output directory, rebuild the `vulkan_guide` target to restore them. Missing or unsupported DLSS falls back to native rendering; there is no mandatory Streamline DLL import.
+
+### DLSS and 1440p output
+
+Acquire the pinned [official Streamline 2.14.1 SDK](https://github.com/NVIDIA-RTX/Streamline/releases/tag/v2.14.1) and build:
+
+```powershell
+cmake -S . -B win64 -DRESTIR_FETCH_STREAMLINE=ON
+cmake --build win64 --config Release --target vulkan_guide
+```
+
+The download is verified against its SHA-256 hash and extracted to `win64/streamline-sdk-2.14.1`. An existing SDK can be selected with `-DRESTIR_STREAMLINE_SDK_DIR=...`. Use `-DRESTIR_ENABLE_STREAMLINE=OFF` for a build without the SDK. The older files under `third_party/streamline` are no longer linked into the renderer.
+
+In **Edit GI → Display / DLSS**, choose **2560 × 1440**, select **Quality**, **Balanced**, or **Performance**, then press **Apply (reload renderer)**. Settings are saved to `assets/config.xml`; reloading preserves the camera, sunlight, generated point-light colors, path depth, and filter choices while recreating the resolution-dependent resources and temporal histories. **Off** renders natively; **DLAA** reconstructs at native resolution without reducing the ray count. The UI shows both the internal render size and the output size.
+
+```xml
+<window title="Vulkan Learning Game Engine" width="2560" height="1440"></window>
+<upscaling mode="performance"></upscaling>
+```
+
+DLSS obtains the internal resolution from the SDK. All ReSTIR launches, reservoirs, accumulation, denoising, and NRC screen-sized work use that internal size. The graph executes `DLSS.PrepareInputs` and `DLSS.SuperResolution` before tone mapping and ImGui. Inputs include FP16 linear HDR, normalized depth reconstructed from primary hits, and unjittered current-to-previous motion in pixels; the sky uses rotation-only motion. A Halton sequence supplies projection jitter. Camera cuts and changed rendering settings reset DLSS history.
+
+The supplied configuration starts in 1440p Performance mode. A fresh DLSS launch enables the existing denoiser to provide a cleaner input signal; accumulation and denoising remain independent ImGui controls. Applying settings preserves your current filter choices. Quality retains more fine detail at a higher rendering cost; Performance reduces that cost and produces a softer image.
+
+Example measurements in Bistro on an RTX 4090, driver 610.88, Release, with accumulation and denoising enabled:
+
+| Mode | Internal resolution | Output resolution | Measured FPS |
+|---|---|---|---:|
+| Native | 1200 × 800 | 1200 × 800 | 57.4 |
+| Native | 2560 × 1440 | 2560 × 1440 | 15.4 |
+| DLSS Quality | 1707 × 960 | 2560 × 1440 | 33.4 |
+| DLSS Balanced | 1485 × 835 | 2560 × 1440 | 44.0 |
+| DLSS Performance | 1280 × 720 | 2560 × 1440 | 58.2 |
+
+These are short measurements from frames 150–254 of 256-frame runs, using the same camera and lighting, with validation disabled and captures outside the timing window. FPS is derived from the measured frame loop; scene, camera, and system load affect the result. The Vulkan backend selects supported transformer preset K for Performance and Ultra Performance to avoid private NGX image-layout errors observed with the default Performance model on this SDK/driver.
+
+This integration provides **Super Resolution**, with the existing denoiser as a separate option. Frame Generation and Ray Reconstruction are not enabled. It requires supported NVIDIA RTX hardware and a compatible driver. Quality and frame time depend on the scene and quality mode; upscaling does not guarantee pixel-identical native output. See the [NVIDIA integration guide](https://github.com/NVIDIA-RTX/Streamline/blob/main/docs/ProgrammingGuideDLSS.md) and the SDK's DLSS license for deployment terms.
+
+On the tested machine, NVIDIA's driver telemetry can hang inside NGX shutdown after rendering has finished. A five-second watchdog reports this explicitly and ends only the renderer process with exit code `70`; it never unloads the SDK or destroys the Vulkan device underneath an active shutdown call. Applying display settings starts a fresh process with the camera, sunlight, path depth, and filter settings restored, so this driver issue cannot block the new renderer. Diagnostic reports distinguish this timeout from rendering or validation errors.
 
 ## Run and configure
 

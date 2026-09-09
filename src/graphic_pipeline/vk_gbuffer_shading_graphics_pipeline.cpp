@@ -8,11 +8,11 @@
 #include <vk_shaders.h>
 #include <vk_initializers.h>
 
-void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const Texture& gi, const Texture* denoised)
+void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const Texture& gi, const Texture* denoised, const Texture* upscaled)
 {
 	_engine = engine;
 
-	init_description_set(gi, denoised);
+	init_description_set(gi, denoised, upscaled);
 
 	{
 		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::GBufferShading,
@@ -95,8 +95,8 @@ void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const Text
 
 void VulkanGbufferShadingGraphicsPipeline::draw(rhi::CommandList& cmd, int current_frame_index)
 {
-	const VkDescriptorSet input = _hasDenoisedInput && _engine->_denoiserEnabled
-		? _denoisedDescSet[current_frame_index] : _gBufDescSet[current_frame_index];
+	const VkDescriptorSet input = _hasUpscaledInput ? _upscaledDescSet[current_frame_index] :
+		(_hasDenoisedInput && _engine->_denoiserEnabled ? _denoisedDescSet[current_frame_index] : _gBufDescSet[current_frame_index]);
 	const auto pipeline = _engine->_rhi.pipeline(_engine->_renderPipelineManager.get_pipeline(EPipelineType::GBufferShading),
 		_engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::GBufferShading), VK_PIPELINE_BIND_POINT_GRAPHICS);
 	cmd.bind_pipeline(pipeline);
@@ -104,9 +104,10 @@ void VulkanGbufferShadingGraphicsPipeline::draw(rhi::CommandList& cmd, int curre
 	cmd.draw(3);
 }
 
-void VulkanGbufferShadingGraphicsPipeline::init_description_set(const Texture& gi, const Texture* denoised)
+void VulkanGbufferShadingGraphicsPipeline::init_description_set(const Texture& gi, const Texture* denoised, const Texture* upscaled)
 {
 	_hasDenoisedInput = denoised != nullptr;
+	_hasUpscaledInput = upscaled != nullptr;
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
 	VkSampler sampler;
@@ -131,6 +132,13 @@ void VulkanGbufferShadingGraphicsPipeline::init_description_set(const Texture& g
 			vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
 				.bind_image(0, &giImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.build(_denoisedDescSet[i], _gBufDescSetLayout);
+		}
+		if (upscaled)
+		{
+			giImageBufferInfo.imageView = upscaled->imageView;
+			vkutil::DescriptorBuilder::begin(_engine->_descriptorLayoutCache.get(), _engine->_descriptorAllocator.get())
+				.bind_image(0, &giImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+				.build(_upscaledDescSet[i], _gBufDescSetLayout);
 		}
 	}
 }

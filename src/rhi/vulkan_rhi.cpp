@@ -1,5 +1,6 @@
 #include "vulkan_rhi.h"
 #include "vulkan_resources.h"
+#include "streamline_dlss.h"
 #include <vk_utils.h>
 #include <vk_textures.h>
 #include <imgui_impl_vulkan.h>
@@ -86,8 +87,14 @@ Resource VulkanDevice::image(const Texture& tex, std::optional<ResourceState> in
     ResourceState state = initial.value_or(ResourceState{Stage::AllCommands,
         Access::MemoryRead | Access::MemoryWrite, layout(tex.currImageLayout)});
     if (state.layout == Layout::Undefined) state = {};
-    return image(tex.image._image, vkutil::format_to_aspect_mask(tex.createInfo.format),
+    const Resource id = image(tex.image._image, vkutil::format_to_aspect_mask(tex.createInfo.format),
         tex.createInfo.mipLevels, tex.createInfo.arrayLayers, state);
+    auto& record = resource(id);
+    record.view = tex.imageView;
+    record.format = tex.createInfo.format;
+    record.extent = {tex.createInfo.extent.width, tex.createInfo.extent.height};
+    record.usage = tex.createInfo.usage;
+    return id;
 }
 Resource VulkanDevice::image(VkImage image, VkImageAspectFlags aspect, uint32_t levels, uint32_t layers, ResourceState initial) {
     if (!image) throw std::invalid_argument("RHI: null image import");
@@ -209,6 +216,40 @@ void VulkanCommandList::copy_image(Resource src, Resource dst, uint32_t w, uint3
     vkCmdCopyImage(_cmd, s.image, layout(s.state.layout), t.image, layout(t.state.layout), 1, &copy);
 }
 void VulkanCommandList::fill_buffer(Resource r, uint32_t value) { vkCmdFillBuffer(_cmd, _device.resource(r).buffer, 0, VK_WHOLE_SIZE, value); }
+bool VulkanCommandList::evaluate_upscaler(const TemporalUpscaleDescription& description) {
+    const auto nativeTexture = [&](Resource id) {
+        const auto& resource = _device.resource(id);
+        if (!resource.image || !resource.view || resource.format == VK_FORMAT_UNDEFINED)
+            throw std::invalid_argument("RHI: upscaler requires a complete texture import");
+        return DlssNativeTexture{resource.image, resource.view, resource.format,
+            layout(resource.state.layout), resource.extent, resource.usage};
+    };
+    const auto color = nativeTexture(description.color);
+    const auto depth = nativeTexture(description.depth);
+    const auto motion = nativeTexture(description.motion);
+    const auto output = nativeTexture(description.output);
+    if (_device._upscaler && _device._upscaler->evaluate(_cmd, color, depth, motion, output, description))
+        return true;
+
+    // A failed optional SDK must still leave a valid display image. The graph
+    // tracks these actual transfer writes so its next reader gets the right
+    // dependency even though the successful evaluation would use compute.
+    ++_device._upscaleFallbackCount;
+    if (!(color.usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) || !(output.usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT))
+        throw std::invalid_argument("RHI: upscaler fallback requires transfer image usage");
+    transition(description.color, {Stage::Transfer, Access::TransferRead, Layout::TransferSource});
+    transition(description.output, {Stage::Transfer, Access::TransferWrite, Layout::TransferDestination});
+    VkImageBlit region{};
+    region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.srcOffsets[1] = {int32_t(description.renderWidth), int32_t(description.renderHeight), 1};
+    region.dstOffsets[1] = {int32_t(description.outputWidth), int32_t(description.outputHeight), 1};
+    vkCmdBlitImage(_cmd, color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        output.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region, VK_FILTER_LINEAR);
+    transition(description.color, {Stage::Compute, Access::ShaderRead, Layout::General});
+    transition(description.output, {Stage::Transfer, Access::TransferWrite, Layout::General});
+    return false;
+}
 void VulkanCommandList::begin_render_pass(RenderTarget target, const ClearValues& clear) {
     const auto& t = _device._targets.at(target.id);
     VkClearValue values[2]{}; for (int i = 0; i < 4; ++i) values[0].color.float32[i] = clear.color[i];

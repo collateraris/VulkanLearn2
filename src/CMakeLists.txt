@@ -3,7 +3,10 @@
 add_executable(vulkan_guide
     main.cpp
     vk_engine.cpp
+    vk_engine_upscaling.cpp
+    vk_render_restart.cpp
     vk_engine.h
+    render_settings.h
     vk_types.h
     vk_initializers.cpp
     vk_initializers.h
@@ -40,6 +43,10 @@ add_executable(vulkan_guide
     rhi/resource.h
     rhi/vulkan_resources.h
     rhi/vulkan_resources.cpp
+    rhi/streamline_dlss.h
+    rhi/streamline_dlss.cpp
+    graphic_pipeline/vk_dlss_prepare_pass.h
+    graphic_pipeline/vk_dlss_prepare_pass.cpp
     render_scene_resources.h
     render_scene_resources.cpp
     vk_raytracer_builder.h
@@ -146,20 +153,15 @@ set_property(TARGET vulkan_guide PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGE
 target_include_directories(vulkan_guide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(vulkan_guide vkbootstrap vma glm tinyobjloader imgui stb_image assimp spirv_reflect NRD)
 
-add_library(streamline SHARED IMPORTED)
-set_property(TARGET streamline PROPERTY
-             IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/streamline/bin/x64/sl.interposer.dll")
-set_property(TARGET streamline PROPERTY
-             IMPORTED_IMPLIB "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/streamline/lib/x64/sl.interposer.lib")
-
-target_link_libraries(vulkan_guide sdl2 volk volk_headers meshoptimizer plog taskflow streamline streamline2) 
+target_link_libraries(vulkan_guide sdl2 volk volk_headers meshoptimizer plog taskflow)
+include("${PROJECT_SOURCE_DIR}/cmake/Streamline.cmake")
+restir_configure_streamline(vulkan_guide)
 
 if(WIN32)
     # Resolve DLL names and paths from the selected build configuration.
     # SDL2 is an interface target, so its bundled runtime is listed explicitly.
     set(VULKAN_GUIDE_RUNTIME_DLLS
-        "${PROJECT_SOURCE_DIR}/third_party/SDL2-2.28.2/lib/x64/SDL2.dll"
-        "$<TARGET_FILE:streamline>")
+        "${PROJECT_SOURCE_DIR}/third_party/SDL2-2.28.2/lib/x64/SDL2.dll")
     foreach(runtime_target IN ITEMS assimp NRD)
         get_target_property(runtime_type ${runtime_target} TYPE)
         if(runtime_type STREQUAL "SHARED_LIBRARY")
