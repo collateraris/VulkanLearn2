@@ -34,6 +34,14 @@ add_executable(vulkan_guide
     vk_render_passes.cpp
     vk_render_graph.h
     vk_render_graph.cpp
+    rhi/rhi.h
+    rhi/vulkan_rhi.h
+    rhi/vulkan_rhi.cpp
+    rhi/resource.h
+    rhi/vulkan_resources.h
+    rhi/vulkan_resources.cpp
+    render_scene_resources.h
+    render_scene_resources.cpp
     vk_raytracer_builder.h
     vk_raytracer_builder.cpp
     vk_utils.h
@@ -168,3 +176,9 @@ if(WIN32)
 endif()
 
 add_dependencies(vulkan_guide Shaders)
+
+if(RESTIR_BUILD_TESTS)
+    add_executable(render_graph_tests ../tests/render_graph_tests.cpp vk_render_graph.cpp)
+    target_include_directories(render_graph_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME render_graph COMMAND render_graph_tests)
+endif()

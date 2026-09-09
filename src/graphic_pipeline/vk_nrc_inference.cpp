@@ -82,47 +82,35 @@ Texture& VulkanNRC_InferencePass::get_tex(ETextureResourceNames name) const
 	return *_engine->get_engine_texture(name);
 }
 
-void VulkanNRC_InferencePass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanNRC_InferencePass::draw(rhi::CommandList& cmd, int frameSlot)
 {
-	cmd->dispatch(_tileNumberWidth, _tileNumberHeight, 1, [&](VkCommandBuffer cmd)
-	{
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipeline(EPipelineType::NRC_Inference));
+	const auto pipeline = _engine->_rhi.pipeline(
+		_engine->_renderPipelineManager.get_pipeline(EPipelineType::NRC_Inference),
+		_engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Inference),
+		VK_PIPELINE_BIND_POINT_COMPUTE);
+	cmd.bind_pipeline(pipeline);
+	cmd.bind_descriptor_set(pipeline, 0, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set));
 
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Inference), 0,
-			1, &_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set, 0, nullptr);
+	const EDescriptorResourceNames currentGlobalUniformsDesc = frameSlot % 2 == 0
+		? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
+		: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
+	cmd.bind_descriptor_set(pipeline, 1, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set));
 
-		EDescriptorResourceNames currentGlobalUniformsDesc = current_frame_index % 2 == 0
-			? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
-			: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
+	const EDescriptorResourceNames currentNRCUniformsDesc = frameSlot % 2 == 0
+		? EDescriptorResourceNames::NRC_GlobalUniformBuffer_Frame0
+		: EDescriptorResourceNames::NRC_GlobalUniformBuffer_Frame1;
+	cmd.bind_descriptor_set(pipeline, 2, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(currentNRCUniformsDesc)->set));
+	cmd.bind_descriptor_set(pipeline, 3, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP_Train_Inference)->set));
+	cmd.bind_descriptor_set(pipeline, 4, _engine->_rhi.descriptor(_rpDescrMan.get_set()));
 
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Inference), 1,
-			1, &_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set, 0, nullptr);
-
-		EDescriptorResourceNames currentNRCUniformsDesc = current_frame_index % 2 == 0
-			? EDescriptorResourceNames::NRC_GlobalUniformBuffer_Frame0
-			: EDescriptorResourceNames::NRC_GlobalUniformBuffer_Frame1;
-
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Inference), 2,
-			1, &_engine->get_engine_descriptor(currentNRCUniformsDesc)->set, 0, nullptr);
-
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Inference), 3,
-			1, &_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP_Train_Inference)->set, 0, nullptr);
-
-		_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Inference), 4);
-	});
+	cmd.dispatch(_tileNumberWidth, _tileNumberHeight, 1);
 }
 
 const Texture& VulkanNRC_InferencePass::get_output() const
 {
 	return _outputTex;
-}
-
-void VulkanNRC_InferencePass::barrier_for_frag_read(VulkanCommandBuffer* cmd)
-{
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-}
-
-void VulkanNRC_InferencePass::barrier_for_compute_write(VulkanCommandBuffer* cmd)
-{
-	vkutil::image_pipeline_barrier(cmd->get_cmd(), _outputTex, VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 }

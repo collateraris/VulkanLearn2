@@ -5,14 +5,14 @@
 #include <array>
 
 class VulkanEngine;
-class VulkanCommandBuffer;
+namespace rg { class RenderGraph; }
 
 // Filters displayed HDR without feeding filtered pixels back into accumulation.
 class VulkanSpatialDenoiserPass
 {
 public:
     void init(VulkanEngine* engine, const Texture& sourceAccumulated);
-    void draw(VulkanCommandBuffer* cmd, int current_frame_index);
+    void append_passes(rg::RenderGraph& graph, int frameSlot);
     void reset_history();
     const Texture& get_output() const;
 
@@ -37,12 +37,13 @@ private:
     static_assert(sizeof(TemporalConstants) == 128);
 
     VulkanEngine* _engine = nullptr;
+    const Texture* _sourceTexture = nullptr;
     VkExtent3D _imageExtent{};
     std::array<Texture, 2> _textures{};
     Texture _prefiltered{};
     // Color/count, position/object ID, packed normal/roughness/metalness.
     std::array<std::array<Texture, 3>, 2> _history{};
-    std::array<VkImage, 4> _gbufferImages{};
+    std::array<const Texture*, 4> _guides{};
     VkDescriptorSet _prefilterSet = VK_NULL_HANDLE;
     std::array<std::array<VkDescriptorSet, 2>, 2> _spatialSets{};
     std::array<VkDescriptorSet, 2> _temporalSets{};
@@ -57,7 +58,6 @@ private:
     VkPipelineLayout _temporalPipelineLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout _temporalSetLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout _uniformSetLayout = VK_NULL_HANDLE;
-    bool _imagesInitialized = false;
     bool _historyValid = false;
     bool _wasEnabled = false;
     bool _lastAccumulationEnabled = false;

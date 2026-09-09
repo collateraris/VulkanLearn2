@@ -10,6 +10,8 @@
 #include <vk_raytracer_builder.h>
 #include <vk_initializers.h>
 #include <vk_camera.h>
+#include <vk_render_graph.h>
+#include <render_scene_resources.h>
 
 void VulkanGIShadowsRaytracingGraphicsPipeline::init_textures(VulkanEngine* engine)
 {
@@ -507,46 +509,142 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::copy_global_uniform_data(VulkanG
 
 
 
-void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanGIShadowsRaytracingGraphicsPipeline::append_passes(rg::RenderGraph& graph, int frameSlot)
 {
-    const VkPipelineStageFlags traceStage = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
-    const VkPipelineStageFlags computeStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-    const VkPipelineStageFlags shaderStages = traceStage | computeStage;
-    const VkAccessFlags readWrite = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-    auto memoryBarrier = [&](VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage,
-                             VkAccessFlags srcAccess, VkAccessFlags dstAccess) {
-        VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
-        barrier.srcAccessMask = srcAccess;
-        barrier.dstAccessMask = dstAccess;
-        vkCmdPipelineBarrier(cmd->get_cmd(), srcStage, dstStage, 0, 1, &barrier, 0, nullptr, 0, nullptr);
+    using rhi::Access;
+    using rhi::Layout;
+    using rhi::Stage;
+    using rg::Use;
+
+    auto& device = _engine->_rhi;
+    auto& resources = _engine->_resManager;
+    const uint32_t currentTemporal = (_engine->_frameNumber + 1) % 2;
+    const uint32_t previousTemporal = _engine->_frameNumber % 2;
+    const bool historyValid = _historyValid;
+    const bool useNrc = _engine->get_mode() == ERenderMode::ReSTIR_NRC;
+    const Access readWrite = Access::ShaderRead | Access::ShaderWrite;
+
+    auto buffer = [&](const char* name, const AllocatedBuffer& allocation, bool initialized = true) {
+        return graph.import_resource(name, device.buffer(allocation), initialized);
+    };
+    auto image = [&](const char* name, const Texture& texture, bool initialized = false) {
+        return graph.import_resource(name, device.image(texture), initialized);
+    };
+    auto storageUse = [](rg::ResourceHandle resource, Stage stage, Access access) {
+        return Use{resource, {stage, access, Layout::General}};
     };
 
-    // Reservoirs and G-buffer images are shared across frames on this queue.
-    // Include both reads and writes before overwriting an earlier frame's data.
-    memoryBarrier(shaderStages, shaderStages, readWrite, readWrite);
-    _restir_DI_InitGP->draw(cmd, current_frame_index);
-    memoryBarrier(traceStage, shaderStages, VK_ACCESS_SHADER_WRITE_BIT, readWrite);
-    _restirInitGP->draw(cmd, current_frame_index);
-    memoryBarrier(traceStage, computeStage, VK_ACCESS_SHADER_WRITE_BIT, readWrite);
-    _restirTemporalGP->draw(cmd, current_frame_index);
-    memoryBarrier(computeStage, computeStage, VK_ACCESS_SHADER_WRITE_BIT, readWrite);
-    _restirSpacialGP->draw(cmd, current_frame_index);
-    memoryBarrier(computeStage, computeStage, VK_ACCESS_SHADER_WRITE_BIT, readWrite);
-    _restir_PT_TemporalGP->draw(cmd, current_frame_index);
-    memoryBarrier(computeStage, traceStage, VK_ACCESS_SHADER_WRITE_BIT, readWrite);
-    _restir_PT_SpacialGP->draw(cmd, current_frame_index);
-    memoryBarrier(shaderStages, computeStage, VK_ACCESS_SHADER_WRITE_BIT, readWrite);
+    const std::array<rg::ResourceHandle, 4> gbuffer = {
+        image("ReSTIR.GBuffer.AlbedoMetalness", *resources.get_engine_texture(ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS)),
+        image("ReSTIR.GBuffer.EmissionRoughness", *resources.get_engine_texture(ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS)),
+        image("ReSTIR.GBuffer.Normal", *resources.get_engine_texture(ETextureResourceNames::PT_GBUFFER_NORMAL)),
+        image("ReSTIR.GBuffer.PositionObject", *resources.get_engine_texture(ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID))
+    };
+    const auto giUniform = buffer("ReSTIR.FrameUniform", _globalUniformsBuffer[frameSlot]);
+    const auto diInitial = buffer("ReSTIR.DI.Initial", resources.globalReservoirDIInitBuffer, false);
+    const auto diCurrent = buffer("ReSTIR.DI.CurrentTemporal", resources.globalReservoirDITemporalBuffer[currentTemporal], false);
+    const auto diPrevious = buffer("ReSTIR.DI.PreviousTemporal", resources.globalReservoirDITemporalBuffer[previousTemporal], historyValid);
+    const auto diSpatial = buffer("ReSTIR.DI.Spatial", resources.globalReservoirDISpacialBuffer, false);
+    const auto ptInitial = buffer("ReSTIR.PT.Initial", resources.globalReservoirPTInitBuffer, false);
+    const auto ptCurrent = buffer("ReSTIR.PT.CurrentTemporal", resources.globalReservoirPTTemporalBuffer[currentTemporal], false);
+    const auto ptPrevious = buffer("ReSTIR.PT.PreviousTemporal", resources.globalReservoirPTTemporalBuffer[previousTemporal], historyValid);
+    const auto ptSpatial = buffer("ReSTIR.PT.Spatial", resources.globalReservoirPTSpacialBuffer, false);
 
-    if (_engine->get_mode() == ERenderMode::ReSTIR_NRC)
+    auto surfaceReads = [&](Stage stage, bool readsScene) {
+        std::vector<Use> uses = readsScene ? import_scene_reads(*_engine, graph, stage) : std::vector<Use>{};
+        uses.push_back(storageUse(giUniform, stage, Access::UniformRead));
+        for (const auto texture : gbuffer)
+            uses.push_back(storageUse(texture, stage, Access::ShaderRead));
+        return uses;
+    };
+
     {
-        NeuralRadianceCache& nrc = *_engine->_resManager.nrc_cache;
+        auto uses = import_scene_reads(*_engine, graph, Stage::RayTracing);
+        uses.push_back(storageUse(giUniform, Stage::RayTracing, Access::UniformRead));
+        uses.push_back(storageUse(diInitial, Stage::RayTracing, Access::ShaderWrite));
+        uses.push_back(storageUse(buffer("ReSTIR.DI.ShaderTable", _restir_DI_InitGP->shader_binding_table_buffer()),
+            Stage::RayTracing, Access::ShaderRead));
+        for (const auto texture : gbuffer)
+            uses.push_back(storageUse(texture, Stage::RayTracing, Access::ShaderWrite));
+        graph.add_pass("ReSTIR.DI.Init", std::move(uses), [this, frameSlot](rhi::CommandList& cmd) {
+            _restir_DI_InitGP->draw(cmd, frameSlot);
+        });
+    }
+    {
+        auto uses = surfaceReads(Stage::RayTracing, true);
+        uses.push_back(storageUse(ptInitial, Stage::RayTracing, Access::ShaderWrite));
+        uses.push_back(storageUse(buffer("ReSTIR.PT.InitShaderTable", _restirInitGP->shader_binding_table_buffer()),
+            Stage::RayTracing, Access::ShaderRead));
+        graph.add_pass("ReSTIR.PT.Init", std::move(uses), [this, frameSlot](rhi::CommandList& cmd) {
+            _restirInitGP->draw(cmd, frameSlot);
+        });
+    }
+    {
+        auto uses = surfaceReads(Stage::Compute, true);
+        uses.push_back(storageUse(diInitial, Stage::Compute, Access::ShaderRead));
+        uses.push_back(storageUse(diCurrent, Stage::Compute, Access::ShaderWrite));
+        if (historyValid)
+            uses.push_back(storageUse(diPrevious, Stage::Compute, Access::ShaderRead));
+        graph.add_pass("ReSTIR.DI.Temporal", std::move(uses), [this, frameSlot](rhi::CommandList& cmd) {
+            _restirTemporalGP->draw(cmd, frameSlot);
+        });
+    }
+    {
+        auto uses = surfaceReads(Stage::Compute, true);
+        uses.push_back(storageUse(diCurrent, Stage::Compute, Access::ShaderRead));
+        uses.push_back(storageUse(diSpatial, Stage::Compute, Access::ShaderWrite));
+        graph.add_pass("ReSTIR.DI.Spatial", std::move(uses), [this, frameSlot](rhi::CommandList& cmd) {
+            _restirSpacialGP->draw(cmd, frameSlot);
+        });
+    }
+    // This shader only copies the initial PT reservoir into the current slot.
+    graph.add_pass("ReSTIR.PT.PrepareTemporal", {
+        storageUse(giUniform, Stage::Compute, Access::UniformRead),
+        storageUse(ptInitial, Stage::Compute, Access::ShaderRead),
+        storageUse(ptCurrent, Stage::Compute, Access::ShaderWrite)
+    }, [this, frameSlot](rhi::CommandList& cmd) {
+        _restir_PT_TemporalGP->draw(cmd, frameSlot);
+    });
+    {
+        auto uses = surfaceReads(Stage::RayTracing, true);
+        uses.push_back(storageUse(ptInitial, Stage::RayTracing, Access::ShaderRead));
+        uses.push_back(storageUse(ptCurrent, Stage::RayTracing, readWrite));
+        uses.push_back(storageUse(ptSpatial, Stage::RayTracing, Access::ShaderWrite));
+        uses.push_back(storageUse(buffer("ReSTIR.PT.ReuseShaderTable", _restir_PT_SpacialGP->shader_binding_table_buffer()),
+            Stage::RayTracing, Access::ShaderRead));
+        if (historyValid)
+            uses.push_back(storageUse(ptPrevious, Stage::RayTracing, Access::ShaderRead));
+        graph.add_pass("ReSTIR.PT.ReplayAndSpatial", std::move(uses), [this, frameSlot](rhi::CommandList& cmd) {
+            _restir_PT_SpacialGP->draw(cmd, frameSlot);
+        });
+    }
+
+    if (useNrc)
+    {
+        NeuralRadianceCache& nrc = *resources.nrc_cache;
+        const auto nrcUniform = buffer("NRC.FrameUniform", _nrcUniformsBuffer[frameSlot]);
+        const auto weights = buffer("NRC.WeightsFP16", nrc.m_mlpDeviceBuffer);
+        const auto masterWeights = buffer("NRC.WeightsFP32", nrc.m_mlpParamsBuffer32);
+        const auto gradients = buffer("NRC.Gradients", nrc.m_mlpGradientsBuffer);
+        const auto moments1 = buffer("NRC.Moments1", nrc.m_mlpMoments1Buffer);
+        const auto moments2 = buffer("NRC.Moments2", nrc.m_mlpMoments2Buffer);
+        const auto gradientIndices = buffer("NRC.GradientIndices", nrc.m_gradientIndexMapBuffer);
+
         if (_resetNrcTraining)
         {
-            memoryBarrier(computeStage, VK_PIPELINE_STAGE_TRANSFER_BIT, readWrite, VK_ACCESS_TRANSFER_WRITE_BIT);
-            vkCmdFillBuffer(cmd->get_cmd(), nrc.m_mlpGradientsBuffer._buffer, 0, VK_WHOLE_SIZE, 0);
-            vkCmdFillBuffer(cmd->get_cmd(), nrc.m_mlpMoments1Buffer._buffer, 0, VK_WHOLE_SIZE, 0);
-            vkCmdFillBuffer(cmd->get_cmd(), nrc.m_mlpMoments2Buffer._buffer, 0, VK_WHOLE_SIZE, 0);
-            memoryBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, computeStage, VK_ACCESS_TRANSFER_WRITE_BIT, readWrite);
+            const std::array<rhi::Resource, 3> resetBuffers = {
+                device.buffer(nrc.m_mlpGradientsBuffer),
+                device.buffer(nrc.m_mlpMoments1Buffer),
+                device.buffer(nrc.m_mlpMoments2Buffer)
+            };
+            graph.add_pass("NRC.ResetOptimizer", {
+                storageUse(gradients, Stage::Transfer, Access::TransferWrite),
+                storageUse(moments1, Stage::Transfer, Access::TransferWrite),
+                storageUse(moments2, Stage::Transfer, Access::TransferWrite)
+            }, [resetBuffers](rhi::CommandList& cmd) {
+                for (const auto resource : resetBuffers)
+                    cmd.fill_buffer(resource, 0);
+            });
             nrc.m_currentOptimizationStep = 0;
             _resetNrcTraining = false;
         }
@@ -562,33 +660,82 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, i
         std::ranges::copy(nrc.m_biasOffsets, trainingModelConstant.biasOffsets);
         std::ranges::copy(nrc.m_gradientWeightOffsets, trainingModelConstant.gradientWeightOffsets);
         std::ranges::copy(nrc.m_gradientBiasOffsets, trainingModelConstant.gradientBiasOffsets);
-        _engine->write_buffer(_engine->_allocator, _nrcUniformsBuffer[current_frame_index]._allocation,
+        _engine->write_buffer(_engine->_allocator, _nrcUniformsBuffer[frameSlot]._allocation,
                              &trainingModelConstant, sizeof(trainingModelConstant));
 
-        // Inference from the previous frame must finish reading the weights before Adam writes them.
-        memoryBarrier(computeStage, computeStage, readWrite, readWrite);
-        _nrcTrainGP->draw(cmd, current_frame_index);
-        memoryBarrier(computeStage, computeStage, readWrite, readWrite);
-        _nrcOptimizeGP->draw(cmd, current_frame_index);
-        memoryBarrier(computeStage, computeStage, VK_ACCESS_SHADER_WRITE_BIT, readWrite);
-        _nrcInferenceGP->barrier_for_compute_write(cmd);
-        _nrcInferenceGP->draw(cmd, current_frame_index);
-        _nrcInferenceGP->barrier_for_frag_read(cmd);
+        {
+            auto uses = surfaceReads(Stage::Compute, false);
+            uses.push_back(storageUse(nrcUniform, Stage::Compute, Access::UniformRead));
+            uses.push_back(storageUse(ptSpatial, Stage::Compute, Access::ShaderRead));
+            uses.push_back(storageUse(weights, Stage::Compute, Access::ShaderRead));
+            uses.push_back(storageUse(gradients, Stage::Compute, readWrite));
+            graph.add_pass("NRC.Train", std::move(uses), [this, frameSlot](rhi::CommandList& cmd) {
+                _nrcTrainGP->draw(cmd, frameSlot);
+            });
+        }
+        graph.add_pass("NRC.Optimize", {
+            storageUse(nrcUniform, Stage::Compute, Access::UniformRead),
+            storageUse(weights, Stage::Compute, readWrite),
+            storageUse(masterWeights, Stage::Compute, readWrite),
+            storageUse(gradients, Stage::Compute, readWrite),
+            storageUse(moments1, Stage::Compute, readWrite),
+            storageUse(moments2, Stage::Compute, readWrite),
+            storageUse(gradientIndices, Stage::Compute, Access::ShaderRead)
+        }, [this, frameSlot](rhi::CommandList& cmd) {
+            _nrcOptimizeGP->draw(cmd, frameSlot);
+        });
+        {
+            auto uses = surfaceReads(Stage::Compute, true);
+            uses.push_back(storageUse(nrcUniform, Stage::Compute, Access::UniformRead));
+            uses.push_back(storageUse(diSpatial, Stage::Compute, Access::ShaderRead));
+            uses.push_back(storageUse(ptSpatial, Stage::Compute, Access::ShaderRead));
+            uses.push_back(storageUse(weights, Stage::Compute, Access::ShaderRead));
+            uses.push_back(storageUse(image("NRC.Output", _nrcInferenceGP->get_output()),
+                Stage::Compute, Access::ShaderWrite));
+            graph.add_pass("NRC.Inference", std::move(uses), [this, frameSlot](rhi::CommandList& cmd) {
+                _nrcInferenceGP->draw(cmd, frameSlot);
+            });
+        }
     }
     else
     {
-        _restirUpdateShadeGP->barrier_for_compute_write(cmd);
-        _restirUpdateShadeGP->draw(cmd, current_frame_index);
-        _restirUpdateShadeGP->barrier_for_frag_read(cmd);
+        auto uses = surfaceReads(Stage::Compute, true);
+        uses.push_back(storageUse(diSpatial, Stage::Compute, Access::ShaderRead));
+        uses.push_back(storageUse(ptSpatial, Stage::Compute, Access::ShaderRead));
+        uses.push_back(storageUse(image("ReSTIR.ShadedOutput", _restirUpdateShadeGP->get_output()),
+            Stage::Compute, Access::ShaderWrite));
+        graph.add_pass("ReSTIR.Shade", std::move(uses), [this, frameSlot](rhi::CommandList& cmd) {
+            _restirUpdateShadeGP->draw(cmd, frameSlot);
+        });
     }
 
-    _accumulationGP->draw(cmd, current_frame_index);
-    vkCmdWriteTimestamp(cmd->get_cmd(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-        _engine->get_current_frame().queryPool, 2);
-    _spatialDenoiser->draw(cmd, current_frame_index);
-    vkCmdWriteTimestamp(cmd->get_cmd(), VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-        _engine->get_current_frame().queryPool, 3);
-    _historyValid = true;
+    const auto accumulationFirst = graph.pass_count();
+    _accumulationGP->append_passes(graph, frameSlot);
+    const auto accumulationEnd = graph.pass_count();
+    const auto queryPool = device.query_pool(_engine->get_current_frame().queryPool);
+    // Timestamp boundaries are explicit control dependencies, so they remain
+    // correct if independent resource passes are scheduled differently later.
+    const auto denoiserBegin = graph.add_pass("Denoiser.TimestampBegin", {}, [queryPool](rhi::CommandList& cmd) {
+        cmd.timestamp(queryPool, 2, rhi::Stage::Bottom);
+    });
+    for (auto pass = accumulationFirst; pass < accumulationEnd; ++pass)
+        graph.depends_on(denoiserBegin, static_cast<rg::PassHandle>(pass));
+    const auto denoiserFirst = graph.pass_count();
+    _spatialDenoiser->append_passes(graph, frameSlot);
+    const auto denoiserLast = graph.pass_count();
+    const auto denoiserEnd = graph.add_pass("Denoiser.TimestampEnd", {}, [queryPool](rhi::CommandList& cmd) {
+        cmd.timestamp(queryPool, 3, rhi::Stage::Bottom);
+    });
+    graph.depends_on(denoiserEnd, denoiserBegin);
+    for (auto pass = denoiserFirst; pass < denoiserLast; ++pass)
+    {
+        graph.depends_on(static_cast<rg::PassHandle>(pass), denoiserBegin);
+        graph.depends_on(denoiserEnd, static_cast<rg::PassHandle>(pass));
+    }
+    const auto commit = graph.add_pass("ReSTIR.CommitHistory", {}, [this](rhi::CommandList&) {
+        _historyValid = true;
+    });
+    graph.depends_on(commit, denoiserEnd);
 }
 const Texture& VulkanGIShadowsRaytracingGraphicsPipeline::get_output() const
 {

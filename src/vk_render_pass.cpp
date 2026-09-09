@@ -92,14 +92,9 @@ void VulkanRenderPass::init(VulkanEngine* engine, const RenderPassInfo& info)
 
 		if (image.bIsSwapChainImage)
 		{
-			if (attachment.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD)
-				attachment.initialLayout = image.createInfo.initialLayout;
-			else
-				// The acquired image is cleared, including its first use. Let the
-				// render pass transition every swapchain image before drawing.
-				attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-			attachment.finalLayout = image.createInfo.initialLayout;
+			// The frame graph owns acquire-to-color and color-to-present transitions.
+			attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		}
 		else
 			attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;

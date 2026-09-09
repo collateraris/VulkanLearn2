@@ -80,12 +80,12 @@ void VulkanEngine::init()
 
 	_logger.init("vulkan.log");
 
-	_rgraph.init(this);
-
 	_depthReduceRenderPass.init(this);
 
 	//load the core Vulkan structures
 	init_vulkan();
+	_rhi.init(_device, _debugUtilsEnabled);
+	_rhi.init_resources(_allocator);
 
 	_shaderCache.init(_device);
 
@@ -221,6 +221,8 @@ void VulkanEngine::cleanup()
 		}
 
 		_mainDeletionQueue.flush();
+		_rgraph.reset();
+		_rhi.reset();
 		_shaderCache.cleanup();
 
 		_descriptorAllocator->cleanup();
@@ -326,64 +328,61 @@ void VulkanEngine::draw()
 	_ptReSTIRGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
 	_ptReSTIRGraphicsPipeline.barrier_for_frag_read(&get_current_frame()._mainCommandBuffer);
 #endif
-	if (get_mode() == ERenderMode::Pathtracer)
-	{
-		_ptReference.barrier_for_writing(&get_current_frame()._mainCommandBuffer);
-		_ptReference.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-		_ptReference.barrier_for_reading(&get_current_frame()._mainCommandBuffer);
-		_accumulationGP.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index(), ERenderMode::Pathtracer);
-	}	
-	if (get_mode() == ERenderMode::ReSTIR || get_mode() == ERenderMode::ReSTIR_NRC)
-	{
-		_giRtGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-	}
+		_rgraph.reset();
+		auto& commands = _rhi.begin_commands(cmd);
+		const int frameSlot = get_current_frame_index();
+		if (get_mode() == ERenderMode::Pathtracer)
 		{
-			//make a clear-color from frame number. This will flash with a 120*pi frame period.
-			VkClearValue clearValue;
-			clearValue.color = { { 0.0f, 0.0f, 0.f, 1.0f } };
-
-			//clear depth at 1
-			VkClearValue depthClear;
-			depthClear.depthStencil.depth = 1.f;
-			//start the main renderpass. 
-			//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-			VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPassManager.get_render_pass(ERenderPassType::Default)->get_render_pass(), _windowExtent, _framebuffers[swapchainImageIndex]);
-
-			//connect clear values
-			rpInfo.clearValueCount = 2;
-
-			VkClearValue clearValues[] = { clearValue, depthClear };
-
-			rpInfo.pClearValues = &clearValues[0];
-
-			vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-			VkViewport viewport;
-			viewport.x = 0.0f;
-			viewport.y = 0.0f;
-			viewport.width = (float)_windowExtent.width;
-			viewport.height = (float)_windowExtent.height;
-			viewport.minDepth = 0.0f;
-			viewport.maxDepth = 1.0f;
-
-			VkRect2D scissor;
-			scissor.offset = { 0, 0 };
-			scissor.extent = _windowExtent;
-
-			vkCmdSetViewport(cmd, 0, 1, &viewport);
-			vkCmdSetScissor(cmd, 0, 1, &scissor);
-			vkCmdSetDepthBias(cmd, 0, 0, 0);
-			
-			if (get_mode() == ERenderMode::Pathtracer || get_mode() == ERenderMode::ReSTIR || get_mode() == ERenderMode::ReSTIR_NRC)
-			{
-				_gBufShadingGraphicsPipeline.draw(&get_current_frame()._mainCommandBuffer, get_current_frame_index());
-			}			
-		//draw_objects(cmd, _renderables.data(), _renderables.size());
-			ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
-
-			//finalize the render pass
-			vkCmdEndRenderPass(cmd);
+			_ptReference.append_passes(_rgraph, frameSlot);
+			_accumulationGP.append_passes(_rgraph, frameSlot);
 		}
+		else if (get_mode() == ERenderMode::ReSTIR || get_mode() == ERenderMode::ReSTIR_NRC)
+		{
+			_giRtGraphicsPipeline.append_passes(_rgraph, frameSlot);
+		}
+
+		using rhi::Stage;
+		using rhi::Access;
+		using rhi::Layout;
+		const Texture& display = get_mode() == ERenderMode::Pathtracer
+			? _accumulationGP.get_output() : _giRtGraphicsPipeline.get_display_output();
+		const auto displayResource = _rhi.image(display);
+		const auto displayImage = _rgraph.import_resource("Display.HDR", displayResource);
+		const auto swapResource = _rhi.image(_swapchainTextures[swapchainImageIndex].image._image,
+			VK_IMAGE_ASPECT_COLOR_BIT, 1, 1, {Stage::ColorOutput, Access::None, Layout::Undefined});
+		const auto swapImage = _rgraph.import_resource("Display.Swapchain", swapResource, false);
+		const auto depthResource = _rhi.image(_depthTex,
+			rhi::ResourceState{Stage::Depth, Access::DepthWrite, Layout::DepthAttachment});
+		const auto depthImage = _rgraph.import_resource("Display.Depth", depthResource);
+		const auto target = _rhi.render_target(_renderPassManager.get_render_pass(ERenderPassType::Default)->get_render_pass(),
+			_framebuffers[swapchainImageIndex], _windowExtent.width, _windowExtent.height, true);
+		const auto displayPass = _rgraph.add_pass("Display.TonemapAndImGui", {
+			{displayImage, {Stage::Fragment, Access::ShaderRead, Layout::ShaderReadOnly}},
+			{swapImage, {Stage::ColorOutput, Access::ColorWrite, Layout::ColorAttachment}},
+			{depthImage, {Stage::Depth, Access::DepthRead | Access::DepthWrite, Layout::DepthAttachment}}
+		}, [this, frameSlot, target](rhi::CommandList& commands) {
+			commands.begin_render_pass(target, {});
+			_gBufShadingGraphicsPipeline.draw(commands, frameSlot);
+			_rhi.draw_imgui(ImGui::GetDrawData());
+			commands.end_render_pass();
+		});
+		const auto presentPass = _rgraph.add_pass("Display.Present", {
+			{swapImage, {Stage::Bottom, Access::None, Layout::Present}}
+		}, [](rhi::CommandList&) {});
+		_rgraph.depends_on(presentPass, displayPass);
+		_rgraph.compile();
+		if (_frameNumber == 0)
+		{
+			std::cout << "RenderGraph:";
+			for (const auto& name : _rgraph.pass_names()) std::cout << " " << name;
+			std::cout << std::endl;
+			if (const char* path = std::getenv("RESTIR_GRAPH_DUMP"))
+			{
+				std::ofstream graphFile(path);
+				graphFile << _rgraph.export_dot();
+			}
+		}
+		_rgraph.execute(commands);
 #if GBUFFER_ON
 		{
 			_gBufGenerateGraphicsPipeline.barrier_for_gbuffer_generate(&get_current_frame()._mainCommandBuffer);
@@ -559,12 +558,19 @@ void VulkanEngine::init_vulkan()
 	VK_CHECK(volkInitialize());
 
 	vkb::InstanceBuilder builder;
+	uint32_t extensionCount = 0;
+	VK_CHECK(vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr));
+	std::vector<VkExtensionProperties> instanceExtensions(extensionCount);
+	VK_CHECK(vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, instanceExtensions.data()));
+	_debugUtilsEnabled = std::any_of(instanceExtensions.begin(), instanceExtensions.end(), [](const auto& extension) {
+		return std::strcmp(extension.extensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0;
+	});
+	if (_debugUtilsEnabled) builder.enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 	//make the Vulkan instance, with basic debug features
 	auto inst_ret = builder.set_app_name("My Vulkan pet project")
 		.require_api_version(1, 4, 3)
 #if VULKAN_DEBUG_ON
 		.request_validation_layers(true)
-		.enable_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)
 		.enable_extension(VK_EXT_DEBUG_REPORT_EXTENSION_NAME)
 		.add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT)
 		.add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT)

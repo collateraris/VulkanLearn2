@@ -63,31 +63,30 @@ Texture& VulkanNRC_OptimizePass::get_tex(ETextureResourceNames name) const
 	return *_engine->get_engine_texture(name);
 }
 
-void VulkanNRC_OptimizePass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanNRC_OptimizePass::draw(rhi::CommandList& cmd, int frameSlot)
 {
+	const auto pipeline = _engine->_rhi.pipeline(
+		_engine->_renderPipelineManager.get_pipeline(EPipelineType::NRC_Optimize),
+		_engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Optimize),
+		VK_PIPELINE_BIND_POINT_COMPUTE);
+	cmd.bind_pipeline(pipeline);
+	cmd.bind_descriptor_set(pipeline, 0, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set));
+
+	const EDescriptorResourceNames currentGlobalUniformsDesc = frameSlot % 2 == 0
+		? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
+		: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
+	cmd.bind_descriptor_set(pipeline, 1, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set));
+
+	const EDescriptorResourceNames currentNRCUniformsDesc = frameSlot % 2 == 0
+		? EDescriptorResourceNames::NRC_GlobalUniformBuffer_Frame0
+		: EDescriptorResourceNames::NRC_GlobalUniformBuffer_Frame1;
+	cmd.bind_descriptor_set(pipeline, 2, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(currentNRCUniformsDesc)->set));
+	cmd.bind_descriptor_set(pipeline, 3, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP_Optimize)->set));
+
 	const NeuralRadianceCache& nrc = *_engine->_resManager.nrc_cache.get();
-	cmd->dispatch(donut::math::div_ceil(nrc.m_totalParameterCount, 32), 1, 1, [&](VkCommandBuffer cmd)
-	{
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipeline(EPipelineType::NRC_Optimize));
-
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Optimize), 0,
-			1, &_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set, 0, nullptr);
-
-		EDescriptorResourceNames currentGlobalUniformsDesc = current_frame_index % 2 == 0
-			? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
-			: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
-
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Optimize), 1,
-			1, &_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set, 0, nullptr);
-
-		EDescriptorResourceNames currentNRCUniformsDesc = current_frame_index % 2 == 0
-			? EDescriptorResourceNames::NRC_GlobalUniformBuffer_Frame0
-			: EDescriptorResourceNames::NRC_GlobalUniformBuffer_Frame1;
-
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Optimize), 2,
-			1, &_engine->get_engine_descriptor(currentNRCUniformsDesc)->set, 0, nullptr);
-
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::NRC_Optimize), 3,
-			1, &_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP_Optimize)->set, 0, nullptr);
-	});
+	cmd.dispatch(donut::math::div_ceil(nrc.m_totalParameterCount, 32), 1, 1);
 }

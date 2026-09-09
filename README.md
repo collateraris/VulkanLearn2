@@ -6,7 +6,7 @@ English | [Русский](README.ru.md)
 
 VulkanLearn2 is a C++20 rendering playground for exploring reservoir resampling and lighting at low sample counts. It includes a reference path tracer with next event estimation (NEE), a ReSTIR DI + PT pipeline, emissive triangle lights, and an experimental Neural Radiance Cache (NRC). The current rendering paths use Slang shaders alongside the project's GLSL implementations.
 
-[Features](#features) · [Vulkan architecture](#vulkan-architecture) · [Build](#build) · [Run and configure](#run-and-configure) · [Controls](#controls) · [Rendering flow](#rendering-flow) · [Gallery](#gallery) · [Code map](#code-map)
+[Features](#features) · [Architecture](#render-graph-rhi-and-vulkan) · [Build](#build) · [Run and configure](#run-and-configure) · [Controls](#controls) · [Rendering flow](#rendering-flow) · [Gallery](#gallery) · [Code map](#code-map)
 
 ## Gallery
 
@@ -80,7 +80,29 @@ python img/restir-pt/capture.py --scenes 2 --view view-2
 - **Scene loading:** Assimp-based import, with OBJ, glTF, and FBX scene configurations; scene transforms, camera placement, and lighting are configured through XML.
 - **Interactive inspection:** an SDL2 camera, Dear ImGui controls for indirect path depth and sunlight, and a statistics/log window with CPU frame timings. GPU frame and denoiser timestamps are read after the existing frame fence; diagnostic runs export `gpu-times.csv`.
 
-### Vulkan architecture
+### Render graph, RHI, and Vulkan
+
+The existing, previously unused render graph has been reworked into the executor of the active rendering pipeline. Each frame, passes declare their imported images/buffers and required access, then record actual ray tracing, compute, copy, and drawing commands through the RHI (Rendering Hardware Interface).
+
+```mermaid
+flowchart TD
+    P["ReSTIR / NRC / reference tracing, accumulation, denoising, display"] --> G["rg::RenderGraph: dependencies and execution"]
+    G --> C["rhi::CommandList: resource states and GPU commands"]
+    C --> V["rhi::VulkanDevice: persistent states and Vulkan backend"]
+    V --> GPU["Vulkan command buffer / graphics queue"]
+```
+
+The [graph](src/vk_render_graph.h) and [RHI contracts](src/rhi/rhi.h) contain no Vulkan types. The graph builds a stable dependency order for read-after-write, write-after-read, and write-after-write hazards, accepts explicit dependencies, and rejects cycles and reads of uninitialized resources. Imports of the same physical resource share one handle and dependency history, even when passes use different names.
+
+These are real frame nodes: `ReSTIR.DI.Init`, `ReSTIR.PT.Init`, the DI reuse passes, `ReSTIR.PT.PrepareTemporal`, and `ReSTIR.PT.ReplayAndSpatial`; then either `ReSTIR.Shade` or `NRC.Train` → `NRC.Optimize` → `NRC.Inference`. `Accumulation.Mean` and `Accumulation.StoreHistory` feed the optional `Denoiser.Prefilter`, `Denoiser.Spatial0/1`, and `Denoiser.Temporal` passes, followed by `Display.TonemapAndImGui` and `Display.Present`. See [pass declarations](src/graphic_pipeline/vk_gi_raytrace_graphics_pipeline.cpp) and the [frame loop](src/vk_engine.cpp).
+
+The [Vulkan backend](src/rhi/vulkan_rhi.cpp) translates declared states into image/buffer barriers and retains resource states across frames. Rebuilding the graph does not clear reservoir, accumulation, or denoiser history; their validity remains controlled by rendering settings and camera changes. Execution uses one graphics queue, without asynchronous scheduling or transient-memory aliasing.
+
+The neutral [ResourceDevice](src/rhi/resource.h) also creates images/buffers and handles buffer updates and destruction. Accumulation and denoising use it for their images and per-frame uniform buffers, backed by [Vulkan/VMA allocations](src/rhi/vulkan_resources.cpp). Vulkan is currently the only backend. Engine initialization, scene uploads, GI/NRC allocations, descriptors, and pipeline creation still use native Vulkan; existing descriptor/framebuffer setup accesses native resources through explicit backend exports.
+
+Open **Edit GI → Render graph** in ImGui to inspect the recorded pass order. Set `$env:RESTIR_GRAPH_DUMP = "frame-graph.dot"` before launching to export the first frame's compiled graph to a DOT file relative to the process working directory. The startup log also lists its pass order.
+
+#### Vulkan features
 
 The renderer uses a **bindless scene resource model**: textures and per-mesh vertex/index buffers live in descriptor arrays shared by rendering passes. Shaders select geometry and textures through mesh and material indices, avoiding descriptor rebinding for each object or material. The common scene set also exposes materials, lights, the top-level acceleration structure, and ReSTIR reservoirs.
 
@@ -159,6 +181,15 @@ cmake --build build --config Release --target vulkan_guide --parallel
 The executable target is named **`vulkan_guide`**. With this generator, the executable is written to `bin/Release/vulkan_guide.exe`. Use a fresh build directory if an existing `build/` cache was configured with another generator.
 
 The executable depends on the `Shaders` target, which compiles GLSL, Slang, and NRD HLSL sources to SPIR-V beside their source files. GLSL and Slang rules track the project's shared shader headers and Slang modules, so editing those dependencies triggers recompilation. NRD also builds its own shader containers, so the first build can involve substantial shader compilation.
+
+### Render graph tests
+
+`RESTIR_BUILD_TESTS` defaults to `ON`. The [standalone tests](tests/render_graph_tests.cpp) use a mock command list and require no GPU at runtime. They check dependency ordering, resource aliases, initialization, cycles, reset/recompile behavior, and command execution. For a build configured in `win64`, run the following; replace `win64` with `build` if using the configuration above.
+
+```powershell
+cmake --build win64 --config Release --target render_graph_tests
+ctest --test-dir win64 -C Release --output-on-failure
+```
 
 ### Runtime libraries
 
@@ -342,6 +373,9 @@ Archived Bistro interior captures retain their original **1 spp without frame ac
 | --- | --- |
 | [src/vk_engine.cpp](src/vk_engine.cpp) | Vulkan/device setup, scene initialization, frame loop, and mode selection. |
 | [src/graphic_pipeline/](src/graphic_pipeline/) | ReSTIR, reference tracing, NRC, denoising, and presentation passes. |
+| [src/vk_render_graph.h](src/vk_render_graph.h), [src/vk_render_graph.cpp](src/vk_render_graph.cpp) | Backend-neutral frame graph, resource dependencies, validation, execution, and DOT export. |
+| [src/rhi/](src/rhi/) | Neutral command/resource interfaces, resource creation for accumulation/denoising, and the Vulkan backend with persistent resource-state tracking. |
+| [tests/render_graph_tests.cpp](tests/render_graph_tests.cpp) | Standalone graph tests with a mock RHI command list. |
 | [src/vk_light_manager.cpp](src/vk_light_manager.cpp) | Scene lights, spatial light grid, and alias tables. |
 | [src/vk_assimp_loader.cpp](src/vk_assimp_loader.cpp) | Model, material, and texture import. |
 | [src/neural_shading/](src/neural_shading/) | NRC network layout, parameters, and cooperative vector utilities. |

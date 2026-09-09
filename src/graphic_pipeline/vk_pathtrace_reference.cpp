@@ -1,3 +1,4 @@
+#include <render_scene_resources.h>
 #include <graphic_pipeline/vk_pathtrace_reference.h>
  
 
@@ -118,7 +119,7 @@ void VulkanPTRef::init_tex()
 		texBuilder.init(_engine);
 		texBuilder.start()
 			.make_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; })
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
 			.create_engine_texture(ETextureResourceNames::PT_REFERENCE_OUTPUT);
@@ -129,7 +130,7 @@ void VulkanPTRef::init_tex()
 		texBuilder.init(_engine);
 		texBuilder.start()
 			.make_img_info(_colorFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; })
+			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
 			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
 			.make_view_info(_colorFormat, VK_IMAGE_ASPECT_COLOR_BIT)
 			.create_engine_texture(ETextureResourceNames::PT_REFERENCE_ACCUMULATE);
@@ -173,24 +174,32 @@ void VulkanPTRef::init_description_set_global_buffer()
 	}
 }
 
-void VulkanPTRef::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanPTRef::append_passes(rg::RenderGraph& graph, int frameSlot)
 {
-	{
-		VkClearValue clear_value = { 0., 0., 0., 0. };
-		cmd->clear_image(get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT), clear_value);
-	}
-
-
-	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
-		[&](VkCommandBuffer cmd) {
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::PT_Reference));
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::PT_Reference), 0,
-				1, &_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set, 0, nullptr);
-
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::PT_Reference), 1, 1, &_globalDescSet[current_frame_index], 0, nullptr);
-
-			_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::PT_Reference), 2);
-		});
+	using namespace rhi;
+	auto& device = _engine->_rhi;
+	auto uses = import_scene_reads(*_engine, graph, Stage::RayTracing);
+	const auto output = graph.import_resource("Pathtracer.Radiance", device.image(get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT)), false);
+	const auto unusedHistory = graph.import_resource("Pathtracer.LegacyHistory", device.image(get_tex(ETextureResourceNames::PT_REFERENCE_ACCUMULATE)), false);
+	const auto uniforms = graph.import_resource("Pathtracer.Uniforms", device.buffer(_globalUniformsBuffer[frameSlot]));
+	uses.push_back({output, {Stage::RayTracing, Access::ShaderWrite, Layout::General}});
+	uses.push_back({unusedHistory, {Stage::RayTracing, Access::ShaderWrite, Layout::General}});
+	uses.push_back({uniforms, {Stage::RayTracing, Access::UniformRead, Layout::Undefined}});
+	const auto pipeline = device.pipeline(_engine->_renderPipelineManager.get_pipeline(EPipelineType::PT_Reference),
+		_engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::PT_Reference), VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
+	const auto scene = device.descriptor(_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set);
+	const auto uniformSet = device.descriptor(_globalDescSet[frameSlot]);
+	const auto images = device.descriptor(_rpDescrMan.get_set());
+	const auto table = device.shader_table(_rgenRegion, _missRegion, _hitRegion, _callRegion);
+	const auto extent = _imageExtent;
+	graph.add_pass("Pathtracer.Trace", std::move(uses), [=](CommandList& cmd) {
+		cmd.bind_pipeline(pipeline);
+		cmd.bind_descriptor_set(pipeline, 0, scene);
+		cmd.bind_descriptor_set(pipeline, 1, uniformSet);
+		cmd.bind_descriptor_set(pipeline, 2, images);
+		// Every launched pixel is written, so no preceding transfer clear is needed.
+		cmd.trace_rays(table, extent.width, extent.height);
+	});
 }
 
 void VulkanPTRef::copy_global_uniform_data(VulkanPTRef::GlobalGIParams& giData, int current_frame_index)
@@ -201,25 +210,3 @@ void VulkanPTRef::copy_global_uniform_data(VulkanPTRef::GlobalGIParams& giData, 
 		memcpy(data, &giData, sizeof(VulkanPTRef::GlobalGIParams));
 		});
 }
-
-void VulkanPTRef::barrier_for_reading(VulkanCommandBuffer* cmd)
-{
-	std::array<VkImageMemoryBarrier, 1> barriers =
-	{
-		vkinit::image_barrier(get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT).image._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-	};
-
-	vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
-}
-
-void VulkanPTRef::barrier_for_writing(VulkanCommandBuffer* cmd)
-{
-	std::array<VkImageMemoryBarrier, 1> barriers =
-	{
-		vkinit::image_barrier(get_tex(ETextureResourceNames::PT_REFERENCE_OUTPUT).image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,  VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT),
-	};
-
-	vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 0, 0, 0, 0, 0, barriers.size(), barriers.data());
-}
-
-

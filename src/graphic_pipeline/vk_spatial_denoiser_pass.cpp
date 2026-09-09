@@ -1,11 +1,11 @@
 #include <graphic_pipeline/vk_spatial_denoiser_pass.h>
 
-#include <vk_command_buffer.h>
+#include <vk_render_graph.h>
 #include <vk_engine.h>
 #include <vk_initializers.h>
 #include <vk_material_system.h>
 #include <vk_shaders.h>
-#include <vk_textures.h>
+#include <rhi/vulkan_resources.h>
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
@@ -13,18 +13,18 @@
 void VulkanSpatialDenoiserPass::init(VulkanEngine* engine, const Texture& sourceAccumulated)
 {
     _engine = engine;
+    _sourceTexture = &sourceAccumulated;
     _imageExtent = sourceAccumulated.extend;
     if (const char* setting = std::getenv("RESTIR_DENOISER"))
         engine->_denoiserEnabled = std::strcmp(setting, "0") != 0;
 
-    VulkanTextureBuilder builder;
-    builder.init(engine);
     auto makeImage = [&]() {
-        return builder.start()
-            .make_img_info(VK_FORMAT_R32G32B32A32_SFLOAT,
-                VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, _imageExtent)
-            .make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-            .make_view_info(VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT).create_texture();
+        const auto image = engine->_rhi.resources().create_image({
+            _imageExtent.width, _imageExtent.height, rhi::Format::Rgba32Float,
+            rhi::ImageUsage::Sampled | rhi::ImageUsage::Storage | rhi::ImageUsage::TransferSource});
+        engine->_mainDeletionQueue.push_function([engine, image]() { engine->_rhi.resources().destroy(image); });
+        // Native descriptors remain explicit compatibility setup outside the graph.
+        return engine->_rhi.vulkan_resources().texture(image);
     };
     for (auto& texture : _textures) texture = makeImage();
     _prefiltered = makeImage();
@@ -72,7 +72,7 @@ void VulkanSpatialDenoiserPass::init(VulkanEngine* engine, const Texture& source
         engine->get_engine_texture(ETextureResourceNames::PT_GBUFFER_ALBEDO_METALNESS),
         engine->get_engine_texture(ETextureResourceNames::PT_GBUFFER_EMISSION_ROUGHNESS)
     };
-    for (size_t i = 0; i < guides.size(); ++i) _gbufferImages[i] = guides[i]->image._image;
+    _guides = guides;
     auto writeImages = [&](VkDescriptorSet set, const std::vector<const Texture*>& textures, bool accumulatedInput) {
         std::vector<VkDescriptorImageInfo> infos(textures.size());
         std::vector<VkWriteDescriptorSet> writes(textures.size());
@@ -106,9 +106,11 @@ void VulkanSpatialDenoiserPass::init(VulkanEngine* engine, const Texture& source
         writeImages(_spatialSets[slot][1], {&_textures[0], &_textures[1], guides[0], guides[1], guides[2], guides[3]}, false);
 
         _uniformSets[slot] = allocateSet(_uniformSetLayout);
-        _uniformBuffers[slot] = engine->create_cpu_to_gpu_buffer(sizeof(TemporalConstants), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-        engine->_mainDeletionQueue.push_function([engine, buffer = _uniformBuffers[slot]]() mutable {
-            engine->destroy_buffer(engine->_allocator, buffer);
+        const auto buffer = engine->_rhi.resources().create_buffer({
+            sizeof(TemporalConstants), rhi::BufferUsage::Uniform, rhi::MemoryUsage::Upload});
+        _uniformBuffers[slot] = engine->_rhi.vulkan_resources().buffer(buffer);
+        engine->_mainDeletionQueue.push_function([engine, buffer]() {
+            engine->_rhi.resources().destroy(buffer);
         });
         VkDescriptorBufferInfo bufferInfo{_uniformBuffers[slot]._buffer, 0, sizeof(TemporalConstants)};
         VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
@@ -166,7 +168,7 @@ void VulkanSpatialDenoiserPass::reset_history()
     _historyValid = false;
 }
 
-void VulkanSpatialDenoiserPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanSpatialDenoiserPass::append_passes(rg::RenderGraph& graph, int frameSlot)
 {
     if (!_engine->_denoiserEnabled)
     {
@@ -177,89 +179,113 @@ void VulkanSpatialDenoiserPass::draw(VulkanCommandBuffer* cmd, int current_frame
     auto& camera = _engine->_camera;
     const glm::mat4 view = camera.get_view_matrix();
     const glm::mat4 projection = camera.get_projection_matrix(false);
+    const glm::mat4 viewProjection = camera.get_projection_matrix() * view;
+    const glm::vec3 position = camera.position;
     const glm::vec3 forward = glm::vec3(camera.get_rotation_matrix() * glm::vec4(0, 0, -1, 0));
+    const bool accumulationEnabled = _engine->_frameAccumulationEnabled;
+    const uint32_t historySlot = _historySlot;
     const bool still = view == _previousView && projection == _previousProjection;
     const float cutDistance = std::max(0.25f, glm::length(_engine->_resManager.maxCube - _engine->_resManager.minCube) * 0.025f);
     const bool cameraCut = projection != _previousProjection ||
         glm::distance(camera.position, _previousCameraPosition) > cutDistance || glm::dot(forward, _previousForward) < 0.8660254f;
     const bool valid = _historyValid && _wasEnabled && !cameraCut &&
-        _lastAccumulationEnabled == _engine->_frameAccumulationEnabled;
+        _lastAccumulationEnabled == accumulationEnabled;
     TemporalConstants temporal;
     temporal.previousViewProjection = _previousViewProjection;
     temporal.previousCameraPosition = glm::vec4(_previousCameraPosition, 1.0f);
     temporal.currentCameraPosition = glm::vec4(camera.position, 1.0f);
     temporal.frameInfo = glm::uvec4(_imageExtent.width, _imageExtent.height, valid ? 1u : 0u, still ? 1u : 0u);
-    temporal.options.x = _engine->_frameAccumulationEnabled ? 1.0f : 0.0f;
-    _engine->write_buffer(_engine->_allocator, _uniformBuffers[current_frame_index]._allocation, &temporal, sizeof(temporal));
+    temporal.options.x = accumulationEnabled ? 1.0f : 0.0f;
+    // The frame slot's fence has completed before graph registration.
+    _engine->_rhi.resources().write_buffer(_engine->_rhi.buffer(_uniformBuffers[frameSlot]), &temporal, sizeof(temporal));
 
-    const VkCommandBuffer command = cmd->get_cmd();
-    std::vector<VkImageMemoryBarrier> imageBarriers;
-    if (!_imagesInitialized)
+    auto& device = _engine->_rhi;
+    const auto source = graph.import_resource("Denoiser.Source", device.image(*_sourceTexture));
+    const auto prefiltered = graph.import_resource("Denoiser.Prefiltered", device.image(_prefiltered), false);
+    const auto imageA = graph.import_resource("Denoiser.A", device.image(_textures[0]), false);
+    const auto imageB = graph.import_resource("Denoiser.B", device.image(_textures[1]), false);
+    const auto uniforms = graph.import_resource("Denoiser.Uniforms", device.buffer(_uniformBuffers[frameSlot]));
+    using rhi::Stage;
+    using rhi::Access;
+    using rhi::Layout;
+    const rhi::ResourceState sampled{Stage::Compute, Access::ShaderRead, Layout::General};
+    const rhi::ResourceState storage{Stage::Compute, Access::ShaderWrite, Layout::General};
+    std::vector<rg::Use> guideReads;
+    const std::array<const char*, 4> guideNames{"Position", "Normal", "Albedo", "Emission"};
+    for (size_t i = 0; i < _guides.size(); ++i)
     {
-        auto initialize = [&](const Texture& texture) {
-            imageBarriers.push_back(vkinit::image_barrier(texture.image._image, 0,
-                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-                VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT));
-        };
-        for (const auto& texture : _textures) initialize(texture);
-        initialize(_prefiltered);
-        for (const auto& slot : _history) for (const auto& texture : slot) initialize(texture);
+        const auto guide = graph.import_resource(std::string("Denoiser.GBuffer.") + guideNames[i], device.image(*_guides[i]), false);
+        guideReads.push_back({guide, sampled});
     }
-    else
-        imageBarriers.push_back(vkinit::image_barrier(_textures[0].image._image,
-            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT));
-    VkMemoryBarrier memory{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
-    memory.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT;
-    memory.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-    vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0, 1, &memory, 0, nullptr, uint32_t(imageBarriers.size()), imageBarriers.data());
-    auto computeBarrier = [&]() {
-        VkMemoryBarrier barrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
-        barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-        vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            0, 1, &barrier, 0, nullptr, 0, nullptr);
+    const auto guidedPass = [&](rg::ResourceHandle input, rg::ResourceHandle output, Layout inputLayout = Layout::General) {
+        auto uses = guideReads;
+        uses.push_back({input, {Stage::Compute, Access::ShaderRead, inputLayout}});
+        uses.push_back({output, storage});
+        return uses;
     };
-    auto dispatch = [&]() { vkCmdDispatch(command, (_imageExtent.width + 15) / 16, (_imageExtent.height + 15) / 16, 1); };
-    vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE, _prefilterPipeline);
-    vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE, _pipelineLayout, 0, 1, &_prefilterSet, 0, nullptr);
+    const uint32_t groupsX = (_imageExtent.width + 15) / 16;
+    const uint32_t groupsY = (_imageExtent.height + 15) / 16;
+    const auto prefilterPipeline = device.pipeline(_prefilterPipeline, _pipelineLayout, VK_PIPELINE_BIND_POINT_COMPUTE);
+    const auto prefilterSet = device.descriptor(_prefilterSet);
     const PushConstants prefilter{_imageExtent.width, _imageExtent.height, 1, 0};
-    vkCmdPushConstants(command, _pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(prefilter), &prefilter);
-    dispatch();
-    computeBarrier();
-    vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE, _pipeline);
+    graph.add_pass("Denoiser.Prefilter", guidedPass(source, prefiltered, Layout::ShaderReadOnly),
+        [prefilterPipeline, prefilterSet, prefilter, groupsX, groupsY](rhi::CommandList& cmd) {
+            cmd.bind_pipeline(prefilterPipeline);
+            cmd.bind_descriptor_set(prefilterPipeline, 0, prefilterSet);
+            cmd.push_constants(prefilterPipeline, Stage::Compute, &prefilter, sizeof(prefilter));
+            cmd.dispatch(groupsX, groupsY, 1);
+        });
+
+    const auto spatialPipeline = device.pipeline(_pipeline, _pipelineLayout, VK_PIPELINE_BIND_POINT_COMPUTE);
     for (uint32_t pass = 0; pass < 2; ++pass)
     {
+        const auto spatialSet = device.descriptor(_spatialSets[historySlot][pass]);
         const PushConstants constants{_imageExtent.width, _imageExtent.height, 1u << pass, pass};
-        vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE, _pipelineLayout,
-            0, 1, &_spatialSets[_historySlot][pass], 0, nullptr);
-        vkCmdPushConstants(command, _pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
-        dispatch();
-        computeBarrier();
+        graph.add_pass(std::string("Denoiser.Spatial") + std::to_string(pass),
+            guidedPass(pass == 0 ? prefiltered : imageA, pass == 0 ? imageA : imageB),
+            [spatialPipeline, spatialSet, constants, groupsX, groupsY](rhi::CommandList& cmd) {
+                cmd.bind_pipeline(spatialPipeline);
+                cmd.bind_descriptor_set(spatialPipeline, 0, spatialSet);
+                cmd.push_constants(spatialPipeline, Stage::Compute, &constants, sizeof(constants));
+                cmd.dispatch(groupsX, groupsY, 1);
+            });
     }
-    vkCmdBindPipeline(command, VK_PIPELINE_BIND_POINT_COMPUTE, _temporalPipeline);
-    const std::array<VkDescriptorSet, 2> temporalSets{_temporalSets[_historySlot], _uniformSets[current_frame_index]};
-    vkCmdBindDescriptorSets(command, VK_PIPELINE_BIND_POINT_COMPUTE, _temporalPipelineLayout,
-        0, uint32_t(temporalSets.size()), temporalSets.data(), 0, nullptr);
-    dispatch();
-    const VkImageMemoryBarrier output = vkinit::image_barrier(_textures[0].image._image,
-        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT,
-        VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
-    vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &output);
 
-    _imagesInitialized = true;
-    _historyValid = true;
-    _wasEnabled = true;
-    _lastAccumulationEnabled = _engine->_frameAccumulationEnabled;
-    _previousView = view;
-    _previousProjection = projection;
-    _previousViewProjection = camera.get_projection_matrix() * view;
-    _previousCameraPosition = camera.position;
-    _previousForward = forward;
-    _historySlot = 1 - _historySlot;
+    auto temporalUses = guidedPass(imageB, imageA);
+    temporalUses.push_back({uniforms, {Stage::Compute, Access::UniformRead, Layout::Undefined}});
+    const std::array<const char*, 3> historyNames{"Color", "Position", "NormalRoughness"};
+    for (uint32_t i = 0; i < historyNames.size(); ++i)
+    {
+        // Initial invalid history is never sampled by the shader. Import it
+        // as available so the graph can establish its descriptor's layout.
+        const auto previous = graph.import_resource("Denoiser.History" + std::to_string(1 - historySlot) + "." + historyNames[i],
+            device.image(_history[1 - historySlot][i]));
+        const auto current = graph.import_resource("Denoiser.History" + std::to_string(historySlot) + "." + historyNames[i],
+            device.image(_history[historySlot][i]));
+        temporalUses.push_back({previous, sampled});
+        temporalUses.push_back({current, storage});
+    }
+    const auto temporalPipeline = device.pipeline(_temporalPipeline, _temporalPipelineLayout, VK_PIPELINE_BIND_POINT_COMPUTE);
+    const auto temporalSet = device.descriptor(_temporalSets[historySlot]);
+    const auto uniformSet = device.descriptor(_uniformSets[frameSlot]);
+    graph.add_pass("Denoiser.Temporal", std::move(temporalUses), [=, this](rhi::CommandList& cmd) {
+        cmd.bind_pipeline(temporalPipeline);
+        cmd.bind_descriptor_set(temporalPipeline, 0, temporalSet);
+        cmd.bind_descriptor_set(temporalPipeline, 1, uniformSet);
+        cmd.dispatch(groupsX, groupsY, 1);
+
+        // Commit only when this frame's temporal dispatch is recorded. Spatial
+        // passes always start from the new prefilter, never from this history.
+        _historyValid = true;
+        _wasEnabled = true;
+        _lastAccumulationEnabled = accumulationEnabled;
+        _previousView = view;
+        _previousProjection = projection;
+        _previousViewProjection = viewProjection;
+        _previousCameraPosition = position;
+        _previousForward = forward;
+        _historySlot = 1 - historySlot;
+    });
 }
 
 const Texture& VulkanSpatialDenoiserPass::get_output() const

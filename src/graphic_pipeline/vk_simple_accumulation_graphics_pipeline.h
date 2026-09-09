@@ -5,9 +5,9 @@
 
 class VulkanEngine;
 class VulkanFrameBuffer;
-class VulkanCommandBuffer;
 class RenderObject;
 class PlayerCamera;
+namespace rg { class RenderGraph; }
 
 class VulkanSimpleAccumulationGraphicsPipeline
 {
@@ -21,7 +21,7 @@ class VulkanSimpleAccumulationGraphicsPipeline
 
 public:
 	void init(VulkanEngine* engine, const Texture& currentTex);
-	void draw(VulkanCommandBuffer* cmd, int current_frame_index, ERenderMode mode = ERenderMode::ReSTIR);
+	void append_passes(rg::RenderGraph& graph, int frameSlot);
 	void try_reset_accumulation(PlayerCamera& camera);
 	void reset_accumulation();
 
@@ -33,6 +33,7 @@ private:
 	void init_description_set(const Texture& currentTex);
 
 	VulkanEngine* _engine = nullptr;
+	const Texture* _sourceTexture = nullptr;
 
 	VkExtent3D _imageExtent;
 	Texture _outputTexture;
@@ -41,7 +42,6 @@ private:
 	VkFormat      _outputFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
 	Texture _lastFrameTexture;
 	VkFormat      _lastFrameFormat{ VK_FORMAT_R32G32B32A32_SFLOAT };
-	bool _imagesInitialized = false;
 	bool _accumulationEnabled = true;
 
 	VkFramebuffer _simpleAccumFramebuffer;

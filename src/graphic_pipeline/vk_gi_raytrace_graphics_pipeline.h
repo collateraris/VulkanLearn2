@@ -27,6 +27,7 @@ class VulkanFrameBuffer;
 class VulkanCommandBuffer;
 class RenderObject;
 struct PlayerCamera;
+namespace rg { class RenderGraph; }
 
 class VulkanGIShadowsRaytracingGraphicsPipeline
 {
@@ -58,7 +59,7 @@ public:
 	void init_textures(VulkanEngine* engine);
 	void init(VulkanEngine* engine);
 	void copy_global_uniform_data(VulkanGIShadowsRaytracingGraphicsPipeline::GlobalGIParams& aoData, int current_frame_index);
-	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
+	void append_passes(rg::RenderGraph& graph, int frameSlot);
 
 	const Texture& get_output() const;
 	const Texture& get_denoised_output() const;

@@ -2,23 +2,24 @@
 
 #include <vk_engine.h>
 #include <vk_framebuffer.h>
-#include <vk_command_buffer.h>
+#include <vk_render_graph.h>
 #include <vk_render_pipeline.h>
 #include <vk_material_system.h>
 #include <vk_shaders.h>
 #include <vk_raytracer_builder.h>
 #include <vk_initializers.h>
 #include <vk_camera.h>
+#include <rhi/vulkan_resources.h>
 #include <cstdlib>
 #include <cstring>
 
 void VulkanSimpleAccumulationGraphicsPipeline::init(VulkanEngine* engine, const Texture& currentTex)
 {
     _engine = engine;
+	_sourceTexture = &currentTex;
 	if (const char* setting = std::getenv("RESTIR_ACCUMULATION"))
 		_engine->_frameAccumulationEnabled = std::strcmp(setting, "0") != 0;
 	_accumulationEnabled = _engine->_frameAccumulationEnabled;
-	_imagesInitialized = false;
 	reset_accumulation();
 
 	_imageExtent = {
@@ -27,27 +28,17 @@ void VulkanSimpleAccumulationGraphicsPipeline::init(VulkanEngine* engine, const 
 	1
 	};
 
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		_outputTexture = texBuilder.start()
-			.make_img_info(_outputFormat, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |VK_IMAGE_USAGE_TRANSFER_SRC_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_outputFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
-	}
-
-	{
-		VulkanTextureBuilder texBuilder;
-		texBuilder.init(_engine);
-		_lastFrameTexture = texBuilder.start()
-			.make_img_info(_lastFrameFormat, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, _imageExtent)
-			.fill_img_info([=](VkImageCreateInfo& imgInfo) { imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; })
-			.make_img_allocinfo(VMA_MEMORY_USAGE_GPU_ONLY, VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
-			.make_view_info(_lastFrameFormat, VK_IMAGE_ASPECT_COLOR_BIT)
-			.create_texture();
-	}
+	const auto makeImage = [&](rhi::ImageUsage usage) {
+		const auto image = _engine->_rhi.resources().create_image({
+			_imageExtent.width, _imageExtent.height, rhi::Format::Rgba32Float, usage});
+		_engine->_mainDeletionQueue.push_function([engine = _engine, image]() {
+			engine->_rhi.resources().destroy(image);
+		});
+		// Existing framebuffer/descriptor setup consumes an explicit native view.
+		return _engine->_rhi.vulkan_resources().texture(image);
+	};
+	_outputTexture = makeImage(rhi::ImageUsage::ColorAttachment | rhi::ImageUsage::TransferSource);
+	_lastFrameTexture = makeImage(rhi::ImageUsage::Sampled | rhi::ImageUsage::TransferDestination | rhi::ImageUsage::TransferSource);
 
 	init_render_pass();
 	init_description_set(currentTex);
@@ -130,124 +121,66 @@ Texture& VulkanSimpleAccumulationGraphicsPipeline::get_tex(ETextureResourceNames
 	return *_engine->get_engine_texture(name);
 }
 
-void VulkanSimpleAccumulationGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index, ERenderMode mode/* = ERenderMode::ReSTIR*/)
+void VulkanSimpleAccumulationGraphicsPipeline::append_passes(rg::RenderGraph& graph, int frameSlot)
 {
 	const bool accumulationEnabled = _engine->_frameAccumulationEnabled;
 	if (!accumulationEnabled || accumulationEnabled != _accumulationEnabled)
 		reset_accumulation();
 	_accumulationEnabled = accumulationEnabled;
 
-	if (!_imagesInitialized)
-	{
-		// The render pass expects COLOR_ATTACHMENT_OPTIMAL on entry. History
-		// also needs a valid descriptor layout even though the first draw skips it.
-		std::array<VkImageMemoryBarrier, 2> barriers = {
-			vkinit::image_barrier(_outputTexture.image._image, 0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-			vkinit::image_barrier(_lastFrameTexture.image._image, 0, VK_ACCESS_SHADER_READ_BIT,
-				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-		};
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-			0, 0, nullptr, 0, nullptr, uint32_t(barriers.size()), barriers.data());
-		_imagesInitialized = true;
-	}
+	// The frame fence has completed before registration. Both passes use this
+	// immutable counter snapshot; recording the copy commits the next count.
+	const PerFrameCB counter = _counter;
+	_engine->_rhi.resources().write_buffer(_engine->_rhi.buffer(_perFrameCount[frameSlot]), &counter, sizeof(counter));
 
-
-	_engine->map_buffer(_engine->_allocator, _perFrameCount[current_frame_index]._allocation, [&](void*& data) {
-		memcpy(data, &_counter, sizeof(VulkanSimpleAccumulationGraphicsPipeline::PerFrameCB));
-		vmaFlushAllocation(_engine->_allocator, _perFrameCount[current_frame_index]._allocation, 0, sizeof(PerFrameCB));
-		});
-
-	//make a clear-color from frame number. This will flash with a 120*pi frame period.
-	VkClearValue clearValue;
-	clearValue.color = { { 1.0f, 1.0f, 1.f, 1.0f } };
-
-	//start the main renderpass. 
-	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_engine->_renderPassManager.get_render_pass(ERenderPassType::SimpleAccumulation)->get_render_pass(), VkExtent2D(_imageExtent.width, _imageExtent.height), _simpleAccumFramebuffer);
-
-	//connect clear values
-	rpInfo.clearValueCount = 1;
-
-	VkClearValue clearValues[] = { clearValue};
-
-	rpInfo.pClearValues = &clearValues[0];
-
-	vkCmdBeginRenderPass(cmd->get_cmd(), &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	VkViewport viewport;
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = (float)_imageExtent.width;
-	viewport.height = (float)_imageExtent.height;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-
-	VkRect2D scissor;
-	scissor.offset = { 0, 0 };
-	scissor.extent = VkExtent2D(_imageExtent.width, _imageExtent.height);
-
-	vkCmdSetViewport(cmd->get_cmd(), 0, 1, &viewport);
-	vkCmdSetScissor(cmd->get_cmd(), 0, 1, &scissor);
-	vkCmdSetDepthBias(cmd->get_cmd(), 0, 0, 0);
-
-	cmd->draw_quad([&](VkCommandBuffer cmd) {
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::SimpleAccumulation));
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::SimpleAccumulation), 0,
-			1, &_globalDescSet[current_frame_index], 0, nullptr);
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::SimpleAccumulation), 1,
-			1, &_imageDescSet[current_frame_index], 0, nullptr);
-		});
-
-	//finalize the render pass
-	vkCmdEndRenderPass(cmd->get_cmd());
-
-	{
-		std::array<VkImageMemoryBarrier, 1> outputBarriers =
-		{
-			vkinit::image_barrier(_outputTexture.image._image, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-		};
-
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, outputBarriers.size(), outputBarriers.data());
-
-		std::array<VkImageMemoryBarrier, 1> lastFrameBarriers =
-		{
-			vkinit::image_barrier(_lastFrameTexture.image._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-		};
-
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, lastFrameBarriers.size(), lastFrameBarriers.data());
-	}
-
-	// Identical formats and extents permit an exact copy, without another
-	// floating-point conversion or a filtered history resample.
-	VkImageCopy copy{};
-	copy.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-	copy.dstSubresource = copy.srcSubresource;
-	copy.extent = _imageExtent;
-	vkCmdCopyImage(cmd->get_cmd(), _outputTexture.image._image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-		_lastFrameTexture.image._image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
-
-	{
-		std::array<VkImageMemoryBarrier, 1> outputBarriers =
-		{
-			vkinit::image_barrier(_outputTexture.image._image, VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-		};
-
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  0, 0, 0, 0, 0, outputBarriers.size(), outputBarriers.data());
-
-		std::array<VkImageMemoryBarrier, 1> lastFrameBarriers =
-		{
-			vkinit::image_barrier(_lastFrameTexture.image._image, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT),
-		};
-
-		vkCmdPipelineBarrier(cmd->get_cmd(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, 0, 0, 0, lastFrameBarriers.size(), lastFrameBarriers.data());
-	}
-
-	// Keep count + 1 exactly representable in the shader and prevent uint wrap.
-	if (_counter.accumCount < (1u << 24) - 1u)
-		_counter.accumCount++;
-	_counter.initLastFrame = 1;
+	auto& device = _engine->_rhi;
+	const auto sourceImage = device.image(*_sourceTexture);
+	const auto scratchImage = device.image(_outputTexture);
+	const auto historyImage = device.image(_lastFrameTexture);
+	const auto source = graph.import_resource("Accumulation.Source", sourceImage, false);
+	const auto scratch = graph.import_resource("Accumulation.Scratch", scratchImage, false);
+	// On the first frame the shader skips this read, but its descriptor still
+	// needs a valid sampled layout. Subsequent frames read before overwriting.
+	const auto history = graph.import_resource("Accumulation.History", historyImage);
+	const auto uniforms = graph.import_resource("Accumulation.Uniforms", device.buffer(_perFrameCount[frameSlot]));
+	const auto pipeline = device.pipeline(_engine->_renderPipelineManager.get_pipeline(EPipelineType::SimpleAccumulation),
+		_engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::SimpleAccumulation), VK_PIPELINE_BIND_POINT_GRAPHICS);
+	const auto target = device.render_target(
+		_engine->_renderPassManager.get_render_pass(ERenderPassType::SimpleAccumulation)->get_render_pass(),
+		_simpleAccumFramebuffer, _imageExtent.width, _imageExtent.height);
+	const auto uniformSet = device.descriptor(_globalDescSet[frameSlot]);
+	const auto imageSet = device.descriptor(_imageDescSet[frameSlot]);
+	using rhi::Stage;
+	using rhi::Access;
+	using rhi::Layout;
+	graph.add_pass("Accumulation.Mean", {
+		{source, {Stage::Fragment, Access::ShaderRead, Layout::ShaderReadOnly}},
+		{history, {Stage::Fragment, Access::ShaderRead, Layout::ShaderReadOnly}},
+		{uniforms, {Stage::Fragment, Access::UniformRead, Layout::Undefined}},
+		{scratch, {Stage::ColorOutput, Access::ColorWrite, Layout::ColorAttachment}}
+	}, [pipeline, target, uniformSet, imageSet](rhi::CommandList& cmd) {
+		rhi::ClearValues clear;
+		clear.color[0] = clear.color[1] = clear.color[2] = 1.f;
+		cmd.begin_render_pass(target, clear);
+		cmd.bind_pipeline(pipeline);
+		cmd.bind_descriptor_set(pipeline, 0, uniformSet);
+		cmd.bind_descriptor_set(pipeline, 1, imageSet);
+		cmd.draw(3);
+		cmd.end_render_pass();
+	});
+	const uint32_t width = _imageExtent.width;
+	const uint32_t height = _imageExtent.height;
+	graph.add_pass("Accumulation.StoreHistory", {
+		{scratch, {Stage::Transfer, Access::TransferRead, Layout::TransferSource}},
+		{history, {Stage::Transfer, Access::TransferWrite, Layout::TransferDestination}}
+	}, [this, scratchImage, historyImage, width, height, counter](rhi::CommandList& cmd) {
+		// Identical FP32 formats and extents preserve the exact running mean.
+		cmd.copy_image(scratchImage, historyImage, width, height);
+		_counter = counter;
+		if (_counter.accumCount < (1u << 24) - 1u)
+			_counter.accumCount++;
+		_counter.initLastFrame = 1;
+	});
 }
 
 void VulkanSimpleAccumulationGraphicsPipeline::try_reset_accumulation(PlayerCamera& camera)
@@ -341,9 +274,11 @@ void VulkanSimpleAccumulationGraphicsPipeline::init_description_set(const Textur
 			.bind_image(1, &prevImageBufferInfo, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 			.build(_imageDescSet[i], _imageDescSetLayout);
 
-		_perFrameCount[i] = _engine->create_cpu_to_gpu_buffer(sizeof(VulkanSimpleAccumulationGraphicsPipeline::PerFrameCB), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-		_engine->_mainDeletionQueue.push_function([engine = _engine, buffer = _perFrameCount[i]]() mutable {
-			engine->destroy_buffer(engine->_allocator, buffer);
+		const auto buffer = _engine->_rhi.resources().create_buffer({
+			sizeof(PerFrameCB), rhi::BufferUsage::Uniform, rhi::MemoryUsage::Upload});
+		_perFrameCount[i] = _engine->_rhi.vulkan_resources().buffer(buffer);
+		_engine->_mainDeletionQueue.push_function([engine = _engine, buffer]() {
+			engine->_rhi.resources().destroy(buffer);
 		});
 
 		VkDescriptorBufferInfo globalUniformsInfo;

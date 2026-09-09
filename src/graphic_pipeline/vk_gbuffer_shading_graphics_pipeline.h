@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vk_types.h>
+#include <rhi/rhi.h>
 
 #include <vk_mesh.h>
 
@@ -13,7 +14,7 @@ class VulkanGbufferShadingGraphicsPipeline
 public:
 
 	void init(VulkanEngine* engine, const Texture& gi, const Texture* denoised = nullptr);
-	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
+	void draw(rhi::CommandList& cmd, int current_frame_index);
 
 private:
 	void init_description_set(const Texture& gi, const Texture* denoised);

@@ -132,22 +132,26 @@ void VulkanReSTIRInitPass::init_tex()
 {
 }
 
-void VulkanReSTIRInitPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanReSTIRInitPass::draw(rhi::CommandList& cmd, int frameSlot)
 {
-	cmd->raytrace(&_rgenRegion, &_missRegion, &_hitRegion, &_callRegion, _imageExtent.width, _imageExtent.height, 1,
-		[&](VkCommandBuffer cmd) {
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_Init));
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_Init), 0,
-				1, &_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set, 0, nullptr);
+	const auto pipeline = _engine->_rhi.pipeline(
+		_engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_Init),
+		_engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_Init),
+		VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
+	cmd.bind_pipeline(pipeline);
+	cmd.bind_descriptor_set(pipeline, 0, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set));
 
-			EDescriptorResourceNames currentGlobalUniformsDesc = current_frame_index % 2 == 0
-				? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
-				: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
+	const EDescriptorResourceNames currentGlobalUniformsDesc = frameSlot % 2 == 0
+		? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
+		: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
+	cmd.bind_descriptor_set(pipeline, 1, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set));
 
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_Init), 1, 1, &_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set, 0, nullptr);
+	cmd.bind_descriptor_set(pipeline, 2, _engine->_rhi.descriptor(_rpDescrMan.get_set()));
 
-			_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_Init), 2);
-		});
+	cmd.trace_rays(_engine->_rhi.shader_table(_rgenRegion, _missRegion, _hitRegion, _callRegion),
+		_imageExtent.width, _imageExtent.height, 1);
 }
 
 

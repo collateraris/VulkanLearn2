@@ -65,22 +65,23 @@ Texture& VulkanReSTIR_PT_TemporalPass::get_tex(ETextureResourceNames name) const
 	return *_engine->get_engine_texture(name);
 }
 
-void VulkanReSTIR_PT_TemporalPass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanReSTIR_PT_TemporalPass::draw(rhi::CommandList& cmd, int frameSlot)
 {
-	cmd->dispatch(_tileNumberWidth, _tileNumberHeight, 1, [&](VkCommandBuffer cmd)
-	{
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_PT_Temporal));
+	const auto pipeline = _engine->_rhi.pipeline(
+		_engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_PT_Temporal),
+		_engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_PT_Temporal),
+		VK_PIPELINE_BIND_POINT_COMPUTE);
+	cmd.bind_pipeline(pipeline);
+	cmd.bind_descriptor_set(pipeline, 0, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set));
 
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_PT_Temporal), 0,
-			1, &_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set, 0, nullptr);
+	const EDescriptorResourceNames currentGlobalUniformsDesc = frameSlot % 2 == 0
+		? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
+		: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
+	cmd.bind_descriptor_set(pipeline, 1, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set));
 
-		EDescriptorResourceNames currentGlobalUniformsDesc = current_frame_index % 2 == 0
-			? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
-			: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
+	cmd.bind_descriptor_set(pipeline, 2, _engine->_rhi.descriptor(_rpDescrMan.get_set()));
 
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_PT_Temporal), 1,
-			1, &_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set, 0, nullptr);
-
-		_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_PT_Temporal), 2);
-	});
+	cmd.dispatch(_tileNumberWidth, _tileNumberHeight, 1);
 }

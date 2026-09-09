@@ -7,6 +7,11 @@ project ("vulkan_guide")
 
 set(CMAKE_CXX_STANDARD 20)
 
+option(RESTIR_BUILD_TESTS "Build backend-independent render graph tests" ON)
+if(RESTIR_BUILD_TESTS)
+    enable_testing()
+endif()
+
 add_subdirectory(third_party)
 
 set( ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "Build Assimp Tools" FORCE )

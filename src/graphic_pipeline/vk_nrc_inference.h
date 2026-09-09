@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vk_types.h>
+#include <rhi/rhi.h>
 
 #include <vk_raytracer_builder.h>
 #include <vk_render_pass.h>
@@ -9,7 +10,6 @@
 
 class VulkanEngine;
 class VulkanFrameBuffer;
-class VulkanCommandBuffer;
 class RenderObject;
 
 class VulkanNRC_InferencePass
@@ -18,12 +18,10 @@ public:
 
 	VulkanNRC_InferencePass() = default;
 	void init(VulkanEngine* engine);
-	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
+	void draw(rhi::CommandList& cmd, int frameSlot);
 
 	const Texture& get_output() const;
 
-	void barrier_for_frag_read(VulkanCommandBuffer* cmd);
-	void barrier_for_compute_write(VulkanCommandBuffer* cmd);
 
 private:
 

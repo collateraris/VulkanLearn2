@@ -192,6 +192,18 @@ static void EditGI(VulkanEngine& engine, T& giGP)
     settingsChanged |= ImGui::InputInt("Indirect numRays", &numRays);
     numRays = std::clamp(numRays, 0, 32);
 
+    if (ImGui::CollapsingHeader("Render graph"))
+    {
+        ImGui::TextUnformatted("RHI backend: Vulkan | one graphics queue");
+        if (engine._rgraph.is_compiled())
+        {
+            const auto passes = engine._rgraph.pass_names();
+            ImGui::Text("Recorded passes: %u", static_cast<unsigned>(passes.size()));
+            for (size_t i = 0; i < passes.size(); ++i)
+                ImGui::Text("%u. %s", static_cast<unsigned>(i + 1), passes[i].c_str());
+        }
+    }
+
     float camera_pos[3] = { camera.position.x, camera.position.y, camera.position.z };
     if (ImGui::InputFloat3("camera position", camera_pos))
     {

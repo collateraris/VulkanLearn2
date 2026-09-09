@@ -66,22 +66,23 @@ void VulkanReSTIRSpaceReusePass::init_description_set_global_buffer()
 		.bind_image(3, ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
 		.create_desciptor_manager();
 }
-void VulkanReSTIRSpaceReusePass::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanReSTIRSpaceReusePass::draw(rhi::CommandList& cmd, int frameSlot)
 {
-	cmd->dispatch(_tileNumberWidth, _tileNumberHeight, 1, [&](VkCommandBuffer cmd)
-	{
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_DI_SpaceReuse));
+	const auto pipeline = _engine->_rhi.pipeline(
+		_engine->_renderPipelineManager.get_pipeline(EPipelineType::ReSTIR_DI_SpaceReuse),
+		_engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_DI_SpaceReuse),
+		VK_PIPELINE_BIND_POINT_COMPUTE);
+	cmd.bind_pipeline(pipeline);
+	cmd.bind_descriptor_set(pipeline, 0, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set));
 
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_DI_SpaceReuse), 0,
-			1, &_engine->get_engine_descriptor(EDescriptorResourceNames::Bindless_Scene)->set, 0, nullptr);
+	const EDescriptorResourceNames currentGlobalUniformsDesc = frameSlot % 2 == 0
+		? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
+		: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
+	cmd.bind_descriptor_set(pipeline, 1, _engine->_rhi.descriptor(
+		_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set));
 
-		EDescriptorResourceNames currentGlobalUniformsDesc = current_frame_index % 2 == 0
-			? EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame0
-			: EDescriptorResourceNames::GI_GlobalUniformBuffer_Frame1;
+	cmd.bind_descriptor_set(pipeline, 2, _engine->_rhi.descriptor(_rpDescrMan.get_set()));
 
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_DI_SpaceReuse), 1,
-			1, &_engine->get_engine_descriptor(currentGlobalUniformsDesc)->set, 0, nullptr);
-
-		_rpDescrMan.bind_descriptor_set(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::ReSTIR_DI_SpaceReuse), 2);
-	});
+	cmd.dispatch(_tileNumberWidth, _tileNumberHeight, 1);
 }

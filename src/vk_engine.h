@@ -20,6 +20,7 @@ void VK_CHECK(VkResult result);
 #include <vk_render_passes.h>
 #include <vk_raytracer_builder.h>
 #include <vk_render_graph.h>
+#include <rhi/vulkan_rhi.h>
 #include <vk_render_pass.h>
 #include <vk_command_pool.h>
 #include <vk_command_buffer.h>
@@ -243,7 +244,9 @@ public:
 	Scene _scene;
 
 	VkLogger _logger;
-	vk_rgraph::VulkanRenderGraph _rgraph;
+	rg::RenderGraph _rgraph;
+	rhi::VulkanDevice _rhi;
+	bool _debugUtilsEnabled = false;
 
 	//create material and add it to the map
 	Material* create_material(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);

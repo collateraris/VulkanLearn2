@@ -6,6 +6,7 @@
 #include <vk_render_pass.h>
 #include <vk_mesh.h>
 #include <vk_descriptors.h>
+#include <vk_render_graph.h>
 
 class VulkanEngine;
 class VulkanFrameBuffer;
@@ -48,13 +49,10 @@ public:
 
 	VulkanPTRef() = default;
 	void init(VulkanEngine* engine);
-	void draw(VulkanCommandBuffer* cmd, int current_frame_index);
+	void append_passes(rg::RenderGraph& graph, int frameSlot);
 
 	void copy_global_uniform_data(VulkanPTRef::SGlobalRQParams& rqData, int current_frame_index);
 	void copy_global_uniform_data(VulkanPTRef::GlobalGIParams& giData, int current_frame_index);
-
-	void barrier_for_reading(VulkanCommandBuffer* cmd);
-	void barrier_for_writing(VulkanCommandBuffer* cmd);
 
 	Texture& get_tex(ETextureResourceNames name) const;
 

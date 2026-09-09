@@ -93,15 +93,15 @@ void VulkanGbufferShadingGraphicsPipeline::init(VulkanEngine* engine, const Text
 	}
 }
 
-void VulkanGbufferShadingGraphicsPipeline::draw(VulkanCommandBuffer* cmd, int current_frame_index)
+void VulkanGbufferShadingGraphicsPipeline::draw(rhi::CommandList& cmd, int current_frame_index)
 {
 	const VkDescriptorSet input = _hasDenoisedInput && _engine->_denoiserEnabled
 		? _denoisedDescSet[current_frame_index] : _gBufDescSet[current_frame_index];
-	cmd->draw_quad([&](VkCommandBuffer cmd) {
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipeline(EPipelineType::GBufferShading));
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::GBufferShading), 0,
-			1, &input, 0, nullptr);
-		}); 
+	const auto pipeline = _engine->_rhi.pipeline(_engine->_renderPipelineManager.get_pipeline(EPipelineType::GBufferShading),
+		_engine->_renderPipelineManager.get_pipelineLayout(EPipelineType::GBufferShading), VK_PIPELINE_BIND_POINT_GRAPHICS);
+	cmd.bind_pipeline(pipeline);
+	cmd.bind_descriptor_set(pipeline, 0, _engine->_rhi.descriptor(input));
+	cmd.draw(3);
 }
 
 void VulkanGbufferShadingGraphicsPipeline::init_description_set(const Texture& gi, const Texture* denoised)
