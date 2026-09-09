@@ -10,6 +10,8 @@ VulkanLearn2 is a C++20 rendering playground for exploring reservoir resampling 
 
 ## Gallery
 
+**[Watch the renderer in motion on YouTube](https://www.youtube.com/watch?v=Q_fKG3UT02U)**
+
 Fifteen captures of the current **ReSTIR DI + PT** renderer, without NRC: **1200 × 800**, frame **512**, across four scenes and five views. The first column shows one unaveraged frame after reservoir warmup; the other columns average **512 frames**, with the denoiser added in the last column.
 
 **Scene 1 — Sponza**
