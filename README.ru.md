@@ -10,7 +10,13 @@ VulkanLearn2 — проект на C++20 для изучения ресэмпл�
 
 ## Галерея
 
-**[Как рендерер выглядит в динамике — видео на YouTube](https://www.youtube.com/watch?v=Q_fKG3UT02U)**
+**Рендерер в динамике**
+
+| [Видео 1](https://www.youtube.com/watch?v=QnHqRZHQN4w) | [Видео 2](https://www.youtube.com/watch?v=y2VNQyzUFc8) |
+| --- | --- |
+| [![Видео 1](https://img.youtube.com/vi/QnHqRZHQN4w/hqdefault.jpg)](https://www.youtube.com/watch?v=QnHqRZHQN4w) | [![Видео 2](https://img.youtube.com/vi/y2VNQyzUFc8/hqdefault.jpg)](https://www.youtube.com/watch?v=y2VNQyzUFc8) |
+
+[Предыдущее видео на YouTube](https://www.youtube.com/watch?v=Q_fKG3UT02U)
 
 Пятнадцать снимков рендерера **ReSTIR DI + PT** до перехода на NRD, без NRC: **1200 × 800**, кадр **512**, четыре сцены и пять ракурсов. Первый столбец показывает один кадр без усреднения после прогрева резервуаров; в остальных усреднены **512 кадров**, а в последнем дополнительно включён прежний собственный денойзер. Сохранённые изображения не показывают новую интеграцию REBLUR.
 

@@ -10,7 +10,13 @@ VulkanLearn2 is a C++20 rendering playground for exploring reservoir resampling 
 
 ## Gallery
 
-**[Watch the renderer in motion on YouTube](https://www.youtube.com/watch?v=Q_fKG3UT02U)**
+**The renderer in motion**
+
+| [Video 1](https://www.youtube.com/watch?v=QnHqRZHQN4w) | [Video 2](https://www.youtube.com/watch?v=y2VNQyzUFc8) |
+| --- | --- |
+| [![Watch video 1 on YouTube](https://img.youtube.com/vi/QnHqRZHQN4w/hqdefault.jpg)](https://www.youtube.com/watch?v=QnHqRZHQN4w) | [![Watch video 2 on YouTube](https://img.youtube.com/vi/y2VNQyzUFc8/hqdefault.jpg)](https://www.youtube.com/watch?v=y2VNQyzUFc8) |
+
+[Earlier video on YouTube](https://www.youtube.com/watch?v=Q_fKG3UT02U)
 
 Fifteen captures of the **ReSTIR DI + PT** renderer before the NRD upgrade, without NRC: **1200 × 800**, frame **512**, across four scenes and five views. The first column shows one unaveraged frame after reservoir warmup; the other columns average **512 frames**, with the former custom denoiser added in the last column. These preserved images do not show the new REBLUR integration.
 
