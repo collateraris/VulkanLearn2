@@ -8,73 +8,76 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
-void nrd::InstanceImpl::Add_Reference(DenoiserData& denoiserData)
-{
-    #define DENOISER_NAME Reference
+#include "../Shaders/REFERENCE_Copy.resources.hlsli"
+#include "../Shaders/REFERENCE_TemporalAccumulation.resources.hlsli"
 
+#define DENOISER_NAME Reference
+
+void nrd::InstanceImpl::Add_Reference(DenoiserData& denoiserData) {
     denoiserData.settings.reference = ReferenceSettings();
     denoiserData.settingsSize = sizeof(denoiserData.settings.reference);
-            
-    uint16_t w = denoiserData.desc.renderWidth;
-    uint16_t h = denoiserData.desc.renderHeight;
 
-    enum class Permanent
-    {
+    enum class Permanent {
         HISTORY = PERMANENT_POOL_START,
     };
 
-    AddTextureToPermanentPool( {Format::RGBA32_SFLOAT, w, h, 1} );
+    AddTextureToPermanentPool({Format::RGBA32_SFLOAT, 1});
 
-    SetSharedConstants(0, 0, 0, 0);
+    std::array<ShaderMake::ShaderConstant, 0> commonDefines = {};
 
     PushPass("Temporal accumulation");
     {
-        PushInput( AsUint(ResourceType::IN_RADIANCE) );
+        // Inputs
+        PushInput(AsUint(ResourceType::IN_SIGNAL));
 
-        PushOutput( AsUint(Permanent::HISTORY) );
+        // Outputs
+        PushOutput(AsUint(Permanent::HISTORY));
 
-        AddDispatch( REFERENCE_TemporalAccumulation, SumConstants(0, 0, 2, 3), NumThreads(16, 16), 1 );
+        // Shaders
+        AddDispatch(REFERENCE_TemporalAccumulation, commonDefines);
     }
 
-    PushPass("Split screen");
+    PushPass("Copy");
     {
-        PushInput( AsUint(Permanent::HISTORY) );
+        // Inputs
+        PushInput(AsUint(Permanent::HISTORY));
 
-        PushOutput( AsUint(ResourceType::OUT_RADIANCE) );
+        // Outputs
+        PushOutput(AsUint(ResourceType::OUT_SIGNAL));
 
-        AddDispatch( REFERENCE_SplitScreen, SumConstants(0, 0, 0, 0), NumThreads(16, 16), 1 );
+        // Shaders
+        AddDispatch(REFERENCE_Copy, commonDefines);
     }
-
-    #undef DENOISER_NAME
 }
 
-void nrd::InstanceImpl::Update_Reference(const DenoiserData& denoiserData)
-{
-    enum class Dispatch
-    {
+#undef DENOISER_NAME
+
+void nrd::InstanceImpl::Update_Reference(const DenoiserData& denoiserData) {
+    enum class Dispatch {
         ACCUMULATE,
         COPY,
     };
 
     const ReferenceSettings& settings = denoiserData.settings.reference;
 
-    if (m_WorldToClip != m_WorldToClipPrev || m_CommonSettings.accumulationMode != AccumulationMode::CONTINUE)
+    if (m_WorldToClip != m_WorldToClipPrev || m_CommonSettings.accumulationMode != AccumulationMode::CONTINUE || m_CommonSettings.rectSize[0] != m_CommonSettings.rectSizePrev[0] || m_CommonSettings.rectSize[1] != m_CommonSettings.rectSizePrev[1])
         m_AccumulatedFrameNum = 0;
-    else
-        m_AccumulatedFrameNum = ml::Min(m_AccumulatedFrameNum + 1, settings.maxAccumulatedFrameNum);
+    else {
+        uint32_t maxAccumulatedFRameNum = min(settings.maxAccumulatedFrameNum, REFERENCE_MAX_HISTORY_FRAME_NUM);
+        m_AccumulatedFrameNum = min(m_AccumulatedFrameNum + 1, maxAccumulatedFRameNum);
+    }
 
     NRD_DECLARE_DIMS;
 
-    // ACCUMULATE
-    Constant* data = PushDispatch(denoiserData, AsUint(Dispatch::ACCUMULATE));
-    AddUint2(data, m_CommonSettings.inputSubrectOrigin[0], m_CommonSettings.inputSubrectOrigin[1]);
-    AddFloat2(data, 1.0f / float(rectW), 1.0f / float(rectH));
-    AddFloat(data, m_CommonSettings.splitScreen);
-    AddFloat(data, 1.0f / (1.0f + float(m_AccumulatedFrameNum)));
-    AddFloat(data, m_CommonSettings.debug);
-    ValidateConstants(data);
+    { // ACCUMULATE
+        REFERENCE_TemporalAccumulationConstants* consts = (REFERENCE_TemporalAccumulationConstants*)PushDispatch(denoiserData, AsUint(Dispatch::ACCUMULATE));
+        consts->gAccumSpeed = 1.0f / (1.0f + m_AccumulatedFrameNum);
+        consts->gDebug = m_CommonSettings.debug;
+    }
 
-    // COPY
-    data = PushDispatch(denoiserData, AsUint(Dispatch::COPY));
-    ValidateConstants(data);
+    { // COPY
+        REFERENCE_CopyConstants* consts = (REFERENCE_CopyConstants*)PushDispatch(denoiserData, AsUint(Dispatch::COPY));
+        consts->gRectSizeInv = float2(1.0f / float(rectW), 1.0f / float(rectH));
+        consts->gSplitScreen = m_CommonSettings.splitScreen;
+    }
 }

@@ -183,11 +183,13 @@ static void EditGI(VulkanEngine& engine, T& giGP)
     // The shared output pass resets its own average when this changes.
     // ReSTIR reservoirs and the NRC training state remain available.
     ImGui::Checkbox("Frame accumulation", &engine._frameAccumulationEnabled);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Accumulate raw frames, or enable REBLUR temporal history when the denoiser is on.");
     if (engine.get_mode() == ERenderMode::ReSTIR || engine.get_mode() == ERenderMode::ReSTIR_NRC)
     {
-        ImGui::Checkbox("Denoiser", &engine._denoiserEnabled);
+        ImGui::Checkbox("Denoiser (REBLUR)", &engine._denoiserEnabled);
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Reduce noise while preserving geometry and material edges.");
+            ImGui::SetTooltip("Denoise diffuse and specular lighting before native display or DLSS.\nFrame accumulation enables temporal history; otherwise use spatial filtering only.");
     }
     settingsChanged |= ImGui::InputInt("Indirect numRays", &numRays);
     numRays = std::clamp(numRays, 0, 32);

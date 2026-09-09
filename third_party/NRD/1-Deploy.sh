@@ -1,13 +1,10 @@
-#!/bin/sh
-
-chmod +x "2-Build.sh"
-chmod +x "3-Prepare NRD SDK.sh"
-chmod +x "4-Clean.sh"
+#!/bin/bash
+set -e
 
 git submodule update --init --recursive
 
 mkdir -p "_Build"
 
 cd "_Build"
-cmake ..
+cmake -DNRD_NRI=ON .. "$@"
 cd ..

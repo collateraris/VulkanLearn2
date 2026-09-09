@@ -12,7 +12,7 @@ VulkanLearn2 is a C++20 rendering playground for exploring reservoir resampling 
 
 **[Watch the renderer in motion on YouTube](https://www.youtube.com/watch?v=Q_fKG3UT02U)**
 
-Fifteen captures of the current **ReSTIR DI + PT** renderer, without NRC: **1200 × 800**, frame **512**, across four scenes and five views. The first column shows one unaveraged frame after reservoir warmup; the other columns average **512 frames**, with the denoiser added in the last column.
+Fifteen captures of the **ReSTIR DI + PT** renderer before the NRD upgrade, without NRC: **1200 × 800**, frame **512**, across four scenes and five views. The first column shows one unaveraged frame after reservoir warmup; the other columns average **512 frames**, with the former custom denoiser added in the last column. These preserved images do not show the new REBLUR integration.
 
 **Scene 1 — Sponza**
 
@@ -94,7 +94,7 @@ flowchart TD
 
 The [graph](src/vk_render_graph.h) and [RHI contracts](src/rhi/rhi.h) contain no Vulkan types. The graph builds a stable dependency order for read-after-write, write-after-read, and write-after-write hazards, accepts explicit dependencies, and rejects cycles and reads of uninitialized resources. Imports of the same physical resource share one handle and dependency history, even when passes use different names.
 
-These are real frame nodes: `ReSTIR.DI.Init`, `ReSTIR.PT.Init`, the DI reuse passes, `ReSTIR.PT.PrepareTemporal`, and `ReSTIR.PT.ReplayAndSpatial`; then either `ReSTIR.Shade` or `NRC.Train` → `NRC.Optimize` → `NRC.Inference`. `Accumulation.Mean` and `Accumulation.StoreHistory` feed the optional `Denoiser.Prefilter`, `Denoiser.Spatial0/1`, and `Denoiser.Temporal` passes, followed by `Display.TonemapAndImGui` and `Display.Present`. See [pass declarations](src/graphic_pipeline/vk_gi_raytrace_graphics_pipeline.cpp) and the [frame loop](src/vk_engine.cpp).
+These are real frame nodes: `ReSTIR.DI.Init`, `ReSTIR.PT.Init`, the DI reuse passes, `ReSTIR.PT.PrepareTemporal`, and `ReSTIR.PT.ReplayAndSpatial`; then either `ReSTIR.Shade` or `NRC.Train` → `NRC.Optimize` → `NRC.Inference`. The raw branch uses `Accumulation.Mean` and `Accumulation.StoreHistory`. Denoising instead prepares the current frame's split diffuse/specular signals and executes each SDK dispatch as a separate `NRD.REBLUR.*` node, then composites linear HDR. Optional DLSS follows before `Display.TonemapAndImGui` and `Display.Present`. See [pass declarations](src/graphic_pipeline/vk_gi_raytrace_graphics_pipeline.cpp), the [NRD executor](src/rhi/nrd_reblur.cpp), and the [frame loop](src/vk_engine.cpp).
 
 The [Vulkan backend](src/rhi/vulkan_rhi.cpp) translates declared states into image/buffer barriers and retains resource states across frames. Rebuilding the graph does not clear reservoir, accumulation, or denoiser history; their validity remains controlled by rendering settings and camera changes. Execution uses one graphics queue, without asynchronous scheduling or transient-memory aliasing.
 
@@ -124,7 +124,7 @@ Earlier and optional rendering paths also contain these Vulkan techniques:
 | --- | --- |
 | **Mesh/task shaders and meshlets** | `VK_NV_mesh_shader` pipelines implement meshlet-based rasterization, G-buffer generation, and a visibility buffer. Meshlet construction uses meshoptimizer. These raster paths and the meshlet preprocessing call are disabled in the current configuration. See [mesh processing](src/vk_mesh.cpp) and [raster shaders](shaders/). |
 | **GPU culling and indirect multi-draw** | Compute/task shaders implement frustum and hierarchical depth (Hi-Z) occlusion culling. Compute-generated commands feed multiple mesh-task draws through `vkCmdDrawMeshTasksIndirectNV`; an indexed indirect draw wrapper is also present. The legacy frame-loop calls for culling, drawing, and depth-pyramid generation are disabled. See [draw-command generation](shaders/drawcmd.comp), [task shader](shaders/tri_mesh.task), and [draw wrappers](src/vk_command_buffer.cpp). |
-| **Push descriptors** | `VK_KHR_push_descriptor` supplies resources to NRD compute passes. The implementation remains in the [denoiser integration](src/graphic_pipeline/vk_raytracer_denoiser_pass.cpp), whose initialization and dispatch are currently disabled. |
+| **Push descriptors** | The older, inactive [denoiser wrapper](src/graphic_pipeline/vk_raytracer_denoiser_pass.cpp) uses `VK_KHR_push_descriptor`. Active NRD uses immutable samplers and separate descriptor sets/constants per dispatch and frame slot. |
 | **Validation and GPU timestamps** | Optional debug setup enables Vulkan validation, synchronization validation, GPU-assisted validation, and debug messages. GPU frame and denoiser timestamps are read after the existing frame fence; diagnostic runs export `gpu-times.csv`. See [device and frame setup](src/vk_engine.cpp) and [feature switches](src/vk_types.h). |
 
 Device creation still requests some extensions used by disabled paths, including `VK_NV_mesh_shader` and `VK_KHR_push_descriptor`; the [build requirements](#requirements) describe the resulting hardware constraints.
@@ -137,14 +137,14 @@ Some components are experimental, while others remain disabled in the current re
 | --- | --- |
 | Neural Radiance Cache | `RESTIR_NRC` trains on PT indirect radiance with Slang cooperative vectors, explicit backpropagation, FP32 gradient accumulation, and Adam. Hidden layers start with random weights; the output layer starts at zero. The result combines ReSTIR direct illumination, visible emission, and a blend of PT/NRC indirect lighting. Steps 1–32 use PT; steps 33–128 raise the cache contribution to 25%, retaining at least 75% PT so an undertrained cache cannot replace all traced indirect lighting. Non-finite predictions fall back to PT. |
 | Separate ReSTIR GI passes | GI temporal and spatial reuse implementations are present; their draw calls are disabled in the active DI + PT pipeline. |
-| Temporal and spatial denoiser | Optional in `RESTIR` and `RESTIR_NRC`, disabled by default. After FP32 accumulation, a geometry/material-aware prefilter suppresses isolated HDR outliers, two edge-aware à-trous passes use pixel strides `1` and `2`, and temporal reprojection stabilizes the displayed result. Separate denoiser history feeds only the temporal pass. |
-| NVIDIA NRD | A separate integration and HLSL shader build support are present. NRD initialization and dispatch remain commented out; the **Denoiser** checkbox controls the filter above. |
-| Frame accumulation | Enabled by default; toggle **Frame accumulation** in the UI or launch with `RESTIR_ACCUMULATION=0` to view unaveraged frames. Linear HDR radiance is averaged in FP32 using exact pixel reads. Camera, sunlight, or path-depth changes reset history; non-finite samples cannot poison later frames. The original display contrast curve is applied after averaging. |
+| NVIDIA NRD REBLUR | **Denoiser (REBLUR)** enables NRD **4.17.3**, `REBLUR_DIFFUSE_SPECULAR`, in native and DLSS `RESTIR`/`RESTIR_NRC`. It processes fresh, separate diffuse/specular radiance with independently sampled BRDF hit-distance guides, packed normals, roughness, depth and motion. SDK permanent/transient images and all dispatch dependencies are visible in the render graph. |
+| Neural contribution and denoising | NRC still predicts aggregate indirect RGB. Its weighted contribution bypasses REBLUR together with visible emission and background; the remaining traced contribution is separated into diffuse/specular signals. Composition adds each term once, without assigning the cache prediction to an invented reflection lobe. |
+| Frame accumulation | Enabled by default. With denoising off, linear HDR uses the existing FP32 running mean and exact pixel reads. With REBLUR on, this toggle controls the SDK's own temporal history; turning it off selects spatial-only REBLUR with zero history lengths and stabilization disabled. ReSTIR reservoir reuse stays active. The raw FP32 branch remains available for diagnostics and is never fed back into NRD or NRC training. |
 | Raster G-buffer / visibility buffer | Mesh/task shader pipelines, meshlet processing, and depth-pyramid culling code are present. `GBUFFER_ON` and `VBUFFER_ON` default to `0`. |
 | HDR / image-based lighting | `RESTIR` and `RESTIR_NRC` support optional FP32 equirectangular HDR environments through bindless textures. Primary misses show the environment; escaping BRDF rays contribute its lighting. The older environment/irradiance/prefiltered cubemap generator remains disabled. |
 | NVIDIA DLSS Super Resolution | Optional Streamline 2.14.1 Vulkan backend for `RESTIR` and `RESTIR_NRC`. The graph prepares linear HDR, device depth, and camera/sky motion vectors, evaluates DLSS at the selected output resolution, then applies the existing tone mapping and full-resolution ImGui. |
 
-This is a research and learning project. The gallery starts with reproducible captures of the current renderer and keeps older experiments below. Results depend on the scene, settings, and hardware.
+This is a research and learning project. The gallery preserves reproducible captures and their recorded settings; its denoiser images predate REBLUR. Results depend on the scene, settings, and hardware.
 
 ## Build
 
@@ -152,12 +152,12 @@ This is a research and learning project. The gallery starts with reproducible ca
 
 The current build targets **Windows x64**. It uses bundled Windows SDL2 libraries, Win32 Vulkan definitions, and `.exe` shader compilers. Streamline is loaded dynamically when DLSS is requested.
 
-- **Visual Studio 2022** with Desktop development with C++ and a Windows SDK, including FXC for NRD's default shader build.
+- **Visual Studio 2022** with Desktop development with C++ and a Windows SDK.
 - **CMake** with the `Visual Studio 17 2022` generator (3.21 or newer).
 - **Vulkan SDK** with Vulkan 1.4 headers, `glslc.exe`, `slangc.exe`, and a SPIR-V-capable `dxc.exe`. Slang must support `spvCooperativeVectorNV`. The existing local build configuration uses SDK **1.4.309.0**; this is a configuration reference, not a tested minimum version.
 - **A compatible NVIDIA GPU and driver.** Device creation requires Vulkan 1.4 plus NVIDIA-specific mesh shader and cooperative vector extensions. Ray tracing support alone is insufficient.
 
-The device requirements in [vk_engine.cpp](src/vk_engine.cpp) include `VK_KHR_ray_tracing_pipeline`, `VK_KHR_acceleration_structure`, `VK_KHR_ray_query`, `VK_NV_mesh_shader`, `VK_NV_cooperative_vector`, and `VK_EXT_shader_replicated_composites`, along with descriptor indexing and buffer device addresses. **Cooperative vector support is requested in every render mode**, including `PATHTRACER` and `RESTIR`; `RESTIR_NRC` also requires cooperative vector training with FP32 accumulation.
+The device requirements in [vk_engine.cpp](src/vk_engine.cpp) include `VK_KHR_ray_tracing_pipeline`, `VK_KHR_acceleration_structure`, `VK_KHR_ray_query`, `VK_NV_mesh_shader`, `VK_NV_cooperative_vector`, and `VK_EXT_shader_replicated_composites`, along with descriptor indexing and buffer device addresses. **Cooperative vector support is requested in every render mode**, including `PATHTRACER` and `RESTIR`; `RESTIR_NRC` also requires cooperative vector training with FP32 accumulation. ReSTIR modes require extended storage-image formats and formatless storage-image reads/writes for NRD, including native rendering without DLSS.
 
 Dependencies are stored under `third_party/`, including SDL2, GLM, volk, vk-bootstrap, VMA, Assimp, Dear ImGui, meshoptimizer, SPIRV-Reflect, NRD, and Streamline. Keep these directories when cloning or copying the project.
 
@@ -180,16 +180,18 @@ cmake --build build --config Release --target vulkan_guide --parallel
 
 The executable target is named **`vulkan_guide`**. With this generator, the executable is written to `bin/Release/vulkan_guide.exe`. Use a fresh build directory if an existing `build/` cache was configured with another generator.
 
-The executable depends on the `Shaders` target, which compiles GLSL, Slang, and NRD HLSL sources to SPIR-V beside their source files. GLSL and Slang rules track the project's shared shader headers and Slang modules, so editing those dependencies triggers recompilation. NRD also builds its own shader containers, so the first build can involve substantial shader compilation.
+The executable depends on the `Shaders` target, which compiles the project's GLSL and Slang sources to SPIR-V beside their source files. Rules track shared shader headers and Slang modules. Vendored NRD **4.17.3** uses its pinned ShaderMake/MathLib dependencies and DXC to compile embedded SPIR-V permutations; the Vulkan executor consumes this bytecode directly from the SDK. The first build includes substantial shader compilation; DXBC/DXIL are disabled for this Vulkan integration.
 
 ### Render graph tests
 
 `RESTIR_BUILD_TESTS` defaults to `ON`. The [standalone tests](tests/render_graph_tests.cpp) use a mock command list and require no GPU at runtime. They check dependency ordering, resource aliases, initialization, cycles, reset/recompile behavior, and command execution. For a build configured in `win64`, run the following; replace `win64` with `build` if using the configuration above.
 
 ```powershell
-cmake --build win64 --config Release --target render_graph_tests
+cmake --build win64 --config Release --target render_graph_tests config_save_tests
 ctest --test-dir win64 -C Release --output-on-failure
 ```
+
+[Configuration tests](tests/config_save_tests.cpp) also run without a GPU. They verify that **Apply** preserves lighting, camera and other scene edits made on disk after startup, and refuses to overwrite missing or malformed configuration files.
 
 ### Runtime libraries
 
@@ -217,9 +219,9 @@ In **Edit GI → Display / DLSS**, choose **2560 × 1440**, select **Quality**, 
 
 DLSS obtains the internal resolution from the SDK. All ReSTIR launches, reservoirs, accumulation, denoising, and NRC screen-sized work use that internal size. The graph executes `DLSS.PrepareInputs` and `DLSS.SuperResolution` before tone mapping and ImGui. Inputs include FP16 linear HDR, normalized depth reconstructed from primary hits, and unjittered current-to-previous motion in pixels; the sky uses rotation-only motion. A Halton sequence supplies projection jitter. Camera cuts and changed rendering settings reset DLSS history.
 
-The supplied configuration starts in 1440p Performance mode. A fresh DLSS launch enables the existing denoiser to provide a cleaner input signal; accumulation and denoising remain independent ImGui controls. Applying settings preserves your current filter choices. Quality retains more fine detail at a higher rendering cost; Performance reduces that cost and produces a softer image.
+Output resolution and quality mode are configurable; select **2560 × 1440** in the UI above for a 1440p output. A fresh DLSS launch enables REBLUR to provide a cleaner input signal; denoising and temporal accumulation have separate ImGui controls. Applying settings preserves your current filter choices. Quality retains more fine detail at a higher rendering cost; Performance reduces that cost and produces a softer image.
 
-Example measurements in Bistro on an RTX 4090, driver 610.88, Release, with accumulation and denoising enabled:
+Historical measurements **before the REBLUR upgrade**, using the former custom denoiser in Bistro on an RTX 4090, driver 610.88, Release, with accumulation enabled:
 
 | Mode | Internal resolution | Output resolution | Measured FPS |
 |---|---|---|---:|
@@ -231,7 +233,7 @@ Example measurements in Bistro on an RTX 4090, driver 610.88, Release, with accu
 
 These are short measurements from frames 150–254 of 256-frame runs, using the same camera and lighting, with validation disabled and captures outside the timing window. FPS is derived from the measured frame loop; scene, camera, and system load affect the result. The Vulkan backend selects supported transformer preset K for Performance and Ultra Performance to avoid private NGX image-layout errors observed with the default Performance model on this SDK/driver.
 
-This integration provides **Super Resolution**, with the existing denoiser as a separate option. Frame Generation and Ray Reconstruction are not enabled. It requires supported NVIDIA RTX hardware and a compatible driver. Quality and frame time depend on the scene and quality mode; upscaling does not guarantee pixel-identical native output. See the [NVIDIA integration guide](https://github.com/NVIDIA-RTX/Streamline/blob/main/docs/ProgrammingGuideDLSS.md) and the SDK's DLSS license for deployment terms.
+This integration provides **Super Resolution**, with NRD REBLUR as a separate denoising option. Frame Generation and Ray Reconstruction are not enabled. It requires supported NVIDIA RTX hardware and a compatible driver. Quality and frame time depend on the scene and quality mode; upscaling does not guarantee pixel-identical native output. See the [NVIDIA integration guide](https://github.com/NVIDIA-RTX/Streamline/blob/main/docs/ProgrammingGuideDLSS.md) and the SDK's DLSS license for deployment terms.
 
 On the tested machine, NVIDIA's driver telemetry can hang inside NGX shutdown after rendering has finished. A five-second watchdog reports this explicitly and ends only the renderer process with exit code `70`; it never unloads the SDK or destroys the Vulkan device underneath an active shutdown call. Applying display settings starts a fresh process with the camera, sunlight, path depth, and filter settings restored, so this driver issue cannot block the new renderer. Diagnostic reports distinguish this timeout from rendering or validation errors.
 
@@ -307,9 +309,11 @@ Camera input is active on startup. Press **`M`** to suspend camera input while u
 
 In **Edit GI**, `Indirect numRays` controls the indirect bounce limit; it is not a samples-per-pixel setting. The UI starts at `3`; setting it to `0` disables indirect lighting, including the NRC prediction. The same panel lets you edit camera position/rotation and, when enabled for the scene, the sun direction and color. These changes reset frame accumulation and reservoir history; lighting or depth changes also restart NRC optimizer history and warmup.
 
-Enable **Edit GI → Denoiser** in ImGui to reduce visible noise in `RESTIR` or `RESTIR_NRC`. It is off by default and works with **Frame accumulation** either on or off. The prefilter uses compatible surface neighbors to identify isolated HDR outliers and scales RGB together. Two spatial passes smooth the image using geometry and material guides; temporal reprojection then stabilizes the result and rejects history from incompatible or newly revealed surfaces. Background, visible emitters, and mirrors are protected, with reduced filtering on glossy surfaces.
+Enable **Edit GI → Denoiser (REBLUR)** for NVIDIA NRD **4.17.3 REBLUR_DIFFUSE_SPECULAR** in `RESTIR` or `RESTIR_NRC`. It receives the current frame's diffuse/specular radiance with material demodulation, packed normals/roughness, view depth and motion. It runs at the internal render resolution and produces the same linear HDR composite for native presentation or DLSS. A fresh DLSS launch enables it by default; your filter choices survive **Apply**.
 
-Denoiser history stores the final stabilized image separately from linear accumulation and NRC training targets. The outlier prefilter expands from `3×3` to `5×5` around suspected bright samples to handle small clusters. Spatial passes start from the current prefiltered image each frame; history feeds only temporal stabilization, avoiding repeated spatial blurring. It resets on toggling, lighting or rendering-setting changes, and camera cuts. Unfiltered accumulation and ReSTIR/NRC data remain intact. Outlier suppression is biased and can attenuate legitimate isolated highlights; fine details can soften, and glossy reflections remain difficult to denoise.
+Hit-distance guides use independent BRDF samples, avoiding the selection bias of distances taken from RIS-selected paths. This adds up to **two alpha-tested closest-hit rays per pixel** while denoising is enabled, and none when it is off. Skipped diffuse/specular lobes retain a zero-distance marker for NRD's `AREA_5X5` reconstruction; the SDK prepass remains enabled.
+
+With **Frame accumulation** on, REBLUR targets about **0.5 seconds** of temporal history, adapting its frame limit to the measured average CPU frame-loop duration and capping it at **63 frames**. With it off, the main, fast and stabilized history lengths are zero, giving spatial-only denoising. The raw FP32 running mean is a separate diagnostic/off branch, never a pre-averaged NRD input. Denoiser toggles, lighting/depth changes and camera cuts reset SDK history; ordinary camera motion is reprojected. Visible emission, background and the already weighted aggregate NRC prediction bypass REBLUR and are added once during composition. NRD does not modify ReSTIR reservoirs or NRC training targets. Filtering can soften details or alter sparse highlights; the older gallery and FPS table are not measurements of REBLUR quality or cost.
 
 ## Rendering flow
 
@@ -324,15 +328,14 @@ flowchart TD
     E -->|RESTIR| F[DI plus emission plus PT indirect]
     E -->|RESTIR_NRC| G[NRC training and Adam optimization]
     G --> H[DI plus emission plus PT/NRC indirect blend]
-    F --> I[FP32 frame accumulation]
-    H --> I
-    I --> J{Denoiser enabled?}
-    J -->|Yes| K[Robust HDR outlier prefilter]
-    J -->|No| L[Presentation]
-    K --> M[Two edge-aware spatial passes]
-    M --> N[Temporal stabilization]
-    N --> O[Save separate denoiser history]
-    O -.->|Next frame| N
+    F --> J{Denoiser enabled?}
+    H --> J
+    J -->|No| I[Raw FP32 frame accumulation]
+    J -->|Yes| K[Pack fresh diffuse/specular signals and guides]
+    K --> M[NRD REBLUR_DIFFUSE_SPECULAR]
+    M -.->|Own history when accumulation is on| M
+    M --> N[Remodulate and add emission, sky and NRC bypass]
+    I --> L[Optional DLSS, tone mapping and presentation]
     N --> L
 ```
 
@@ -344,7 +347,7 @@ flowchart TD
 
 4. **Replay useful seeds.** [PT reuse](shaders_slang/restirPTSpacial.rgen.slang) first replays the previous seed at the current surface, limiting its represented count to ten times the initial count. It saves this temporal reservoir before spatial reuse. Up to seven random neighbor attempts in a `3×3` window use initial reservoirs, with distance/normal rejection; attempts can repeat. Each accepted seed retraces the path at the receiving pixel, reevaluating BRDFs, light choices, and visibility. This is identity mapping in primary sample space (`J = 1`), without vertex reconnection. Replay also handles changing subpixel hits on a stationary camera. DI performs separate temporal/spatial reuse, restricted to the same light-grid cell.
 
-5. **Compose and display.** [Shading](shaders_slang/restirShade.comp.slang) sums visible emission, weighted DI, and `L_PT × W_PT`; `RESTIR_NRC` substitutes its PT/NRC indirect blend. Camera, lighting, or bounce-limit changes reset reservoir history. **Frame accumulation** independently averages linear RGB across frames; disabling it keeps reservoir reuse active. The optional denoiser keeps a third, separate history and filters only display output.
+5. **Compose and display.** [Shading](shaders_slang/restirShade.comp.slang) sums visible emission, weighted DI, and `L_PT × W_PT`; `RESTIR_NRC` substitutes its PT/NRC indirect blend. A parallel output separates current diffuse/specular contributions and supplies independent BRDF hit-distance guides for REBLUR. Its composite restores material factors and adds the emission/sky/NRC bypass once. **Frame accumulation** controls either the raw FP32 mean or REBLUR temporal history; turning it off keeps reservoir reuse active. NRD operates before optional DLSS and tone mapping.
 
 **Lighting compatibility:** direct illumination and surface emission use the emissive texture multiplied by `emissiveFactor`. The original `emissiveStrength` convention remains in flux/radius estimation and indirect NEE. Indirect soft point-light proxies use an explicit `1/64` compatibility power scale, separate from candidate counts and reservoir normalization. Environment radiance is added separately; directional sunlight uses `indirectSunScale` instead of the point-proxy scale.
 
@@ -357,7 +360,7 @@ Here, “original” means [Lin et al., SIGGRAPH 2022](https://research.nvidia.c
 | Path shifts | Reconnection, random replay, and hybrid mappings. Hybrid replay regenerates a prefix and reconnects to a stored vertex with the corresponding Jacobian. [Shift implementation](https://github.com/DQLin/ReSTIR_PT/blob/master/Source/RenderPasses/ReSTIRPTPass/Shift.slang). | Full seed replay only, with `J = 1` in primary sample space. Random replay already exists in the original; this project omits reconnection and hybrid mapping. |
 | Resampling weights | Generalized resampling MIS accounts for proposal/shift relationships; the supplement develops pairwise and defensive constructions. [Supplement, §S1](https://graphics.cs.utah.edu/research/projects/gris/GRIS_supplemental.pdf). | Luminance targets, source `W × M`, count limits, and neighborhood rejection. The original's broader MIS machinery is not implemented; unbiasedness or convergence is not established for these choices. |
 | Moving cameras | Motion vectors locate previous surfaces, with previous visibility data and dynamic-scene updates. [Temporal reuse](https://github.com/DQLin/ReSTIR_PT/blob/master/Source/RenderPasses/ReSTIRPTPass/TemporalReuse.cs.slang). | Temporal reservoir reuse requires a stationary camera; movement invalidates it. Denoiser reprojection is a separate image-filtering feature. |
-| Renderer additions | ReSTIR PT addresses reuse of multi-bounce light transport. [Paper](https://research.nvidia.com/labs/rtr/publication/lin2022generalized/). | Separate DI reservoirs, local soft point-light conventions, NRC blending, frame averaging, and the custom denoiser form this renderer's surrounding pipeline. |
+| Renderer additions | ReSTIR PT addresses reuse of multi-bounce light transport. [Paper](https://research.nvidia.com/labs/rtr/publication/lin2022generalized/). | Separate DI reservoirs, local soft point-light conventions, NRC blending, frame averaging, and NRD REBLUR form this renderer's surrounding pipeline. |
 
 Reservoirs store compact seed state, but each accepted reuse still retraces an indirect path. Eight initial candidates plus replays mean the ray workload exceeds one path per pixel. The [gallery](#gallery) compares settings of this project; it does not benchmark against the authors' renderer.
 
@@ -427,7 +430,7 @@ Archived Bistro interior captures retain their original **1 spp without frame ac
 ## Troubleshooting
 
 - **CMake cannot find a shader compiler:** check `VULKAN_SDK` and the `GLSLC`, `SLANG`, and `DXC` cache entries. A `slangc.exe` that lacks cooperative vector support cannot compile the current shader target.
-- **NRD shader tools fail to configure:** verify that the Windows SDK includes FXC/DXC. NRD's own ShaderMake configuration also searches for these tools; it is separate from the top-level `DXC` variable.
+- **NRD shader tools fail to configure:** verify the configured SPIR-V-capable DXC path and retain the vendored ShaderMake/MathLib sources. This Vulkan build embeds NRD SPIR-V and does not require FXC for disabled DXBC output.
 - **A DLL is missing at startup:** regenerate CMake and rebuild `vulkan_guide` in the configuration you intend to run. The post-build step copies the matching runtime libraries beside the executable. Debug DLLs with a `d` suffix cannot replace their Release counterparts.
 - **Configuration, models, or shaders cannot be loaded:** check the working directory and the selected scene. Subway and Bistro presets refer to assets that are not included in a fresh clone.
 - **No suitable GPU / device creation fails:** compare the GPU's supported features and extensions with `init_vulkan()` in `src/vk_engine.cpp`. Disabling NRC in XML does not remove the cooperative vector requirement.

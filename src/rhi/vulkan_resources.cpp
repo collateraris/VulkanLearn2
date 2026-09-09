@@ -18,6 +18,13 @@ VkFormat native_format(Format format) {
     case Format::Rgba32Float: return VK_FORMAT_R32G32B32A32_SFLOAT;
     case Format::Rg16Float: return VK_FORMAT_R16G16_SFLOAT;
     case Format::R32Float: return VK_FORMAT_R32_SFLOAT;
+    case Format::R8Unorm: return VK_FORMAT_R8_UNORM;
+    case Format::Rgba8Unorm: return VK_FORMAT_R8G8B8A8_UNORM;
+    case Format::R16Float: return VK_FORMAT_R16_SFLOAT;
+    case Format::R16Uint: return VK_FORMAT_R16_UINT;
+    case Format::R32Uint: return VK_FORMAT_R32_UINT;
+    case Format::Rg8Unorm: return VK_FORMAT_R8G8_UNORM;
+    case Format::Rgb10A2Unorm: return VK_FORMAT_A2B10G10R10_UNORM_PACK32;
     }
     throw std::invalid_argument("RHI: unsupported image format");
 }

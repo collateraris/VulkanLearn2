@@ -11,15 +11,15 @@ jobs:
     steps:
       - name: "CLA Assistant"
         if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
-        uses: contributor-assistant/github-action@v2.3.0
+        uses: contributor-assistant/github-action@ba066dbae3769e2ce93ec8cfc4fdc51b9db628ba
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PERSONAL_ACCESS_TOKEN : ${{ secrets.CLA_ACCESS_TOKEN }}
         with:
           path-to-signatures: 'signatures/ShaderMake.json'
-          path-to-document: 'https://github.com/NVIDIAGameWorks/ShaderMake/blob/main/CLA.txt'
+          path-to-document: 'https://github.com/NVIDIA-RTX/ShaderMake/blob/main/CLA.txt'
           branch: 'ShaderMake'
           allowlist: nobody
           lock-pullrequest-aftermerge: true
-          remote-organization-name: NVIDIAGameWorks
+          remote-organization-name: NVIDIA-RTX
           remote-repository-name: CLAs

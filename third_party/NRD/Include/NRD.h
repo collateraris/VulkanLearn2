@@ -11,7 +11,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 /*
 CREDITS:
     Developed by:
-        Dmitry Zhdan (dzhdan@nvidia.com)
+        Dmitrii Zhdan (dzhdan@nvidia.com)
         Tim Cheblokov (ttcheblokov@nvidia.com)
 
     Special thanks:
@@ -28,24 +28,18 @@ CREDITS:
 #include <cstddef>
 
 #define NRD_VERSION_MAJOR 4
-#define NRD_VERSION_MINOR 3
-#define NRD_VERSION_BUILD 6
-#define NRD_VERSION_DATE "3 November 2023"
+#define NRD_VERSION_MINOR 17
+#define NRD_VERSION_BUILD 3
+#define NRD_VERSION_DATE "30 April 2026"
 
-#if defined(_MSC_VER)
-    #define NRD_CALL __fastcall
-#elif !defined(__aarch64__) && !defined(__x86_64) && (defined(__GNUC__)  || defined (__clang__))
-    #define NRD_CALL __attribute__((fastcall))
+#if defined(_WIN32)
+    #define NRD_CALL __stdcall
 #else
     #define NRD_CALL
 #endif
 
 #ifndef NRD_API
-    #if NRD_STATIC_LIBRARY
-        #define NRD_API
-    #else
-        #define NRD_API extern "C"
-    #endif
+    #define NRD_API extern "C"
 #endif
 
 #include "NRDDescs.h"
@@ -58,8 +52,8 @@ namespace nrd
     NRD_API void NRD_CALL DestroyInstance(Instance& instance);
 
     // Get
-    NRD_API const LibraryDesc& NRD_CALL GetLibraryDesc();
-    NRD_API const InstanceDesc& NRD_CALL GetInstanceDesc(const Instance& instance);
+    NRD_API const LibraryDesc* NRD_CALL GetLibraryDesc();
+    NRD_API const InstanceDesc* NRD_CALL GetInstanceDesc(const Instance& instance);
 
     // Typically needs to be called once per frame
     NRD_API Result NRD_CALL SetCommonSettings(Instance& instance, const CommonSettings& commonSettings);

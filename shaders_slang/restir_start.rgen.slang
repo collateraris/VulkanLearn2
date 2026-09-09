@@ -70,7 +70,7 @@ void main()
         {
             SReservoirPT candidate = SReservoirPT(pcg4d(uint4(pixel, giParams.frameCount, i)),
                 float4(0.0f), 0.0f, 1, 1.0f, 0.0f);
-            candidate.radiance = float4(restirTraceIndirect(pixel, candidate.randomSeed), 1.0f);
+            restirReplayIndirect(pixel, candidate);
             reservoir.updateReservoir(selectionRng, candidate, restirTarget(candidate.radiance.xyz));
         }
         reservoir.finalWeight = restirFinalWeight(reservoir.weightSum, reservoir.samplesNumber, restirTarget(reservoir.radiance.xyz));

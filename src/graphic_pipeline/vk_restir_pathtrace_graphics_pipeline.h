@@ -13,7 +13,6 @@
 #include <graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.h>
 #include <graphic_pipeline/vk_raytrace_reflection.h>
 #include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
-#include <graphic_pipeline/vk_raytracer_denoiser_pass.h>
 
 class VulkanEngine;
 class VulkanFrameBuffer;

@@ -9,6 +9,7 @@
 #include <vk_raytracer_builder.h>
 #include <vk_initializers.h>
 #include <vk_utils.h>
+#include <rhi/vulkan_resources.h>
 
 void VulkanNRC_InferencePass::init(VulkanEngine* engine)
 {
@@ -34,9 +35,17 @@ void VulkanNRC_InferencePass::init(VulkanEngine* engine)
 			.create_texture();
 	}
 
-	{
-		init_description_set_global_buffer();
-	}
+	auto makeDenoiserOutput = [&]() {
+		const auto image = engine->_rhi.resources().create_image({
+			_imageExtent.width, _imageExtent.height, rhi::Format::Rgba32Float,
+			rhi::ImageUsage::Sampled | rhi::ImageUsage::Storage | rhi::ImageUsage::TransferSource});
+		engine->_mainDeletionQueue.push_function([engine, image]() { engine->_rhi.resources().destroy(image); });
+		return engine->_rhi.vulkan_resources().texture(image);
+	};
+	_diffuseOutput = makeDenoiserOutput();
+	_specularOutput = makeDenoiserOutput();
+	_bypassOutput = makeDenoiserOutput();
+	init_description_set_global_buffer();
 
 	{
 		_engine->_renderPipelineManager.init_render_pipeline(_engine, EPipelineType::NRC_Inference,
@@ -56,6 +65,9 @@ void VulkanNRC_InferencePass::init(VulkanEngine* engine)
 																	_rpDescrMan.get_layout() };
 				mesh_pipeline_layout_info.setLayoutCount = setLayout.size();
 				mesh_pipeline_layout_info.pSetLayouts = setLayout.data();
+				VkPushConstantRange denoiserPush{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(uint32_t)};
+				mesh_pipeline_layout_info.pushConstantRangeCount = 1;
+				mesh_pipeline_layout_info.pPushConstantRanges = &denoiserPush;
 
 				vkCreatePipelineLayout(_engine->_device, &mesh_pipeline_layout_info, nullptr, &computePipelineBuilder._pipelineLayout);
 				//hook the push constants layout
@@ -74,6 +86,9 @@ void VulkanNRC_InferencePass::init_description_set_global_buffer()
 		.bind_image(2, ETextureResourceNames::PT_GBUFFER_NORMAL, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
 		.bind_image(3, ETextureResourceNames::PT_GBUFFER_WPOS_OBJECT_ID, EResOp::READ_STORAGE, VK_SHADER_STAGE_COMPUTE_BIT)
 		.bind_image(4, _outputTex, EResOp::WRITE, VK_SHADER_STAGE_COMPUTE_BIT)
+		.bind_image(5, _diffuseOutput, EResOp::WRITE, VK_SHADER_STAGE_COMPUTE_BIT)
+		.bind_image(6, _specularOutput, EResOp::WRITE, VK_SHADER_STAGE_COMPUTE_BIT)
+		.bind_image(7, _bypassOutput, EResOp::WRITE, VK_SHADER_STAGE_COMPUTE_BIT)
 		.create_desciptor_manager();
 }
 
@@ -106,6 +121,8 @@ void VulkanNRC_InferencePass::draw(rhi::CommandList& cmd, int frameSlot)
 	cmd.bind_descriptor_set(pipeline, 3, _engine->_rhi.descriptor(
 		_engine->get_engine_descriptor(EDescriptorResourceNames::NRC_MLP_Train_Inference)->set));
 	cmd.bind_descriptor_set(pipeline, 4, _engine->_rhi.descriptor(_rpDescrMan.get_set()));
+	const uint32_t denoiserEnabled = _engine->_denoiserEnabled ? 1u : 0u;
+	cmd.push_constants(pipeline, rhi::Stage::Compute, &denoiserEnabled, sizeof(denoiserEnabled));
 
 	cmd.dispatch(_tileNumberWidth, _tileNumberHeight, 1);
 }

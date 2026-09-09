@@ -694,6 +694,14 @@ void VulkanEngine::init_vulkan()
 	required_features.geometryShader = 1;
 	required_features.samplerAnisotropy = 1;
 	required_features.shaderInt64 = get_mode() == ERenderMode::ReSTIR_NRC;
+	// REBLUR allocates extended-format storage images even at native output
+	// resolution. Device selection verifies this independently of optional DLSS.
+	const bool needsNrd = get_mode() == ERenderMode::ReSTIR || get_mode() == ERenderMode::ReSTIR_NRC;
+	required_features.shaderStorageImageExtendedFormats = needsNrd;
+	// Embedded NRD SPIR-V uses formatless UAVs; temporal stabilization reads
+	// them as well as writing them (StorageImageRead/WriteWithoutFormat).
+	required_features.shaderStorageImageReadWithoutFormat = needsNrd;
+	required_features.shaderStorageImageWriteWithoutFormat = needsNrd;
 
 	std::vector<const char*> extensions = {
 		VK_KHR_16BIT_STORAGE_EXTENSION_NAME,
@@ -800,7 +808,7 @@ void VulkanEngine::init_vulkan()
 	}
 
 	//create the final Vulkan device
-	if (enableDlss) physicalDevice.features.shaderStorageImageExtendedFormats = VK_TRUE;
+	if (enableDlss || needsNrd) physicalDevice.features.shaderStorageImageExtendedFormats = VK_TRUE;
 	vkb::DeviceBuilder deviceBuilder{ physicalDevice };
 	if (enableDlss) {
 		std::vector<vkb::CustomQueueDescription> queues;

@@ -45,6 +45,8 @@ add_executable(vulkan_guide
     rhi/vulkan_resources.cpp
     rhi/streamline_dlss.h
     rhi/streamline_dlss.cpp
+    rhi/nrd_reblur.h
+    rhi/nrd_reblur.cpp
     graphic_pipeline/vk_dlss_prepare_pass.h
     graphic_pipeline/vk_dlss_prepare_pass.cpp
     render_scene_resources.h
@@ -101,12 +103,10 @@ add_executable(vulkan_guide
     graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.cpp
     graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h
     graphic_pipeline/vk_simple_accumulation_graphics_pipeline.cpp
-    graphic_pipeline/vk_spatial_denoiser_pass.h
-    graphic_pipeline/vk_spatial_denoiser_pass.cpp
+    graphic_pipeline/vk_reblur_denoiser_pass.h
+    graphic_pipeline/vk_reblur_denoiser_pass.cpp
     graphic_pipeline/vk_ibl_maps_generator_graphics_pipeline.h
     graphic_pipeline/vk_ibl_maps_generator_graphics_pipeline.cpp
-    graphic_pipeline/vk_raytracer_denoiser_pass.h
-    graphic_pipeline/vk_raytracer_denoiser_pass.cpp
     graphic_pipeline/vk_raytrace_reflection.h
     graphic_pipeline/vk_raytrace_reflection.cpp
     graphic_pipeline/vk_light_debug_graphic_pipeline.h
@@ -177,10 +177,29 @@ if(WIN32)
         VERBATIM)
 endif()
 
+add_custom_command(TARGET vulkan_guide POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E make_directory
+        "$<TARGET_FILE_DIR:vulkan_guide>/licenses/NRD"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${PROJECT_SOURCE_DIR}/third_party/NRD/LICENSE.txt"
+        "$<TARGET_FILE_DIR:vulkan_guide>/licenses/NRD/LICENSE.txt"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${PROJECT_SOURCE_DIR}/third_party/NRD/External/MathLib/LICENSE.txt"
+        "$<TARGET_FILE_DIR:vulkan_guide>/licenses/NRD/MathLib-LICENSE.txt"
+    COMMENT "Copying NRD and MathLib license notices beside vulkan_guide"
+    VERBATIM)
+
 add_dependencies(vulkan_guide Shaders)
 
 if(RESTIR_BUILD_TESTS)
     add_executable(render_graph_tests ../tests/render_graph_tests.cpp vk_render_graph.cpp)
     target_include_directories(render_graph_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME render_graph COMMAND render_graph_tests)
+
+    add_executable(config_save_tests
+        ../tests/config_save_tests.cpp
+        sys_config/Config.cpp sys_config/XPath.cpp sys_config/tinyxml2.cpp)
+    target_include_directories(config_save_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(config_save_tests PRIVATE vma glm volk_headers)
+    add_test(NAME config_save COMMAND config_save_tests)
 endif()

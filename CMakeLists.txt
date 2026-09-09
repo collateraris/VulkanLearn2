@@ -1,7 +1,7 @@
 ﻿# CMakeList.txt : CMake project for vulkan_guide, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.18)
+cmake_minimum_required (VERSION 3.22)
 
 project ("vulkan_guide")
 
@@ -25,6 +25,19 @@ set_target_properties( assimp
         FOLDER third_party/assimp
 )
 
+# This renderer consumes NRD's embedded Vulkan bytecode. Keep the encoder
+# settings identical to the helpers included by the signal preparation shaders.
+set(NRD_EMBEDS_SPIRV_SHADERS ON CACHE BOOL "Embed NRD Vulkan shaders" FORCE)
+set(NRD_EMBEDS_DXIL_SHADERS OFF CACHE BOOL "Embed NRD D3D12 shaders" FORCE)
+set(NRD_EMBEDS_DXBC_SHADERS OFF CACHE BOOL "Embed NRD D3D11 shaders" FORCE)
+set(NRD_NRI OFF CACHE BOOL "Use the renderer's RHI integration" FORCE)
+set(NRD_NORMAL_ENCODING "2" CACHE STRING "NRD packed normal encoding" FORCE)
+set(NRD_ROUGHNESS_ENCODING "1" CACHE STRING "NRD linear roughness encoding" FORCE)
+# ShaderMake needs only the DXC shipped with the installed Vulkan SDK.
+set(SHADERMAKE_FIND_DXC OFF CACHE BOOL "Download D3D DXC" FORCE)
+set(SHADERMAKE_FIND_FXC OFF CACHE BOOL "Find D3D FXC" FORCE)
+set(SHADERMAKE_FIND_DXC_VK ON CACHE BOOL "Find Vulkan SDK DXC" FORCE)
+set(SHADERMAKE_FIND_COMPILERS ON CACHE BOOL "Find shader compilers" FORCE)
 add_subdirectory( third_party/NRD )
 
 set_target_properties( NRD
@@ -46,6 +59,9 @@ file(GLOB GLSL_HEADER_FILES "${PROJECT_SOURCE_DIR}/shaders/*.h")
 file(GLOB SLANG_DEPENDENCY_FILES
     "${PROJECT_SOURCE_DIR}/shaders_slang/*.h"
     "${PROJECT_SOURCE_DIR}/shaders_slang/*.slang")
+list(APPEND SLANG_DEPENDENCY_FILES
+    "${PROJECT_SOURCE_DIR}/third_party/NRD/Shaders/NRD.hlsli"
+    "${PROJECT_SOURCE_DIR}/third_party/NRD/Shaders/NRDConfig.hlsli")
 
 ## find all the shader files under the shaders folder
 file(GLOB_RECURSE GLSL_SOURCE_FILES
@@ -102,32 +118,7 @@ foreach(SLANG_SRC ${SLANG_SOURCE_FILES})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(SLANG_SRC)    
 
-## find all the shader files under the shaders folder
-file(GLOB_RECURSE HLSL_NRD_CS_SOURCE_FILES
-    "${PROJECT_SOURCE_DIR}/third_party/NRD/Shaders/Source/*.cs.hlsl"
-)
-
-## iterate each shader
-foreach(HLSL_NRD_CS_SRC ${HLSL_NRD_CS_SOURCE_FILES})
-  message(STATUS "BUILDING SHADER")
-  get_filename_component(FILE_NAME ${HLSL_NRD_CS_SRC} NAME)
-  set(SPIRV "${PROJECT_SOURCE_DIR}/third_party/NRD/Shaders/Source/${FILE_NAME}.spv")
-  message(STATUS ${HLSL_NRD_CS_SRC})
-  ##execute glslang command to compile that specific shader
-  add_custom_command(
-    OUTPUT ${SPIRV}
-    COMMAND ${DXC} -spirv  -fvk-auto-shift-bindings -fvk-use-gl-layout ${HLSL_NRD_CS_SRC} -Fo ${SPIRV} -T cs_6_5 -E main -D NRD_COMPILER_DXC=1 -D NRD_NORMAL_ENCODING=2 -D NRD_ROUGHNESS_ENCODING=1 
-        -fvk-s-shift 0 0 -fvk-t-shift 128 0 -fvk-b-shift 256 0 -fvk-u-shift 384 0
-        -fvk-s-shift 0 1 -fvk-t-shift 128 1 -fvk-b-shift 256 1 -fvk-u-shift 384 1
-        -fvk-s-shift 0 2 -fvk-t-shift 128 2 -fvk-b-shift 256 2 -fvk-u-shift 384 2
-        -fvk-s-shift 0 3 -fvk-t-shift 128 3 -fvk-b-shift 256 3 -fvk-u-shift 384 3
-        -fvk-s-shift 0 4 -fvk-t-shift 128 4 -fvk-b-shift 256 4 -fvk-u-shift 384 4
-        -fvk-s-shift 0 5 -fvk-t-shift 128 5 -fvk-b-shift 256 5 -fvk-u-shift 384 5
-        -fvk-s-shift 0 6 -fvk-t-shift 128 6 -fvk-b-shift 256 6 -fvk-u-shift 384 6
-        -fvk-s-shift 0 7 -fvk-t-shift 128 7 -fvk-b-shift 256 7 -fvk-u-shift 384 7
-    DEPENDS ${HLSL_NRD_CS_SRC})
-  list(APPEND SPIRV_BINARY_FILES ${SPIRV})
-endforeach(HLSL_NRD_CS_SRC)
+# NRD shaders are compiled and embedded by the NRDShaders dependency.
 
 add_custom_target(
     Shaders 

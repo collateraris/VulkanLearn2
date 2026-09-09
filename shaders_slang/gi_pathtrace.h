@@ -260,10 +260,12 @@ struct SReservoir
 struct SReservoirPT
 {
 	uint4 randomSeed = uint4(0, 0, 0, 0);
+	// RGB is the unchanged path estimator; W is the first secondary hit distance.
 	float4 radiance = float4(0., 0., 0., 0.);
 	float weightSum = 0;
 	uint samplesNumber = 0;
 	float finalWeight = 1;
+	// Reuse the ABI padding: 0 = diffuse first lobe, 1 = specular first lobe.
 	float pad0 = 0;
 
 	[mutating]
@@ -274,6 +276,7 @@ struct SReservoirPT
 		if (rand(randSeed) < weight / weightSum) {
 			radiance = res.radiance; // r.y
 			randomSeed = res.randomSeed;
+			pad0 = res.pad0;
 		}
 	};
 };

@@ -85,7 +85,7 @@ void main()
         {
             // Replay is also necessary on a stationary camera: subpixel
             // jitter can change the primary hit across a silhouette/material.
-            previous.radiance = float4(restirTraceIndirect(pixel, previous.randomSeed), 1.0f);
+            restirReplayIndirect(pixel, previous);
             SReservoirPT temporal = SReservoirPT(uint4(0), float4(0.0f), 0.0f, 0, 0.0f, 0.0f);
             temporal.updateReservoir(rng, center, restirTarget(center.radiance.xyz) * center.finalWeight * center.samplesNumber);
             temporal.updateReservoir(rng, previous, restirTarget(previous.radiance.xyz) * previous.finalWeight * previous.samplesNumber);
@@ -120,7 +120,7 @@ void main()
 
         // Move the NEIGHBOR seed to the RECEIVING surface. Copying the neighbor
         // radiance or replaying the center seed at the neighbor is not a shift.
-        candidate.radiance = float4(restirTraceIndirect(pixel, candidate.randomSeed), 1.0f);
+        restirReplayIndirect(pixel, candidate);
         result.updateReservoir(rng, candidate, restirTarget(candidate.radiance.xyz) * candidate.finalWeight * candidate.samplesNumber);
         sampleCount += candidate.samplesNumber;
     }

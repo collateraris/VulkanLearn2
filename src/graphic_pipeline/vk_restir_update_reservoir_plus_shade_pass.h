@@ -21,6 +21,9 @@ public:
 	void draw(rhi::CommandList& cmd, int frameSlot);
 
 	const Texture& get_output() const;
+	const Texture& get_diffuse_output() const { return _diffuseOutput; }
+	const Texture& get_specular_output() const { return _specularOutput; }
+	const Texture& get_bypass_output() const { return _bypassOutput; }
 
 
 private:
@@ -30,6 +33,9 @@ private:
 
 	VkExtent3D _imageExtent;
 	Texture _outputTex;
+	Texture _diffuseOutput;
+	Texture _specularOutput;
+	Texture _bypassOutput;
 	VkFormat      _colorFormat{ VK_FORMAT_R16G16B16A16_SFLOAT };
 
 	const uint32_t _tileSize = 16;

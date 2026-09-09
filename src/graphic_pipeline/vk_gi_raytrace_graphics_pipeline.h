@@ -16,8 +16,7 @@
 #include <graphic_pipeline/vk_restir_update_reservoir_plus_shade_pass.h>
 #include <graphic_pipeline/vk_raytrace_reflection.h>
 #include <graphic_pipeline/vk_simple_accumulation_graphics_pipeline.h>
-#include <graphic_pipeline/vk_spatial_denoiser_pass.h>
-#include <graphic_pipeline/vk_raytracer_denoiser_pass.h>
+#include <graphic_pipeline/vk_reblur_denoiser_pass.h>
 #include <graphic_pipeline/vk_nrc_training.h>
 #include <graphic_pipeline/vk_nrc_optimize.h>
 #include <graphic_pipeline/vk_nrc_inference.h>
@@ -93,13 +92,12 @@ private:
 	std::unique_ptr<VulkanReSTIRUpdateReservoirPlusShadePass> _restirUpdateShadeGP;
 	std::unique_ptr<VulkanRaytrace_ReflectionPass> _raytraceReflection;
 	std::unique_ptr<VulkanSimpleAccumulationGraphicsPipeline> _accumulationGP;
-	std::unique_ptr<VulkanSpatialDenoiserPass> _spatialDenoiser;
+	std::unique_ptr<ReblurDenoiserPass> _reblurDenoiser;
 
 	std::unique_ptr<VulkanNRC_TrainingPass> _nrcTrainGP;
 	std::unique_ptr<VulkanNRC_OptimizePass> _nrcOptimizeGP;
 	std::unique_ptr<VulkanNRC_InferencePass> _nrcInferenceGP;
 
-	std::unique_ptr<VulkanRaytracerDenoiserPass> _denoiserPass;
 	bool _historyValid = false;
 	bool _resetNrcTraining = false;
 	glm::mat4 _historyView{1.0f};

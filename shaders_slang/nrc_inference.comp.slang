@@ -71,8 +71,16 @@ RWTexture2D<float4> ptWposObjectIdOutput : register(u3);
 [[vk::binding(4, 4)]]
 RWTexture2D<float4> ptOutput : register(u4);
 
+[[vk::binding(5, 4)]] [[vk::image_format("rgba32f")]]
+RWTexture2D<float4> denoiserDiffuseOutput;
+[[vk::binding(6, 4)]] [[vk::image_format("rgba32f")]]
+RWTexture2D<float4> denoiserSpecularOutput;
+[[vk::binding(7, 4)]] [[vk::image_format("rgba32f")]]
+RWTexture2D<float4> denoiserBypassOutput;
+
 #include "restir_lighting.h"
 #include "restir_visibility.h"
+#include "restir_denoiser.h"
 
 [shader("compute")]
 [numthreads(16, 16, 1)]
@@ -91,8 +99,9 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 
     if (wposObjectId.w < 0.f || !all(isfinite(wposObjectId.xyz)))
     {
-        ptOutput[dispatchThreadId.xy] = float4(min(restirEnvironment(-restirViewDirection(dispatchThreadId.xy)),
-            float3(65504.f)), 1.f);
+        float3 environment = restirEnvironment(-restirViewDirection(dispatchThreadId.xy));
+        ptOutput[dispatchThreadId.xy] = float4(min(environment, float3(65504.f)), 1.f);
+        restirWriteDenoiserMiss(dispatchThreadId.xy, environment);
         return;
     };
 
@@ -125,24 +134,33 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
         rtxns::mlp::NoneAct<half, OUTPUT_NEURONS>());
     float3 prediction = float3(outputParams[0], outputParams[1], outputParams[2]);
     float3 indirectRadiance = nrcIndirectTarget(indirect);
+    float cacheWeight = 0.0f;
+    float3 cachedRadiance = float3(0.0f);
     if (all(isfinite(prediction)))
     {
         // Warmup alone does not establish that the cache has converged on a
         // bright scene. Keep at least 75% PT so an undertrained cache cannot
         // erase the traced indirect lighting. Both estimate the same term.
-        float cacheWeight = NRC_CACHE_BLEND_MAX * saturate((gConst.currentStep - 32.f) / 96.f);
+        cacheWeight = NRC_CACHE_BLEND_MAX * saturate((gConst.currentStep - 32.f) / 96.f);
         indirectRadiance = lerp(indirectRadiance, max(prediction, float3(0.f)), cacheWeight);
+        cachedRadiance = max(prediction, float3(0.f)) * cacheWeight;
     }
     if (giParams.numRays == 0)
+    {
         indirectRadiance = float3(0.f);
+        cachedRadiance = float3(0.f);
+    }
 
     float3 radiance = material.emissive + indirectRadiance;
     restirOrientNormals(V, geometryNormal, shadingNormal);
-    if (restirValidLight(reservoirSpacial) && isfinite(reservoirSpacial.finalWeight) &&
-        reservoirSpacial.finalWeight > 0.f && restirLightVisible(reservoirSpacial, wposObjectId.xyz, geometryNormal))
+    bool directVisible = restirValidLight(reservoirSpacial) && isfinite(reservoirSpacial.finalWeight) &&
+        reservoirSpacial.finalWeight > 0.f && restirLightVisible(reservoirSpacial, wposObjectId.xyz, geometryNormal);
+    if (directVisible)
     {
         radiance += restirEvaluateDirect(reservoirSpacial, wposObjectId.xyz, material,
             geometryNormal, shadingNormal, V) * reservoirSpacial.finalWeight;
     }
     ptOutput[dispatchThreadId.xy] = float4(clamp(restirFiniteRadiance(radiance), float3(0.f), float3(65504.f)), 1.f);
+    restirWriteDenoiserSignals(dispatchThreadId.xy, wposObjectId.xyz, material, geometryNormal,
+        shadingNormal, V, reservoirSpacial, directVisible, indirect, 1.0f - cacheWeight, cachedRadiance);
 }

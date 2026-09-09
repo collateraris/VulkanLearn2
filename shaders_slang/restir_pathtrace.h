@@ -45,10 +45,10 @@ float restirSpecularProbability(MaterialProperties material, float3 V, float3 no
 
 bool restirSampleDirection(inout RngStateType rng, MaterialProperties material,
     float3 V, float3 geometryNormal, float3 shadingNormal, inout float3 throughput,
-    out float3 direction, out bool delta)
+    out float3 direction, out float firstLobe)
 {
     direction = float3(0.0f);
-    delta = false;
+    firstLobe = 0.0f;
     int type = SPECULAR_TYPE;
     float probability = 1.0f;
     if (!(material.metalness == 1.0f && material.roughness == 0.0f))
@@ -60,11 +60,11 @@ bool restirSampleDirection(inout RngStateType rng, MaterialProperties material,
             probability = 1.0f - probability;
         }
     }
+    firstLobe = type == SPECULAR_TYPE ? 1.0f : 0.0f;
     float3 weight;
     if (!evalIndirectCombinedBRDF(float2(rand(rng), rand(rng)), shadingNormal,
         geometryNormal, V, material, type, direction, weight)) return false;
     throughput *= weight / probability;
-    delta = type == SPECULAR_TYPE && material.roughness == 0.0f;
     return all(isfinite(throughput)) && all(isfinite(direction)) && any(throughput > 0.0f);
 }
 
@@ -74,8 +74,10 @@ bool restirSampleDirection(inout RngStateType rng, MaterialProperties material,
 // (Jacobian = 1); the BRDF/PDF factors are already included in throughput.
 // See Lin et al., Generalized Resampled Importance Sampling (2022), and
 // Sawhney et al., Decorrelating ReSTIR Samplers via MCMC Mutations (2024), PSS.
-float3 restirTraceIndirect(uint2 pixel, RngStateType rng)
+float3 restirTraceIndirect(uint2 pixel, RngStateType rng, out float firstHitDistance, out float firstLobe)
 {
+    firstHitDistance = 0.0f;
+    firstLobe = 0.0f;
     float4 position = ptWposObjectIdOutput[pixel];
     if (position.w < 0.0f || giParams.numRays == 0) return float3(0.0f);
     MaterialProperties material = restirMaterial(ptAlbedoMetalnessOutput[pixel], ptEmissionRoughnessOutput[pixel]);
@@ -85,8 +87,7 @@ float3 restirTraceIndirect(uint2 pixel, RngStateType rng)
     restirOrientNormals(V, geometryNormal, shadingNormal);
     float3 throughput = float3(1.0f);
     float3 direction;
-    bool previousDelta;
-    if (!restirSampleDirection(rng, material, V, geometryNormal, shadingNormal, throughput, direction, previousDelta))
+    if (!restirSampleDirection(rng, material, V, geometryNormal, shadingNormal, throughput, direction, firstLobe))
         return float3(0.0f);
     float3 origin = offsetRay(position.xyz, geometryNormal);
     float3 radiance = float3(0.0f);
@@ -95,6 +96,13 @@ float3 restirTraceIndirect(uint2 pixel, RngStateType rng)
     for (uint bounce = 1; bounce <= giParams.numRays; ++bounce)
     {
         IndirectGbufferRayPayload payload = restirTraceRay(origin, direction);
+        if (bounce == 1)
+        {
+            // NRD needs the real first segment after the primary surface, with
+            // neither camera distance nor any reservoir/PDF scaling included.
+            firstHitDistance = payload.hasHit()
+                ? length(payload.position_objectID.xyz - position.xyz) : FLT_MAX;
+        }
         if (!payload.hasHit())
         {
             // BRDF-sampled escape to the environment, including its PDF in
@@ -125,8 +133,17 @@ float3 restirTraceIndirect(uint2 pixel, RngStateType rng)
             if (!(survival > 0.0f) || rand(rng) >= survival) break;
             throughput /= survival;
         }
-        if (!restirSampleDirection(rng, material, V, geometryNormal, shadingNormal, throughput, direction, previousDelta)) break;
+        float bounceLobe;
+        if (!restirSampleDirection(rng, material, V, geometryNormal, shadingNormal, throughput, direction, bounceLobe)) break;
         origin = offsetRay(payload.position_objectID.xyz, geometryNormal);
     }
     return restirFiniteRadiance(radiance);
+}
+
+void restirReplayIndirect(uint2 pixel, inout SReservoirPT reservoir)
+{
+    float firstHitDistance, firstLobe;
+    float3 radiance = restirTraceIndirect(pixel, reservoir.randomSeed, firstHitDistance, firstLobe);
+    reservoir.radiance = float4(radiance, firstHitDistance);
+    reservoir.pad0 = firstLobe;
 }

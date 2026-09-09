@@ -11,9 +11,9 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #pragma once
 
 #define NRD_DESCS_VERSION_MAJOR 4
-#define NRD_DESCS_VERSION_MINOR 3
+#define NRD_DESCS_VERSION_MINOR 17
 
-static_assert (NRD_VERSION_MAJOR == NRD_DESCS_VERSION_MAJOR && NRD_VERSION_MINOR == NRD_DESCS_VERSION_MINOR, "Please, update all NRD SDK files");
+static_assert(NRD_VERSION_MAJOR == NRD_DESCS_VERSION_MAJOR && NRD_VERSION_MINOR == NRD_DESCS_VERSION_MINOR, "Please, update all NRD SDK files");
 
 namespace nrd
 {
@@ -32,140 +32,12 @@ namespace nrd
         MAX_NUM
     };
 
-    enum class Denoiser : uint32_t
-    {
-        /*
-        IMPORTANT: IN_MV, IN_NORMAL_ROUGHNESS, IN_VIEWZ are used by any denoiser
-        These denoisers DON'T use:
-            REFERENCE - IN_MV, IN_NORMAL_ROUGHNESS, IN_VIEWZ
-            SPECULAR_DELTA_MV - IN_NORMAL_ROUGHNESS, IN_VIEWZ
-        */
-
-        // =============================================================================================================================
-        // REBLUR
-        // =============================================================================================================================
-
-        // INPUTS - IN_DIFF_RADIANCE_HITDIST,
-        // OPTIONAL INPUTS - IN_DIFF_CONFIDENCE
-        // OUTPUTS - OUT_DIFF_RADIANCE_HITDIST
-        REBLUR_DIFFUSE,
-
-        // INPUTS - IN_DIFF_HITDIST,
-        // OUTPUTS - OUT_DIFF_HITDIST
-        REBLUR_DIFFUSE_OCCLUSION,
-
-        // INPUTS - IN_DIFF_SH0, IN_DIFF_SH1
-        // OPTIONAL INPUTS - IN_DIFF_CONFIDENCE
-        // OUTPUTS - OUT_DIFF_SH0, OUT_DIFF_SH1
-        REBLUR_DIFFUSE_SH,
-
-        // INPUTS - IN_SPEC_RADIANCE_HITDIST,
-        // OPTIONAL INPUTS - IN_SPEC_DIRECTION_PDF, IN_SPEC_CONFIDENCE
-        // OUTPUTS - OUT_SPEC_RADIANCE_HITDIST
-        REBLUR_SPECULAR,
-
-        // INPUTS - IN_SPEC_HITDIST,
-        // OUTPUTS - OUT_SPEC_HITDIST
-        REBLUR_SPECULAR_OCCLUSION,
-
-        // INPUTS - IN_SPEC_SH0, IN_SPEC_SH1
-        // OPTIONAL INPUTS - IN_SPEC_CONFIDENCE
-        // OUTPUTS - OUT_SPEC_SH0, OUT_SPEC_SH1
-        REBLUR_SPECULAR_SH,
-
-        // INPUTS - IN_DIFF_RADIANCE_HITDIST, IN_SPEC_RADIANCE_HITDIST,
-        // OPTIONAL INPUTS - IN_DIFF_CONFIDENCE,  IN_SPEC_CONFIDENCE
-        // OUTPUTS - OUT_DIFF_RADIANCE_HITDIST, OUT_SPEC_RADIANCE_HITDIST
-        REBLUR_DIFFUSE_SPECULAR,
-
-        // INPUTS - IN_DIFF_HITDIST, IN_SPEC_HITDIST,
-        // OUTPUTS - OUT_DIFF_HITDIST, OUT_SPEC_HITDIST
-        REBLUR_DIFFUSE_SPECULAR_OCCLUSION,
-
-        // INPUTS - IN_DIFF_SH0, IN_DIFF_SH1, IN_SPEC_SH0, IN_SPEC_SH1
-        // OPTIONAL INPUTS - IN_DIFF_CONFIDENCE,  IN_SPEC_CONFIDENCE
-        // OUTPUTS - OUT_DIFF_SH0, OUT_DIFF_SH1, OUT_SPEC_SH0, OUT_SPEC_SH1
-        REBLUR_DIFFUSE_SPECULAR_SH,
-
-        // INPUTS - IN_DIFF_DIRECTION_HITDIST,
-        // OPTIONAL INPUTS - IN_DIFF_CONFIDENCE
-        // OUTPUTS - OUT_DIFF_DIRECTION_HITDIST
-        REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION,
-
-        // =============================================================================================================================
-        // SIGMA
-        // =============================================================================================================================
-
-        // INPUTS - IN_SHADOWDATA, OUT_SHADOW_TRANSLUCENCY (used as history)
-        // OUTPUTS - OUT_SHADOW_TRANSLUCENCY
-        SIGMA_SHADOW,
-
-        // INPUTS - IN_SHADOWDATA, IN_SHADOW_TRANSLUCENCY, OUT_SHADOW_TRANSLUCENCY (used as history)
-        // OUTPUTS - OUT_SHADOW_TRANSLUCENCY
-        SIGMA_SHADOW_TRANSLUCENCY,
-
-        // =============================================================================================================================
-        // RELAX
-        // =============================================================================================================================
-
-        // INPUTS - IN_DIFF_RADIANCE_HITDIST
-        // OPTIONAL INPUTS - IN_DIFF_CONFIDENCE
-        // OUTPUTS - OUT_DIFF_RADIANCE_HITDIST
-        RELAX_DIFFUSE,
-
-        // INPUTS - IN_DIFF_SH0, IN_DIFF_SH1
-        // OPTIONAL INPUTS - IN_DIFF_CONFIDENCE
-        // OUTPUTS - OUT_DIFF_SH0, OUT_DIFF_SH1
-        RELAX_DIFFUSE_SH,
-
-        // INPUTS - IN_SPEC_RADIANCE_HITDIST
-        // OPTIONAL INPUTS - IN_SPEC_CONFIDENCE
-        // OUTPUTS - OUT_SPEC_RADIANCE_HITDIST
-        RELAX_SPECULAR,
-
-        // INPUTS - IN_SPEC_SH0, IN_SPEC_SH1
-        // OPTIONAL INPUTS - IN_SPEC_CONFIDENCE
-        // OUTPUTS - OUT_SPEC_SH0, OUT_SPEC_SH1
-        RELAX_SPECULAR_SH,
-
-        // INPUTS - IN_DIFF_RADIANCE_HITDIST, IN_SPEC_RADIANCE_HITDIST
-        // OPTIONAL INPUTS - IN_DIFF_CONFIDENCE,  IN_SPEC_CONFIDENCE
-        // OUTPUTS - OUT_DIFF_RADIANCE_HITDIST, OUT_SPEC_RADIANCE_HITDIST
-        RELAX_DIFFUSE_SPECULAR,
-
-        // INPUTS - IN_DIFF_SH0, IN_DIFF_SH1, IN_SPEC_SH0, IN_SPEC_SH1
-        // OPTIONAL INPUTS - IN_DIFF_CONFIDENCE,  IN_SPEC_CONFIDENCE
-        // OUTPUTS - OUT_DIFF_SH0, OUT_DIFF_SH1, OUT_SPEC_SH0, OUT_SPEC_SH1
-        RELAX_DIFFUSE_SPECULAR_SH,
-
-        // =============================================================================================================================
-        // REFERENCE
-        // =============================================================================================================================
-
-        // INPUTS - IN_RADIANCE
-        // OUTPUTS - OUT_RADIANCE
-        REFERENCE,
-
-        // =============================================================================================================================
-        // MOTION VECTORS
-        // =============================================================================================================================
-
-        // INPUTS - IN_SPEC_HITDIST
-        // OUTPUTS - OUT_REFLECTION_MV
-        SPECULAR_REFLECTION_MV,
-
-        // INPUTS - IN_DELTA_PRIMARY_POS, IN_DELTA_SECONDARY_POS
-        // OUTPUT - OUT_DELTA_MV
-        SPECULAR_DELTA_MV,
-
-        MAX_NUM
-    };
-
+    // Only resources referenced by "Denoiser" must be provided from the application side
     // See NRD.hlsli for more details
     enum class ResourceType : uint32_t
     {
         //=============================================================================================================================
-        // COMMON INPUTS
+        // NON-NOISY INPUTS
         //=============================================================================================================================
 
         // 3D world-space motion (RGBA16f+) or 2D screen-space motion (RG16f+), MVs must be non-jittered, MV = previous - current
@@ -177,26 +49,41 @@ namespace nrd
         // Linear view depth for primary rays (R16f+)
         IN_VIEWZ,
 
+        // (Optional) User-provided history confidence in range 0-1, i.e. antilag (R8+):
+        //  - used only if "CommonSettings::isHistoryConfidenceAvailable = true" and "NRD_SUPPORTS_HISTORY_CONFIDENCE = 1"
+        //  - must be computed for the previous frame in the current frame (the only one trivial solution in any case)
+        //  - textures may be at lower resolution (linearly upscaled)
+        //  - separation into diffuse and specular is optional:
+        //    - 1 path/pixel (probabilistic lobe selection) => better compute lighting confidence and use for both inputs
+        //    - 1 diffuse path/pixel + 1 specular path/pixel => may be better to separate
+        IN_DIFF_CONFIDENCE,
+        IN_SPEC_CONFIDENCE,
+
+        // (Optional) User-provided disocclusion threshold selector in range 0-1 (R8+)
+        // Disocclusion threshold is mixed between "disocclusionThreshold" and "disocclusionThresholdAlternate"
+        // Used only if "CommonSettings::isDisocclusionThresholdMixAvailable = true" and "NRD_SUPPORTS_DISOCCLUSION_THRESHOLD_MIX = 1"
+        IN_DISOCCLUSION_THRESHOLD_MIX,
+
         //=============================================================================================================================
-        // INPUTS
+        // NOISY INPUTS
         //=============================================================================================================================
 
-        // Noisy radiance and hit distance (RGBA16f+)
+        // Radiance and hit distance (RGBA16f+)
         //      REBLUR: use "REBLUR_FrontEnd_PackRadianceAndNormHitDist" for encoding
         //      RELAX: use "RELAX_FrontEnd_PackRadianceAndHitDist" for encoding
         IN_DIFF_RADIANCE_HITDIST,
         IN_SPEC_RADIANCE_HITDIST,
 
-        // Noisy hit distance (R8+)
-        //      REBLUR: use "REBLUR_FrontEnd_GetNormHitDist" for encoding
+        // Hit distance (R8+)
+        //      REBLUR: use "REBLUR_FrontEnd_GetNormHitDist" for encoding (only if a diffuse or specular lobe was not skipped due to probabilistic selection)
         IN_DIFF_HITDIST,
         IN_SPEC_HITDIST,
 
-        // Noisy bent normal and normalized hit distance (RGBA8+)
+        // Sampling direction and normalized hit distance (RGBA8+)
         //      REBLUR: use "REBLUR_FrontEnd_PackDirectionalOcclusion" for encoding
         IN_DIFF_DIRECTION_HITDIST,
 
-        // Noisy SH data (2x RGBA16f+)
+        // SH data (2x RGBA16f+)
         //      REBLUR: use "REBLUR_FrontEnd_PackSh" for encoding
         //      RELAX: use "RELAX_FrontEnd_PackSh" for encoding
         IN_DIFF_SH0,
@@ -204,73 +91,53 @@ namespace nrd
         IN_SPEC_SH0,
         IN_SPEC_SH1,
 
-        // (Optional) User-provided history confidence in range 0-1, i.e. antilag (R8+)
-        // Used only if "CommonSettings::isHistoryConfidenceAvailable = true"
-        IN_DIFF_CONFIDENCE,
-        IN_SPEC_CONFIDENCE,
+        // Penumbra and optional translucency (R16f+ and RGBA8+ for translucency)
+        //      SIGMA: use "SIGMA_FrontEnd_PackPenumbra" for penumbra properties encoding
+        //      SIGMA: use "SIGMA_FrontEnd_PackTranslucency" for translucency encoding
+        IN_PENUMBRA,
+        IN_TRANSLUCENCY,
 
-        // (Optional) User-provided disocclusion threshold selector in range 0-1 (R8+)
-        // Disocclusion threshold is mixed between "disocclusionThreshold" and "disocclusionThresholdAlternate"
-        // Used only if "CommonSettings::isDisocclusionThresholdMixAvailable = true"
-        IN_DISOCCLUSION_THRESHOLD_MIX,
-
-        // (Optional) Base color (can be decoupled to diffuse and specular albedo based on metalness) and metalness (RGBA8+)
-        // Used only if "CommonSettings::isBaseColorMetalnessAvailable = true"
-        IN_BASECOLOR_METALNESS,
-
-        // Noisy shadow data and optional translucency (RG16f+ and RGBA8+ for optional translucency)
-        //      SIGMA: use "SIGMA_FrontEnd_PackShadow" for encoding
-        IN_SHADOWDATA,
-        IN_SHADOW_TRANSLUCENCY,
-
-        // Noisy signal (R8+)
-        IN_RADIANCE,
-
-        // Primary and secondary world-space positions (RGBA16f+)
-        IN_DELTA_PRIMARY_POS,
-        IN_DELTA_SECONDARY_POS,
+        // Some signal (R8+)
+        IN_SIGNAL,
 
         //=============================================================================================================================
         // OUTPUTS
         //=============================================================================================================================
 
-        // IMPORTANT: These textures can be potentially used as history buffers!
         // IMPORTANT: Most of denoisers do not write into output pixels outside of "CommonSettings::denoisingRange"!
 
-        // Denoised radiance and hit distance
-        //      REBLUR: use "REBLUR_BackEnd_UnpackRadianceAndNormHitDist" for decoding (RGBA16f+)
+        // Radiance and normalized hit distance (occlusion) or history length
+        //      REBLUR: use "REBLUR_BackEnd_UnpackRadianceAndNormHitDist" for decoding (R11G11B10f+)
+        //          .w = diffuse or specular occlusion (default) or history length in frames if "ReblurSettings::returnHistoryLengthInsteadOfOcclusion = true"
         //      RELAX: use "RELAX_BackEnd_UnpackRadiance" for decoding (R11G11B10f+)
+        //          .w = diffuse history length in frames
         OUT_DIFF_RADIANCE_HITDIST,
         OUT_SPEC_RADIANCE_HITDIST,
 
-        // Denoised SH data
+        // SH data
         //      REBLUR: use "REBLUR_BackEnd_UnpackSh" for decoding (2x RGBA16f+)
+        //          .normHitDist = diffuse or specular occlusion (default) or history length in frames if "ReblurSettings::returnHistoryLengthInsteadOfOcclusion = true"
         //      RELAX: use "RELAX_BackEnd_UnpackSh" for decoding (2x RGBA16f+)
+        //          .normHitDist = diffuse history length in frames
         OUT_DIFF_SH0,
         OUT_DIFF_SH1,
         OUT_SPEC_SH0,
         OUT_SPEC_SH1,
 
-        // Denoised normalized hit distance (R8+)
+        // Normalized hit distance (R8+)
         OUT_DIFF_HITDIST,
         OUT_SPEC_HITDIST,
 
-        // Denoised bent normal and normalized hit distance (RGBA8+)
+        // Bent normal and normalized hit distance (RGBA8+)
         //      REBLUR: use "REBLUR_BackEnd_UnpackDirectionalOcclusion" for decoding
         OUT_DIFF_DIRECTION_HITDIST,
 
-        // Denoised shadow and optional transcluceny (R8+ or RGBA8+)
+        // Shadow and optional transcluceny (R8+ or RGBA8+)
         //      SIGMA: use "SIGMA_BackEnd_UnpackShadow" for decoding
-        OUT_SHADOW_TRANSLUCENCY,
+        OUT_SHADOW_TRANSLUCENCY, // IMPORTANT: used as history if "stabilizationStrength != 0"
 
-        // Denoised signal
-        OUT_RADIANCE,
-
-        // 2D screen-space specular motion (RG16f+), MV = previous - current
-        OUT_REFLECTION_MV,
-
-        // 2D screen-space refraction motion (RG16f+), MV = previous - current
-        OUT_DELTA_MV,
+        // Denoised signal (R8+)
+        OUT_SIGNAL,
 
         // (Optional) Debug output (RGBA8+), .w = transparency
         // Used if "CommonSettings::enableValidation = true"
@@ -287,6 +154,111 @@ namespace nrd
         PERMANENT_POOL,
 
         MAX_NUM,
+    };
+
+    enum class Denoiser : uint32_t
+    {
+        /*
+        IMPORTANT:
+          - IN_MV, IN_NORMAL_ROUGHNESS, IN_VIEWZ are used by any denoiser, but these denoisers DON'T use:
+            - SIGMA_SHADOW & SIGMA_SHADOW_TRANSLUCENCY - IN_MV, if "stabilizationStrength = 0"
+            - REFERENCE - IN_MV, IN_NORMAL_ROUGHNESS, IN_VIEWZ
+          - Optional inputs are in ()
+        */
+
+        //=============================================================================================================================
+        // REBLUR
+        //=============================================================================================================================
+
+        // INPUTS - IN_DIFF_RADIANCE_HITDIST (IN_DIFF_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_DIFF_RADIANCE_HITDIST
+        REBLUR_DIFFUSE,
+
+        // INPUTS - IN_DIFF_HITDIST (IN_DIFF_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_DIFF_HITDIST
+        REBLUR_DIFFUSE_OCCLUSION,
+
+        // INPUTS - IN_DIFF_SH0, IN_DIFF_SH1 (IN_DIFF_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_DIFF_SH0, OUT_DIFF_SH1
+        REBLUR_DIFFUSE_SH,
+
+        // INPUTS - IN_SPEC_RADIANCE_HITDIST (IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_SPEC_RADIANCE_HITDIST
+        REBLUR_SPECULAR,
+
+        // INPUTS - IN_SPEC_HITDIST (IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_SPEC_HITDIST
+        REBLUR_SPECULAR_OCCLUSION,
+
+        // INPUTS - IN_SPEC_SH0, IN_SPEC_SH1 (IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_SPEC_SH0, OUT_SPEC_SH1
+        REBLUR_SPECULAR_SH,
+
+        // INPUTS - IN_DIFF_RADIANCE_HITDIST, IN_SPEC_RADIANCE_HITDIST (IN_DIFF_CONFIDENCE, IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_DIFF_RADIANCE_HITDIST, OUT_SPEC_RADIANCE_HITDIST
+        REBLUR_DIFFUSE_SPECULAR,
+
+        // INPUTS - IN_DIFF_HITDIST, IN_SPEC_HITDIST (IN_DIFF_CONFIDENCE, IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_DIFF_HITDIST, OUT_SPEC_HITDIST
+        REBLUR_DIFFUSE_SPECULAR_OCCLUSION,
+
+        // INPUTS - IN_DIFF_SH0, IN_DIFF_SH1, IN_SPEC_SH0, IN_SPEC_SH1 (IN_DIFF_CONFIDENCE, IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_DIFF_SH0, OUT_DIFF_SH1, OUT_SPEC_SH0, OUT_SPEC_SH1
+        REBLUR_DIFFUSE_SPECULAR_SH,
+
+        // INPUTS - IN_DIFF_DIRECTION_HITDIST (IN_DIFF_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_DIFF_DIRECTION_HITDIST
+        REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION,
+
+        //=============================================================================================================================
+        // RELAX
+        //=============================================================================================================================
+
+        // INPUTS - IN_DIFF_RADIANCE_HITDIST (IN_DIFF_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_DIFF_RADIANCE_HITDIST
+        RELAX_DIFFUSE,
+
+        // INPUTS - IN_DIFF_SH0, IN_DIFF_SH1 (IN_DIFF_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_DIFF_SH0, OUT_DIFF_SH1
+        RELAX_DIFFUSE_SH,
+
+        // INPUTS - IN_SPEC_RADIANCE_HITDIST (IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_SPEC_RADIANCE_HITDIST
+        RELAX_SPECULAR,
+
+        // INPUTS - IN_SPEC_SH0, IN_SPEC_SH1 (IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_SPEC_SH0, OUT_SPEC_SH1
+        RELAX_SPECULAR_SH,
+
+        // INPUTS - IN_DIFF_RADIANCE_HITDIST, IN_SPEC_RADIANCE_HITDIST (IN_DIFF_CONFIDENCE, IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_DIFF_RADIANCE_HITDIST, OUT_SPEC_RADIANCE_HITDIST
+        RELAX_DIFFUSE_SPECULAR,
+
+        // INPUTS - IN_DIFF_SH0, IN_DIFF_SH1, IN_SPEC_SH0, IN_SPEC_SH1 (IN_DIFF_CONFIDENCE, IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
+        // OUTPUTS - OUT_DIFF_SH0, OUT_DIFF_SH1, OUT_SPEC_SH0, OUT_SPEC_SH1
+        RELAX_DIFFUSE_SPECULAR_SH,
+
+        //=============================================================================================================================
+        // SIGMA
+        //=============================================================================================================================
+
+        // INPUTS - IN_PENUMBRA, OUT_SHADOW_TRANSLUCENCY
+        // OUTPUTS - OUT_SHADOW_TRANSLUCENCY
+        SIGMA_SHADOW,
+
+        // INPUTS - IN_PENUMBRA, IN_TRANSLUCENCY, OUT_SHADOW_TRANSLUCENCY
+        // OUTPUTS - OUT_SHADOW_TRANSLUCENCY
+        SIGMA_SHADOW_TRANSLUCENCY,
+
+        //=============================================================================================================================
+        // REFERENCE
+        //=============================================================================================================================
+
+        // INPUTS - IN_SIGNAL
+        // OUTPUTS - OUT_SIGNAL
+        REFERENCE,
+
+        MAX_NUM
     };
 
     enum class Format : uint32_t
@@ -363,9 +335,7 @@ namespace nrd
     enum class Sampler : uint32_t
     {
         NEAREST_CLAMP,
-        NEAREST_MIRRORED_REPEAT,
         LINEAR_CLAMP,
-        LINEAR_MIRRORED_REPEAT,
 
         MAX_NUM
     };
@@ -377,8 +347,8 @@ namespace nrd
         RGBA8_UNORM,
         RGBA8_SNORM,
 
-        // Moderate IQ on curved (not bumpy) surfaces, but offers optional materialID support (normals are oct-packed)
-        R10_G10_B10_A2_UNORM,
+        // Close to best IQ on curved (not bumpy) surfaces, but offers optional materialID support (normals are oct-packed, 2 bits for material ID)
+        R10_G10_B10_A2_UNORM, // RECOMMENDED
 
         // Best IQ on curved (not bumpy) surfaces
         RGBA16_UNORM,
@@ -393,8 +363,8 @@ namespace nrd
         // Alpha (m)
         SQ_LINEAR,
 
-        // Linear roughness (best choice)
-        LINEAR,
+        // Linear roughness
+        LINEAR, // RECOMMENDED
 
         // Sqrt(linear roughness)
         SQRT_LINEAR,
@@ -402,11 +372,11 @@ namespace nrd
         MAX_NUM
     };
 
-    struct MemoryAllocatorInterface
+    struct AllocationCallbacks
     {
-        void* (*Allocate)(void* userArg, size_t size, size_t alignment);
-        void* (*Reallocate)(void* userArg, void* memory, size_t size, size_t alignment);
-        void (*Free)(void* userArg, void* memory);
+        void* (NRD_CALL *Allocate)(void* userArg, size_t size, size_t alignment);
+        void* (NRD_CALL *Reallocate)(void* userArg, void* memory, size_t size, size_t alignment);
+        void (NRD_CALL *Free)(void* userArg, void* memory);
         void* userArg;
     };
 
@@ -434,13 +404,11 @@ namespace nrd
     {
         Identifier identifier;
         Denoiser denoiser;
-        uint16_t renderWidth;
-        uint16_t renderHeight;
     };
 
     struct InstanceCreationDesc
     {
-        MemoryAllocatorInterface memoryAllocatorInterface;
+        AllocationCallbacks allocationCallbacks;
         const DenoiserDesc* denoisers;
         uint32_t denoisersNum;
     };
@@ -448,24 +416,19 @@ namespace nrd
     struct TextureDesc
     {
         Format format;
-        uint16_t width;
-        uint16_t height;
-        uint16_t mipNum;
+        uint16_t downsampleFactor;
     };
 
     struct ResourceDesc
     {
-        DescriptorType stateNeeded;
+        DescriptorType descriptorType;
         ResourceType type;
         uint16_t indexInPool;
-        uint16_t mipOffset;
-        uint16_t mipNum;
     };
 
     struct ResourceRangeDesc
     {
         DescriptorType descriptorType;
-        uint32_t baseRegisterIndex;
         uint32_t descriptorsNum;
     };
 
@@ -480,41 +443,59 @@ namespace nrd
         ComputeShaderDesc computeShaderDXBC;
         ComputeShaderDesc computeShaderDXIL;
         ComputeShaderDesc computeShaderSPIRV;
-        const char* shaderFileName;
-        const char* shaderEntryPointName;
         const ResourceRangeDesc* resourceRanges;
-        uint32_t resourceRangesNum;
+        uint32_t resourceRangesNum; // up to 2 ranges: "TEXTURE" inputs (optional) and "TEXTURE_STORAGE" outputs
+
+        // Hint that pipeline has a constant buffer with shared parameters from "InstanceDesc"
         bool hasConstantData;
+
+        // Format: "fileName|macro1=value1|macro2=value2..." (useful for custom integrations)
+        char shaderIdentifier[256];
     };
 
     struct DescriptorPoolDesc
     {
+        // (Recommended) use a root CBV (push descriptor) for constants
+        // (Recommended) use static (immutable) samplers
+
+        // (Recommended) if a shared pipeline layout (root signature) is used:
+        //  - represents maximum number of resources in a pipeline
+        //  - always 1 constant buffer
+        //  - always "Sampler::MAX_NUM" samplers
+        uint32_t perSetTexturesMaxNum;
+        uint32_t perSetStorageTexturesMaxNum;
+
+        // If tight (per pipeline) pipeline layouts are used:
+        //  - summed up across all dispatches
+        uint32_t totalTexturesNum;
+        uint32_t totalStorageTexturesNum;
+
+        // Maximum number of descriptor sets in a descriptor pool
         uint32_t setsMaxNum;
-        uint32_t constantBuffersMaxNum;
-        uint32_t samplersMaxNum;
-        uint32_t texturesMaxNum;
-        uint32_t storageTexturesMaxNum;
     };
 
     struct InstanceDesc
     {
-        // Constant buffer (shared)
-        uint32_t constantBufferMaxDataSize;
-        uint32_t constantBufferSpaceIndex;
-        uint32_t constantBufferRegisterIndex;
+        // Register spaces
+        uint32_t constantBufferAndSamplersSpaceIndex;   // constant buffer and samplers (= "NRD_CONSTANT_BUFFER_AND_SAMPLERS_SPACE_INDEX")
+        uint32_t resourcesSpaceIndex;                   // SRVs and UAVs (= "NRD_RESOURCES_SPACE_INDEX")
 
-        // Samplers (shared)
+        // Base registers
+        uint32_t constantBufferRegisterIndex;           // = "NRD_CONSTANT_BUFFER_REGISTER_INDEX"
+        uint32_t samplersBaseRegisterIndex;             // = 0
+        uint32_t resourcesBaseRegisterIndex;            // = 0
+
+        // Constant buffer (a root/push descriptor recommended)
+        uint32_t constantBufferMaxDataSize;
+
+        // Samplers (root/immutable samplers recommended)
         const Sampler* samplers;
-        uint32_t samplersNum;
-        uint32_t samplersSpaceIndex;
-        uint32_t samplersBaseRegisterIndex;
+        uint32_t samplersNum;                           // = "Sampler::MAX_NUM"
 
         // Pipelines
-        // - if "PipelineDesc::hasConstantData = true" a pipeline has a constant buffer with the shared description
-        // - if "samplers" are used as static/immutable samplers, "DescriptorPoolDesc::samplerMaxNum" is not needed (it counts samplers across all dispatches)
+        const char* shaderEntryPoint;                   // = "NRD_CS_MAIN"
         const PipelineDesc* pipelines;
         uint32_t pipelinesNum;
-        uint32_t resourcesSpaceIndex;
 
         // Textures
         const TextureDesc* permanentPool;
@@ -522,17 +503,26 @@ namespace nrd
         const TextureDesc* transientPool;
         uint32_t transientPoolSize;
 
-        // Limits
+        // (Optional) Limits
         DescriptorPoolDesc descriptorPoolDesc;
     };
 
     struct DispatchDesc
     {
+        // (Optional)
         const char* name;
-        const ResourceDesc* resources; // concatenated resources for all "resourceRanges" descriptions in DenoiserDesc::pipelines[ pipelineIndex ]
+        Identifier identifier; // denoiser this dispatch belongs to
+
+        // Concatenated resources for all "resourceRanges" in "DenoiserDesc::pipelines[pipelineIndex]"
+        const ResourceDesc* resources;
         uint32_t resourcesNum;
+
+        // Constants
         const uint8_t* constantBufferData;
         uint32_t constantBufferDataSize;
+        bool constantBufferDataMatchesPreviousDispatch; // i.e. no update needed
+
+        // Other
         uint16_t pipelineIndex;
         uint16_t gridWidth;
         uint16_t gridHeight;

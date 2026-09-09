@@ -52,6 +52,13 @@ RWTexture2D<float4> ptWposObjectIdOutput : register(u3);
 [[vk::binding(4, 2)]]
 RWTexture2D<float4> ptOutput : register(u4);
 
+[[vk::binding(5, 2)]] [[vk::image_format("rgba32f")]]
+RWTexture2D<float4> denoiserDiffuseOutput;
+[[vk::binding(6, 2)]] [[vk::image_format("rgba32f")]]
+RWTexture2D<float4> denoiserSpecularOutput;
+[[vk::binding(7, 2)]] [[vk::image_format("rgba32f")]]
+RWTexture2D<float4> denoiserBypassOutput;
+
 [[vk::binding(0, 0)]]
 StructuredBuffer<SVertex> vertices[] : register(t0);
 [[vk::binding(2, 0)]]
@@ -63,6 +70,7 @@ StructuredBuffer<int> indices[] : register(t5);
 
 #include "restir_lighting.h"
 #include "restir_visibility.h"
+#include "restir_denoiser.h"
 
 [shader("compute")]
 [numthreads(16, 16, 1)]
@@ -74,7 +82,9 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     float4 position = ptWposObjectIdOutput[pixel];
     if (position.w < 0.0f)
     {
-        ptOutput[pixel] = float4(min(restirEnvironment(-restirViewDirection(pixel)), float3(65504.0f)), 1.0f);
+        float3 environment = restirEnvironment(-restirViewDirection(pixel));
+        ptOutput[pixel] = float4(min(environment, float3(65504.0f)), 1.0f);
+        restirWriteDenoiserMiss(pixel, environment);
         return;
     }
     MaterialProperties material = restirMaterial(ptAlbedoMetalnessOutput[pixel], ptEmissionRoughnessOutput[pixel]);
@@ -84,10 +94,13 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     restirOrientNormals(V, geometryNormal, shadingNormal);
     SReservoir light = reservoirSpacialBuffer[index];
     float3 direct = restirEvaluateDirect(light, position.xyz, material, geometryNormal, shadingNormal, V);
-    if (!any(direct > 0.0f) || !restirLightVisible(light, position.xyz, geometryNormal)) direct = float3(0.0f);
+    bool directVisible = any(direct > 0.0f) && restirLightVisible(light, position.xyz, geometryNormal);
+    if (!directVisible) direct = float3(0.0f);
     SReservoirPT indirect = reservoirPTSpacialBuffer[index];
     float3 radiance = material.emissive + restirFiniteRadiance(direct * light.finalWeight)
         + restirFiniteRadiance(indirect.radiance.xyz * indirect.finalWeight);
     // The output image is RGBA16F; finite float32 values can still overflow it.
     ptOutput[pixel] = float4(min(restirFiniteRadiance(radiance), float3(65504.0f)), 1.0f);
+    restirWriteDenoiserSignals(pixel, position.xyz, material, geometryNormal, shadingNormal, V,
+        light, directVisible, indirect, 1.0f, float3(0.0f));
 }

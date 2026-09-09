@@ -348,14 +348,17 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::init(VulkanEngine* engine)
 	}
 
 
-	_spatialDenoiser = std::make_unique<VulkanSpatialDenoiserPass>();
-	_spatialDenoiser->init(engine, _accumulationGP->get_output());
+	_reblurDenoiser = std::make_unique<ReblurDenoiserPass>();
+	if (_engine->get_mode() == ReSTIR_NRC)
+		_reblurDenoiser->init(engine, _nrcInferenceGP->get_diffuse_output(),
+			_nrcInferenceGP->get_specular_output(), _nrcInferenceGP->get_bypass_output());
+	else
+		_reblurDenoiser->init(engine, _restirUpdateShadeGP->get_diffuse_output(),
+			_restirUpdateShadeGP->get_specular_output(), _restirUpdateShadeGP->get_bypass_output());
 
 	//_raytraceReflection = std::make_unique<VulkanRaytrace_ReflectionPass>();
 	//_raytraceReflection->init(engine);
 
-	//_denoiserPass = std::make_unique<VulkanRaytracerDenoiserPass>();
-	//_denoiserPass->init(engine);
 }
 
 
@@ -692,6 +695,12 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::append_passes(rg::RenderGraph& g
             uses.push_back(storageUse(weights, Stage::Compute, Access::ShaderRead));
             uses.push_back(storageUse(image("NRC.Output", _nrcInferenceGP->get_output()),
                 Stage::Compute, Access::ShaderWrite));
+            uses.push_back(storageUse(image("NRC.DiffuseSignal", _nrcInferenceGP->get_diffuse_output()),
+                Stage::Compute, Access::ShaderWrite));
+            uses.push_back(storageUse(image("NRC.SpecularSignal", _nrcInferenceGP->get_specular_output()),
+                Stage::Compute, Access::ShaderWrite));
+            uses.push_back(storageUse(image("NRC.BypassSignal", _nrcInferenceGP->get_bypass_output()),
+                Stage::Compute, Access::ShaderWrite));
             graph.add_pass("NRC.Inference", std::move(uses), [this, frameSlot](rhi::CommandList& cmd) {
                 _nrcInferenceGP->draw(cmd, frameSlot);
             });
@@ -703,6 +712,12 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::append_passes(rg::RenderGraph& g
         uses.push_back(storageUse(diSpatial, Stage::Compute, Access::ShaderRead));
         uses.push_back(storageUse(ptSpatial, Stage::Compute, Access::ShaderRead));
         uses.push_back(storageUse(image("ReSTIR.ShadedOutput", _restirUpdateShadeGP->get_output()),
+            Stage::Compute, Access::ShaderWrite));
+        uses.push_back(storageUse(image("ReSTIR.DiffuseSignal", _restirUpdateShadeGP->get_diffuse_output()),
+            Stage::Compute, Access::ShaderWrite));
+        uses.push_back(storageUse(image("ReSTIR.SpecularSignal", _restirUpdateShadeGP->get_specular_output()),
+            Stage::Compute, Access::ShaderWrite));
+        uses.push_back(storageUse(image("ReSTIR.BypassSignal", _restirUpdateShadeGP->get_bypass_output()),
             Stage::Compute, Access::ShaderWrite));
         graph.add_pass("ReSTIR.Shade", std::move(uses), [this, frameSlot](rhi::CommandList& cmd) {
             _restirUpdateShadeGP->draw(cmd, frameSlot);
@@ -721,7 +736,7 @@ void VulkanGIShadowsRaytracingGraphicsPipeline::append_passes(rg::RenderGraph& g
     for (auto pass = accumulationFirst; pass < accumulationEnd; ++pass)
         graph.depends_on(denoiserBegin, static_cast<rg::PassHandle>(pass));
     const auto denoiserFirst = graph.pass_count();
-    _spatialDenoiser->append_passes(graph, frameSlot);
+    _reblurDenoiser->append_passes(graph, static_cast<uint32_t>(frameSlot));
     const auto denoiserLast = graph.pass_count();
     const auto denoiserEnd = graph.add_pass("Denoiser.TimestampEnd", {}, [queryPool](rhi::CommandList& cmd) {
         cmd.timestamp(queryPool, 3, rhi::Stage::Bottom);
@@ -744,7 +759,7 @@ const Texture& VulkanGIShadowsRaytracingGraphicsPipeline::get_output() const
 
 const Texture& VulkanGIShadowsRaytracingGraphicsPipeline::get_denoised_output() const
 {
-	return _spatialDenoiser->get_output();
+	return _reblurDenoiser->get_output();
 }
 
 const Texture& VulkanGIShadowsRaytracingGraphicsPipeline::get_display_output() const
@@ -755,7 +770,7 @@ const Texture& VulkanGIShadowsRaytracingGraphicsPipeline::get_display_output() c
 void VulkanGIShadowsRaytracingGraphicsPipeline::reset_accumulation()
 {
 	_accumulationGP->reset_accumulation();
-	_spatialDenoiser->reset_history();
+	_reblurDenoiser->reset_history();
 	_historyValid = false;
 	_resetNrcTraining = true;
 }

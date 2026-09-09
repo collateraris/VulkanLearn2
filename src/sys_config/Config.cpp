@@ -49,15 +49,23 @@ bool vk_utils::Config::SaveRenderSettings(const RenderSettings& settings)
     if (settings.outputWidth < 320 || settings.outputHeight < 200 ||
         settings.outputWidth > 7680 || settings.outputHeight > 4320 ||
         settings.dlssMode < 0 || settings.dlssMode > 5) return false;
-    auto* root = mDocument.FirstChildElement();
+    // Apply may run long after startup. Reload the on-disk scene configuration
+    // so saving display settings cannot restore stale lighting or camera data.
+    tinyxml2::XMLDocument latest;
+    if (latest.LoadFile(mFileName.c_str()) != tinyxml2::XML_SUCCESS) return false;
+    auto* root = latest.FirstChildElement("config");
+    if (!root || root != latest.FirstChildElement() || root->NextSiblingElement()) return false;
     auto* window = root->FirstChildElement("window");
+    if (!window) return false;
     window->SetAttribute("width", settings.outputWidth);
     window->SetAttribute("height", settings.outputHeight);
     auto* upscaling = root->FirstChildElement("upscaling");
-    if (!upscaling) { upscaling = mDocument.NewElement("upscaling"); root->InsertEndChild(upscaling); }
+    if (!upscaling) { upscaling = latest.NewElement("upscaling"); root->InsertEndChild(upscaling); }
     static const char* modes[] = {"off", "quality", "balanced", "performance", "ultra_performance", "dlaa"};
     upscaling->SetAttribute("mode", modes[settings.dlssMode]);
-    return mDocument.SaveFile(mFileName.c_str()) == tinyxml2::XML_SUCCESS;
+    if (latest.SaveFile(mFileName.c_str()) != tinyxml2::XML_SUCCESS) return false;
+    latest.DeepCopy(&mDocument);
+    return true;
 }
 
 ERenderMode vk_utils::Config::GetRenderMode()
